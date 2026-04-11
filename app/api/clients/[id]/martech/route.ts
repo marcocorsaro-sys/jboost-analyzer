@@ -4,7 +4,7 @@ import { detectMartechStack } from '@/lib/martech/detect'
 import { trackLlmUsage } from '@/lib/tracking/llm-usage'
 import { logActivity } from '@/lib/tracking/activity'
 
-export const maxDuration = 60
+export const maxDuration = 120 // increased for multi-page crawl + deep scan
 
 // GET /api/clients/[id]/martech — get cached martech stack
 export async function GET(
@@ -41,7 +41,20 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ martech: martech || [], domain: client.domain })
+  // Fetch cached completeness report if available
+  const { data: reportRow } = await supabase
+    .from('client_martech_reports')
+    .select('completeness')
+    .eq('client_id', params.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  return NextResponse.json({
+    martech: martech || [],
+    domain: client.domain,
+    completeness: reportRow?.completeness || null,
+  })
 }
 
 // POST /api/clients/[id]/martech — detect/refresh martech stack
@@ -72,8 +85,8 @@ export async function POST(
   }
 
   try {
-    // Run detection (returns { tools, usage })
-    const { tools, usage } = await detectMartechStack(client.domain)
+    // Run enhanced detection (multi-page + completeness + optional deep scan)
+    const { tools, usage, completeness } = await detectMartechStack(client.domain)
 
     // Track LLM cost (non-blocking)
     trackLlmUsage({
@@ -84,7 +97,14 @@ export async function POST(
       operation: 'martech_detect',
       inputTokens: usage.input_tokens,
       outputTokens: usage.output_tokens,
-      metadata: { domain: client.domain, tools_detected: tools.length },
+      metadata: {
+        domain: client.domain,
+        tools_detected: tools.length,
+        completeness_score: completeness.score,
+        completeness_level: completeness.level,
+        pages_scanned: completeness.pagesScanned,
+        deep_scan: completeness.level === 'incomplete' || completeness.level === 'partial',
+      },
     }).catch(() => {})
 
     // Log activity (non-blocking)
@@ -93,7 +113,11 @@ export async function POST(
       action: 'detect_martech',
       resourceType: 'client',
       resourceId: params.id,
-      details: { domain: client.domain, tools_detected: tools.length },
+      details: {
+        domain: client.domain,
+        tools_detected: tools.length,
+        completeness: completeness.level,
+      },
     }).catch(() => {})
 
     // Delete existing cache for this client
@@ -124,6 +148,20 @@ export async function POST(
       }
     }
 
+    // Save completeness report (upsert: replace old report for this client)
+    try {
+      await supabase
+        .from('client_martech_reports')
+        .upsert({
+          client_id: params.id,
+          completeness,
+          created_at: new Date().toISOString(),
+        }, { onConflict: 'client_id' })
+    } catch (reportErr) {
+      // If table doesn't exist yet, silently fail — report will just not be cached
+      console.warn('[MarTech] Could not save completeness report:', reportErr)
+    }
+
     // Return fresh data
     const { data: martech } = await supabase
       .from('client_martech')
@@ -136,6 +174,7 @@ export async function POST(
       martech: martech || [],
       detected: tools.length,
       domain: client.domain,
+      completeness,
     })
   } catch (err) {
     console.error('MarTech detection error:', err)
