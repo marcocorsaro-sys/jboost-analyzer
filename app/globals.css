@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #111318;
+  --card: #1a1c24;
+  --card2: #22252e;
+  --lime: #c8e64a;
+  --lime-dim: #8ba832;
+  --white: #f0f0f0;
+  --gray: #7a7f8d;
+  --gray-l: #b0b5c0;
+  --green: #10b981;
+  --red: #ef4444;
+  --amber: #f59e0b;
+  --teal: #2dd4bf;
+  --border: #2a2d38;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--white);
+  line-height: 1.55;
+}
+
+/* Dark Dashboard Component Classes */
+.mono {
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-size: 0.72em;
+  color: var(--lime-dim);
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.kpi {
+  background: var(--card);
+  padding: 28px 24px;
+  text-align: left;
+}
+
+.kpi .val {
+  font-size: 2.2em;
+  font-weight: 800;
+  color: var(--lime);
+  line-height: 1.1;
+}
+
+.kpi .lab {
+  font-size: 0.78em;
+  color: var(--gray);
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-bar {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 8px;
+  padding: 10px 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85em;
+  color: var(--green);
+}
+
+.status-bar::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: var(--green);
+  border-radius: 50%;
+  display: inline-block;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Score band colors */
+.score-critical { color: var(--red); }
+.score-improve { color: var(--amber); }
+.score-good { color: var(--teal); }
+.score-excellent { color: var(--green); }
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gray);
+}
