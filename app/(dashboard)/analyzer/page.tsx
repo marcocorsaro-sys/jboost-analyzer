@@ -1,13 +1,28 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatDomain, isValidDomain } from '@/lib/utils'
 import { MAX_COMPETITORS, DRIVERS } from '@/lib/constants'
+import { useLocale } from '@/lib/i18n'
 import AnalysisProgress from '@/components/analyzer/AnalysisProgress'
+import DomainAutocomplete from '@/components/ui/DomainAutocomplete'
+import Link from 'next/link'
+
+interface ClientOption {
+  id: string
+  name: string
+  domain: string | null
+}
 
 export default function AnalyzerPage() {
-  const [domain, setDomain] = useState('')
+  const { t } = useLocale()
+  const searchParams = useSearchParams()
+  const preselectedClient = searchParams.get('client') || ''
+  const preselectedDomain = searchParams.get('domain') || ''
+
+  const [domain, setDomain] = useState(preselectedDomain)
   const [country, setCountry] = useState('us')
   const [language, setLanguage] = useState('en')
   const [competitors, setCompetitors] = useState<string[]>([''])
@@ -21,7 +36,42 @@ export default function AnalyzerPage() {
   const [startedAt, setStartedAt] = useState<string | null>(null)
   const [domainError, setDomainError] = useState<string | null>(null)
 
+  // Client picker state
+  const [clients, setClients] = useState<ClientOption[]>([])
+  const [selectedClientId, setSelectedClientId] = useState<string>(preselectedClient)
+  const [loadingClients, setLoadingClients] = useState(true)
+
   const supabase = createClient()
+
+  // Fetch clients for picker
+  useEffect(() => {
+    async function fetchClients() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data } = await supabase
+        .from('clients')
+        .select('id, name, domain')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .order('name')
+
+      setClients(data || [])
+      setLoadingClients(false)
+    }
+    fetchClients()
+  }, [])
+
+  // When client is selected, pre-fill domain
+  const handleClientChange = (clientId: string) => {
+    setSelectedClientId(clientId)
+    if (clientId) {
+      const client = clients.find(c => c.id === clientId)
+      if (client?.domain) {
+        setDomain(client.domain)
+      }
+    }
+  }
 
   // Poll for analysis status updates (with Realtime as bonus)
   useEffect(() => {
@@ -139,7 +189,7 @@ export default function AnalyzerPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
-      // Insert analysis record
+      // Insert analysis record — now with optional client_id
       const { data: analysis, error: insertError } = await supabase
         .from('analyses')
         .insert({
@@ -150,6 +200,7 @@ export default function AnalyzerPage() {
           target_topic: targetTopic || null,
           competitors: cleanCompetitors,
           status: 'running',
+          ...(selectedClientId ? { client_id: selectedClientId } : {}),
         })
         .select()
         .single()
@@ -187,16 +238,18 @@ export default function AnalyzerPage() {
     }
   }
 
+  const selectedClient = clients.find(c => c.id === selectedClientId)
+
   return (
     <div className="max-w-3xl">
       {/* Hero */}
       <div className="mb-10">
         <h1 className="text-4xl font-black leading-tight" style={{ color: 'var(--gray)' }}>
-          Analyze your<br />
-          <span style={{ color: 'var(--lime)', fontStyle: 'italic' }}>digital presence</span>.
+          {t('analyzer.title1')}<br />
+          <span style={{ color: 'var(--lime)', fontStyle: 'italic' }}>{t('analyzer.title2')}</span>.
         </h1>
         <p className="mt-4 text-sm" style={{ color: 'var(--gray)' }}>
-          9-driver SEO/GEO analysis with competitor benchmarking, AI-powered insights, and actionable recommendations powered by the J-Boost framework.
+          {t('analyzer.subtitle')}
         </p>
       </div>
 
@@ -215,18 +268,67 @@ export default function AnalyzerPage() {
       {/* Analysis Form */}
       {!isRunning && (
         <div className="space-y-6">
+
+          {/* Client Picker */}
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-2"
+              style={{ color: 'var(--lime)' }}>
+              {t('analyzer.client')}
+              <span className="ml-2 font-normal normal-case tracking-normal" style={{ color: 'var(--gray)' }}>
+                {t('analyzer.optionalClient')}
+              </span>
+            </label>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <select
+                value={selectedClientId}
+                onChange={e => handleClientChange(e.target.value)}
+                disabled={isRunning || loadingClients}
+                className="flex-1 px-4 py-3 rounded-lg text-sm outline-none"
+                style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--white)' }}
+              >
+                <option value="">{t('analyzer.noClient')}</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} {c.domain ? `(${c.domain})` : ''}
+                  </option>
+                ))}
+              </select>
+              <Link
+                href="/clients/new"
+                style={{
+                  padding: '10px 14px',
+                  background: 'var(--card)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  color: 'var(--lime)',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {t('analyzer.new')}
+              </Link>
+            </div>
+            {selectedClient && (
+              <p className="mt-1 text-xs" style={{ color: 'var(--teal)' }}>
+                {t('analyzer.analysisWillBeAssociated')} &quot;{selectedClient.name}&quot;
+              </p>
+            )}
+          </div>
+
           {/* Domain */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider mb-2"
               style={{ color: 'var(--lime)' }}>
-              Domain
+              {t('analyzer.domain')}
             </label>
-            <input
-              type="text"
+            <DomainAutocomplete
               value={domain}
-              onChange={e => setDomain(e.target.value)}
+              onChange={setDomain}
               placeholder="example.com"
               disabled={isRunning}
+              error={!!domainError}
               className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-colors"
               style={{
                 background: 'var(--card)',
@@ -240,7 +342,7 @@ export default function AnalyzerPage() {
               <p className="mt-1 text-xs" style={{ color: 'var(--red)' }}>{domainError}</p>
             ) : (
               <p className="mt-1 text-xs" style={{ color: 'var(--gray)' }}>
-                Enter domain without protocol (e.g., example.com, not https://example.com)
+                {t('analyzer.domainHelp')}
               </p>
             )}
           </div>
@@ -249,7 +351,7 @@ export default function AnalyzerPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider mb-2"
-                style={{ color: 'var(--lime)' }}>Country</label>
+                style={{ color: 'var(--lime)' }}>{t('analyzer.country')}</label>
               <select
                 value={country}
                 onChange={e => setCountry(e.target.value)}
@@ -267,7 +369,7 @@ export default function AnalyzerPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider mb-2"
-                style={{ color: 'var(--lime)' }}>Language</label>
+                style={{ color: 'var(--lime)' }}>{t('analyzer.language')}</label>
               <select
                 value={language}
                 onChange={e => setLanguage(e.target.value)}
@@ -288,18 +390,17 @@ export default function AnalyzerPage() {
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider mb-2"
               style={{ color: 'var(--lime)' }}>
-              Competitors ({competitors.length}/{MAX_COMPETITORS})
+              {t('analyzer.competitors')} ({competitors.length}/{MAX_COMPETITORS})
             </label>
             <p className="text-xs mb-3" style={{ color: 'var(--gray)' }}>
-              Add up to {MAX_COMPETITORS} competitor domains for comparative analysis to benchmark your performance.
+              {t('analyzer.competitorHelp').replace('{max}', String(MAX_COMPETITORS))}
             </p>
             <div className="space-y-2">
               {competitors.map((comp, i) => (
                 <div key={i} className="flex gap-2">
-                  <input
-                    type="text"
+                  <DomainAutocomplete
                     value={comp}
-                    onChange={e => updateCompetitor(i, e.target.value)}
+                    onChange={v => updateCompetitor(i, v)}
                     placeholder={`competitor${i + 1}.com`}
                     disabled={isRunning}
                     className="flex-1 px-4 py-2.5 rounded-lg text-sm outline-none"
@@ -325,7 +426,7 @@ export default function AnalyzerPage() {
                 className="mt-2 text-xs font-medium"
                 style={{ color: 'var(--teal)' }}
               >
-                + Add competitor
+                {t('analyzer.addCompetitor')}
               </button>
             )}
           </div>
@@ -334,9 +435,9 @@ export default function AnalyzerPage() {
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider mb-2"
               style={{ color: 'var(--lime)' }}>
-              Target Topic
+              {t('analyzer.targetTopic')}
               <span className="ml-2 font-normal normal-case tracking-normal" style={{ color: 'var(--gray)' }}>
-                (Optional)
+                {t('analyzer.targetTopicOptional')}
               </span>
             </label>
             <input
@@ -349,14 +450,14 @@ export default function AnalyzerPage() {
               style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--white)' }}
             />
             <p className="mt-1 text-xs" style={{ color: 'var(--gray)' }}>
-              Specify a topic to focus the Content, Discoverability, and AI Relevance analysis on a particular sector or niche.
+              {t('analyzer.targetTopicHelp')}
             </p>
           </div>
 
           {/* Drivers Preview */}
           <div className="p-4 rounded-lg" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
             <div className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--lime-dim)' }}>
-              9 Drivers to be analyzed
+              {t('analyzer.driversPreview')}
             </div>
             <div className="flex flex-wrap gap-2">
               {DRIVERS.map(d => (
@@ -386,7 +487,7 @@ export default function AnalyzerPage() {
               cursor: isRunning || !domain || domainError ? 'not-allowed' : 'pointer',
             }}
           >
-            Start Complete Analysis
+            {t('analyzer.startAnalysis')}
           </button>
         </div>
       )}

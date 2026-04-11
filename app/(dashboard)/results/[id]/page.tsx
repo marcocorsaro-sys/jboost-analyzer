@@ -8,7 +8,6 @@ import ScoreDisplay from '@/components/analyzer/ScoreDisplay'
 import SpiderChart from '@/components/analyzer/SpiderChart'
 import DriverDetail from '@/components/analyzer/DriverDetail'
 import PriorityMatrix from '@/components/analyzer/PriorityMatrix'
-import ExecutiveSummary from '@/components/analyzer/ExecutiveSummary'
 import Link from 'next/link'
 
 interface DriverResultRow {
@@ -45,6 +44,8 @@ export default function AnalysisDetailPage() {
   const [loading, setLoading] = useState(true)
   const [generatingDriver, setGeneratingDriver] = useState<string | null>(null)
   const [generatingMatrix, setGeneratingMatrix] = useState(false)
+  const [clientName, setClientName] = useState<string | null>(null)
+  const [clientId, setClientId] = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -56,7 +57,20 @@ export default function AnalysisDetailPage() {
       supabase.from('priority_matrix').select('*').eq('analysis_id', analysisId).single(),
     ])
 
-    if (analysisRes.data) setAnalysis(analysisRes.data)
+    if (analysisRes.data) {
+      setAnalysis(analysisRes.data)
+      // Fetch client name if linked
+      const cid = analysisRes.data.client_id
+      if (cid) {
+        setClientId(cid)
+        const { data: clientData } = await supabase
+          .from('clients')
+          .select('name')
+          .eq('id', cid)
+          .single()
+        if (clientData) setClientName(clientData.name)
+      }
+    }
     if (driversRes.data) setDriverResults(driversRes.data as DriverResultRow[])
     if (competitorsRes.data) setCompetitors(competitorsRes.data as CompetitorRow[])
     if (matrixRes.data) setPriorityMatrix(matrixRes.data as PriorityMatrixRow)
@@ -138,12 +152,6 @@ export default function AnalysisDetailPage() {
     driverScoresMap[dr.driver_name] = dr.score
   })
 
-  // Build driver results map for ExecutiveSummary
-  const driverResultsMap: Record<string, { score: number | null; status: string }> = {}
-  driverResults.forEach(dr => {
-    driverResultsMap[dr.driver_name] = { score: dr.score, status: dr.status }
-  })
-
   // Competitor data for SpiderChart
   const competitorChartData = competitors.map(c => ({
     domain: c.competitor_domain,
@@ -160,12 +168,25 @@ export default function AnalysisDetailPage() {
     <div style={{ padding: '32px', maxWidth: '1200px' }}>
       {/* Header */}
       <div style={{ marginBottom: '24px' }}>
-        <Link
-          href="/results"
-          style={{ color: '#6b7280', textDecoration: 'none', fontSize: '13px', display: 'inline-block', marginBottom: '12px' }}
-        >
-          ← Back to Results
-        </Link>
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '12px', fontSize: '13px' }}>
+          <Link
+            href="/results"
+            style={{ color: '#6b7280', textDecoration: 'none' }}
+          >
+            ← Risultati
+          </Link>
+          {clientName && clientId && (
+            <>
+              <span style={{ color: '#2a2d35' }}>|</span>
+              <Link
+                href={`/clients/${clientId}`}
+                style={{ color: '#c8e64a', textDecoration: 'none' }}
+              >
+                ← {clientName}
+              </Link>
+            </>
+          )}
+        </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <ScoreDisplay score={overallScore} size="lg" />
@@ -179,7 +200,7 @@ export default function AnalysisDetailPage() {
             }}>
               {domain}
             </h1>
-            <div style={{ display: 'flex', gap: '12px', fontSize: '13px', color: '#6b7280' }}>
+            <div style={{ display: 'flex', gap: '12px', fontSize: '13px', color: '#6b7280', alignItems: 'center' }}>
               <span style={{
                 padding: '2px 8px',
                 borderRadius: '4px',
@@ -191,8 +212,24 @@ export default function AnalysisDetailPage() {
               }}>
                 {status}
               </span>
+              {clientName && (
+                <Link
+                  href={`/clients/${clientId}`}
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    background: 'rgba(200, 230, 74, 0.08)',
+                    color: '#c8e64a',
+                    textDecoration: 'none',
+                  }}
+                >
+                  {clientName}
+                </Link>
+              )}
               <span>{(analysis.country as string)?.toUpperCase()}</span>
-              <span>{new Date(analysis.created_at as string).toLocaleDateString('en-GB', {
+              <span>{new Date(analysis.created_at as string).toLocaleDateString('it-IT', {
                 day: '2-digit', month: 'short', year: 'numeric',
               })}</span>
               {analysis.target_topic ? <span>Topic: {String(analysis.target_topic)}</span> : null}
@@ -295,16 +332,6 @@ export default function AnalysisDetailPage() {
         />
       </div>
 
-      {/* Executive Summary */}
-      <div style={{ marginBottom: '24px' }}>
-        <ExecutiveSummary
-          analysisId={analysisId}
-          domain={domain}
-          overallScore={overallScore}
-          driverResults={driverResultsMap}
-          companyContext={analysis.company_context as Record<string, unknown> | undefined}
-        />
-      </div>
     </div>
   )
 }

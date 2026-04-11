@@ -3,6 +3,7 @@ import { generateObject } from 'ai'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { trackLlmUsage } from '@/lib/tracking/llm-usage'
 
 const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY ?? '' })
 
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { analysisId, driverName, score, issues, domain, companyContext } = await req.json()
+    const { analysisId, driverName, score, issues, domain, companyContext, clientId } = await req.json()
 
     if (!analysisId || !driverName) {
       return NextResponse.json({ error: 'Missing analysisId or driverName' }, { status: 400 })
@@ -57,6 +58,18 @@ Provide solutions in order of priority (highest impact first).`
       schema: SolutionSchema,
       prompt,
     })
+
+    // Track LLM cost (non-blocking)
+    trackLlmUsage({
+      userId: user.id,
+      clientId: clientId || null,
+      provider: 'openai',
+      model: 'gpt-4-turbo',
+      operation: 'llm_solutions',
+      inputTokens: result.usage.promptTokens || 0,
+      outputTokens: result.usage.completionTokens || 0,
+      metadata: { domain, driverName, analysisId },
+    }).catch(() => {})
 
     // Save solutions to driver_results
     await supabase

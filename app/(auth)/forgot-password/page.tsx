@@ -3,13 +3,16 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import { LocaleProvider, useLocale } from '@/lib/i18n'
+import LocaleSwitcher from '@/components/ui/LocaleSwitcher'
 
-export default function ForgotPasswordPage() {
+function ForgotPasswordForm() {
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
+  const { t } = useLocale()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -32,13 +35,18 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg)' }}>
+      {/* Language switcher - top right */}
+      <div style={{ position: 'absolute', top: '16px', right: '16px' }}>
+        <LocaleSwitcher />
+      </div>
+
       <div className="w-full max-w-md p-8">
         <div className="text-center mb-10">
           <div className="font-mono text-xs tracking-widest uppercase" style={{ color: 'var(--lime-dim)' }}>
             // JBoost Analyzer
           </div>
           <h1 className="text-2xl font-bold mt-4" style={{ color: 'var(--white)' }}>
-            Reset Password
+            {t('auth.resetPassword')}
           </h1>
         </div>
 
@@ -46,14 +54,14 @@ export default function ForgotPasswordPage() {
           <div className="text-center">
             <div className="status-bar mb-4">Check your email for a reset link</div>
             <Link href="/login" className="text-sm" style={{ color: 'var(--teal)' }}>
-              Back to login
+              {t('auth.backToLogin')}
             </Link>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider mb-2"
-                style={{ color: 'var(--lime)' }}>Email</label>
+                style={{ color: 'var(--lime)' }}>{t('auth.email')}</label>
               <input
                 type="email"
                 value={email}
@@ -74,15 +82,23 @@ export default function ForgotPasswordPage() {
             <button type="submit" disabled={loading}
               className="w-full py-3.5 rounded-lg text-sm font-bold uppercase tracking-widest"
               style={{ background: 'var(--lime)', color: 'var(--bg)' }}>
-              {loading ? 'Sending...' : 'Send Reset Link'}
+              {loading ? t('auth.sending') : t('auth.sendResetLink')}
             </button>
 
             <div className="text-center">
-              <Link href="/login" className="text-xs" style={{ color: 'var(--teal)' }}>Back to login</Link>
+              <Link href="/login" className="text-xs" style={{ color: 'var(--teal)' }}>{t('auth.backToLogin')}</Link>
             </div>
           </form>
         )}
       </div>
     </div>
+  )
+}
+
+export default function ForgotPasswordPage() {
+  return (
+    <LocaleProvider>
+      <ForgotPasswordForm />
+    </LocaleProvider>
   )
 }

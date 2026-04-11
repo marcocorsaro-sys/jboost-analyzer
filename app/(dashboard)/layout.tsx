@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Sidebar from '@/components/layout/Sidebar'
 import TopBar from '@/components/layout/TopBar'
+import { LocaleProvider } from '@/lib/i18n'
 
 export default async function DashboardLayout({
   children,
@@ -10,31 +11,18 @@ export default async function DashboardLayout({
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Fetch quick stats
-  let analysesCount = 0
-  let averageScore: number | null = null
+  let clientsCount = 0
   let isAdmin = false
 
   if (user) {
-    const { count } = await supabase
-      .from('analyses')
+    // Count active clients
+    const { count: cc } = await supabase
+      .from('clients')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
-      .eq('status', 'completed')
+      .eq('status', 'active')
 
-    analysesCount = count ?? 0
-
-    const { data: avgData } = await supabase
-      .from('analyses')
-      .select('overall_score')
-      .eq('user_id', user.id)
-      .eq('status', 'completed')
-      .not('overall_score', 'is', null)
-
-    if (avgData && avgData.length > 0) {
-      const sum = avgData.reduce((acc, a) => acc + (a.overall_score ?? 0), 0)
-      averageScore = sum / avgData.length
-    }
+    clientsCount = cc ?? 0
 
     // Check if admin
     const { data: profile } = await supabase
@@ -47,18 +35,19 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar
-        analysesCount={analysesCount}
-        averageScore={averageScore}
-        isAdmin={isAdmin}
-      />
-      <div className="flex-1 ml-64 flex flex-col">
-        <TopBar userEmail={user?.email} />
-        <main className="flex-1 p-8">
-          {children}
-        </main>
+    <LocaleProvider>
+      <div className="flex min-h-screen">
+        <Sidebar
+          clientsCount={clientsCount}
+          isAdmin={isAdmin}
+        />
+        <div className="flex-1 ml-64 flex flex-col">
+          <TopBar userEmail={user?.email} />
+          <main className="flex-1 p-8">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </LocaleProvider>
   )
 }

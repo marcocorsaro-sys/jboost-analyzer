@@ -3,6 +3,7 @@ import { generateObject } from 'ai'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { trackLlmUsage } from '@/lib/tracking/llm-usage'
 
 const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY ?? '' })
 
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { analysisId } = await req.json()
+    const { analysisId, clientId } = await req.json()
 
     if (!analysisId) {
       return NextResponse.json({ error: 'Missing analysisId' }, { status: 400 })
@@ -79,6 +80,18 @@ Aim for 2-4 items per quadrant. Focus on the most actionable items.`
       schema: PriorityMatrixSchema,
       prompt,
     })
+
+    // Track LLM cost (non-blocking)
+    trackLlmUsage({
+      userId: user.id,
+      clientId: clientId || null,
+      provider: 'openai',
+      model: 'gpt-4-turbo',
+      operation: 'llm_priority_matrix',
+      inputTokens: result.usage.promptTokens || 0,
+      outputTokens: result.usage.completionTokens || 0,
+      metadata: { analysisId },
+    }).catch(() => {})
 
     // Save to priority_matrix table
     await supabase

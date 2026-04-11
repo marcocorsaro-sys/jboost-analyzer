@@ -4,14 +4,17 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { LocaleProvider, useLocale } from '@/lib/i18n'
+import LocaleSwitcher from '@/components/ui/LocaleSwitcher'
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
+  const { t } = useLocale()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -26,12 +29,24 @@ export default function LoginPage() {
       return
     }
 
+    // Log login activity (fire-and-forget)
+    fetch('/api/activity', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'login' }),
+    }).catch(() => {})
+
     router.push('/analyzer')
     router.refresh()
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg)' }}>
+      {/* Language switcher - top right */}
+      <div style={{ position: 'absolute', top: '16px', right: '16px' }}>
+        <LocaleSwitcher />
+      </div>
+
       <div className="w-full max-w-md p-8">
         {/* Logo */}
         <div className="text-center mb-10">
@@ -50,7 +65,7 @@ export default function LoginPage() {
         <form onSubmit={handleLogin} className="space-y-5">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider mb-2"
-              style={{ color: 'var(--lime)' }}>Email</label>
+              style={{ color: 'var(--lime)' }}>{t('auth.email')}</label>
             <input
               type="email"
               value={email}
@@ -64,7 +79,7 @@ export default function LoginPage() {
 
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider mb-2"
-              style={{ color: 'var(--lime)' }}>Password</label>
+              style={{ color: 'var(--lime)' }}>{t('auth.password')}</label>
             <input
               type="password"
               value={password}
@@ -92,16 +107,24 @@ export default function LoginPage() {
               color: loading ? 'var(--gray)' : 'var(--bg)',
             }}
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? t('auth.signingIn') : t('auth.signIn')}
           </button>
         </form>
 
         <div className="text-center mt-6">
           <Link href="/forgot-password" className="text-xs" style={{ color: 'var(--teal)' }}>
-            Forgot password?
+            {t('auth.forgotPassword')}
           </Link>
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <LocaleProvider>
+      <LoginForm />
+    </LocaleProvider>
   )
 }

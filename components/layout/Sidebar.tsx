@@ -3,92 +3,124 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { useLocale } from '@/lib/i18n'
+import type { TranslationKey } from '@/lib/i18n'
 
-const navItems = [
-  { href: '/analyzer', label: 'Analyze Domain', icon: '◎' },
-  { href: '/results', label: 'Saved Results', icon: '◫' },
-  { href: '/settings', label: 'Settings', icon: '⚙' },
+/* ── Navigation sections ── */
+const NAV_MAIN: { href: string; labelKey: TranslationKey; icon: string }[] = [
+  { href: '/dashboard', labelKey: 'nav.dashboard', icon: '◉' },
+  { href: '/clients', labelKey: 'nav.clients', icon: '◎' },
+  { href: '/ask-j', labelKey: 'nav.askJ', icon: '◈' },
+]
+
+const NAV_TOOLS: { href: string; labelKey: TranslationKey; icon: string }[] = [
+  { href: '/analyzer', labelKey: 'nav.analyzeDomain', icon: '⊕' },
+  { href: '/results', labelKey: 'nav.results', icon: '◫' },
+]
+
+const NAV_SYSTEM: { href: string; labelKey: TranslationKey; icon: string }[] = [
+  { href: '/settings', labelKey: 'nav.settings', icon: '⚙' },
 ]
 
 interface SidebarProps {
-  analysesCount?: number
-  averageScore?: number | null
+  clientsCount?: number
   isAdmin?: boolean
 }
 
-export default function Sidebar({ analysesCount = 0, averageScore = null, isAdmin = false }: SidebarProps) {
+export default function Sidebar({
+  clientsCount = 0,
+  isAdmin = false,
+}: SidebarProps) {
   const pathname = usePathname()
+  const { t } = useLocale()
+
+  const isActive = (href: string) =>
+    pathname === href || pathname.startsWith(href + '/')
+
+  const renderLink = (item: { href: string; labelKey: TranslationKey; icon: string }) => {
+    const active = isActive(item.href)
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        className={cn(
+          'flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all',
+          active
+            ? 'text-[var(--lime)]'
+            : 'text-[var(--gray)] hover:text-[var(--white)] hover:bg-[var(--card2)]'
+        )}
+        style={active ? { background: 'rgba(200, 230, 74, 0.08)' } : undefined}
+      >
+        <span className="text-base w-5 text-center">{item.icon}</span>
+        <span className="flex-1">{t(item.labelKey)}</span>
+      </Link>
+    )
+  }
 
   return (
-    <aside className="w-64 h-screen fixed left-0 top-0 flex flex-col"
-      style={{ background: 'var(--card)', borderRight: '1px solid var(--border)' }}>
-
+    <aside
+      className="w-64 h-screen fixed left-0 top-0 flex flex-col"
+      style={{ background: 'var(--card)', borderRight: '1px solid var(--border)' }}
+    >
       {/* Logo */}
       <div className="p-6 border-b" style={{ borderColor: 'var(--border)' }}>
-        <div className="font-mono text-xs tracking-widest uppercase" style={{ color: 'var(--lime-dim)' }}>
+        <div
+          className="font-mono text-xs tracking-widest uppercase"
+          style={{ color: 'var(--lime-dim)' }}
+        >
           // JBoost
         </div>
         <h1 className="text-xl font-bold mt-1" style={{ color: 'var(--lime)' }}>
-          Analyzer
+          Analyzer <span className="text-xs font-normal" style={{ color: 'var(--gray)' }}>v2</span>
         </h1>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1">
-        {navItems.map(item => {
-          const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all',
-                isActive
-                  ? 'text-[var(--lime)]'
-                  : 'text-[var(--gray)] hover:text-[var(--white)] hover:bg-[var(--card2)]'
-              )}
-              style={isActive ? { background: 'rgba(200, 230, 74, 0.08)' } : undefined}
-            >
-              <span className="text-lg">{item.icon}</span>
-              {item.label}
-            </Link>
-          )
-        })}
-
-        {isAdmin && (
-          <Link
-            href="/admin"
-            className={cn(
-              'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all',
-              pathname === '/admin'
-                ? 'text-[var(--lime)]'
-                : 'text-[var(--gray)] hover:text-[var(--white)] hover:bg-[var(--card2)]'
-            )}
-            style={pathname === '/admin' ? { background: 'rgba(200, 230, 74, 0.08)' } : undefined}
+      <nav className="flex-1 p-4 space-y-6 overflow-y-auto">
+        {/* Main */}
+        <div className="space-y-0.5">
+          <div
+            className="text-[10px] uppercase tracking-widest px-4 mb-2 font-mono"
+            style={{ color: 'var(--gray)' }}
           >
-            <span className="text-lg">⊞</span>
-            Admin Panel
-          </Link>
-        )}
+            {t('nav.navigation')}
+          </div>
+          {NAV_MAIN.map(renderLink)}
+        </div>
+
+        {/* Tools */}
+        <div className="space-y-0.5">
+          <div
+            className="text-[10px] uppercase tracking-widest px-4 mb-2 font-mono"
+            style={{ color: 'var(--gray)' }}
+          >
+            {t('nav.tools')}
+          </div>
+          {NAV_TOOLS.map(renderLink)}
+        </div>
+
+        {/* System */}
+        <div className="space-y-0.5">
+          <div
+            className="text-[10px] uppercase tracking-widest px-4 mb-2 font-mono"
+            style={{ color: 'var(--gray)' }}
+          >
+            {t('nav.system')}
+          </div>
+          {NAV_SYSTEM.map(renderLink)}
+          {isAdmin && renderLink({ href: '/admin', labelKey: 'nav.adminPanel', icon: '⊞' })}
+        </div>
       </nav>
 
       {/* Quick Stats */}
       <div className="p-4 mx-4 mb-4 rounded-lg" style={{ background: 'var(--bg)' }}>
         <div className="space-y-3">
           <div>
-            <div className="text-xs uppercase tracking-wider" style={{ color: 'var(--gray)' }}>
-              Analyses Completed
+            <div className="text-[10px] uppercase tracking-wider font-mono" style={{ color: 'var(--gray)' }}>
+              {t('dashboard.activeClients')}
             </div>
             <div className="text-2xl font-bold" style={{ color: 'var(--lime)' }}>
-              {analysesCount}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-wider" style={{ color: 'var(--gray)' }}>
-              Average Score
-            </div>
-            <div className="text-2xl font-bold" style={{ color: averageScore ? 'var(--lime)' : 'var(--gray)' }}>
-              {averageScore !== null ? Math.round(averageScore) : 'N/A'}
+              {clientsCount}
             </div>
           </div>
         </div>

@@ -3,6 +3,7 @@ import { generateObject } from 'ai'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { trackLlmUsage } from '@/lib/tracking/llm-usage'
 
 const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY ?? '' })
 
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { analysisId, domain, targetTopic } = await req.json()
+    const { analysisId, domain, targetTopic, clientId } = await req.json()
 
     if (!domain) {
       return NextResponse.json({ error: 'Missing domain' }, { status: 400 })
@@ -50,6 +51,18 @@ Be concise but informative. If you're not sure about specific details, provide r
       schema: ContextSchema,
       prompt,
     })
+
+    // Track LLM cost (non-blocking)
+    trackLlmUsage({
+      userId: user.id,
+      clientId: clientId || null,
+      provider: 'openai',
+      model: 'gpt-4-turbo',
+      operation: 'llm_context',
+      inputTokens: result.usage.promptTokens || 0,
+      outputTokens: result.usage.completionTokens || 0,
+      metadata: { domain, analysisId: analysisId || null },
+    }).catch(() => {})
 
     // Save context to analysis
     if (analysisId) {

@@ -32,28 +32,6 @@ export type AnalysisStatus = 'pending' | 'running' | 'completed' | 'failed'
 // Driver status
 export type DriverStatus = 'ok' | 'no_results' | 'failed' | 'manual'
 
-// LLM roles for executive summary
-export const SENDER_ROLES = [
-  'SEO Expert',
-  'Digital Strategist',
-  'Sales Manager',
-  'Account Manager',
-] as const
-
-export const RECIPIENT_ROLES = [
-  'CMO',
-  'CEO',
-  'SEO Manager',
-  'Brand Manager',
-  'Procurement',
-] as const
-
-export const SUMMARY_LENGTHS = [
-  { value: 100, label: '~100 words' },
-  { value: 250, label: '~250 words' },
-  { value: 500, label: '~500 words' },
-] as const
-
 // Priority matrix quadrants
 export const PRIORITY_QUADRANTS = [
   { key: 'opportunities', label: 'Opportunities', description: 'High priority + High impact' },

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { logActivity } from '@/lib/tracking/activity'
 
 // POST — create a new user (admin only)
 export async function POST(request: Request) {
@@ -77,6 +78,15 @@ export async function POST(request: Request) {
     console.error('Profile update error:', updateError)
     // Not critical — profile trigger may not have fired yet
   }
+
+  // Log activity (non-blocking)
+  logActivity({
+    userId: user.id,
+    action: 'create_user',
+    resourceType: 'user',
+    resourceId: newUser.user.id,
+    details: { email, role: role || 'user' },
+  }).catch(() => {})
 
   return NextResponse.json({
     success: true,

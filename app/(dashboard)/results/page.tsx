@@ -15,32 +15,68 @@ interface Analysis {
   created_at: string
   completed_at: string | null
   competitors: string[]
+  client_id: string | null
+}
+
+interface ClientInfo {
+  id: string
+  name: string
 }
 
 export default function ResultsPage() {
   const [analyses, setAnalyses] = useState<Analysis[]>([])
+  const [clients, setClients] = useState<Record<string, ClientInfo>>({})
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'completed' | 'running' | 'failed'>('all')
+  const [clientFilter, setClientFilter] = useState<string>('all')
+  const [clientList, setClientList] = useState<ClientInfo[]>([])
   const supabase = createClient()
 
   useEffect(() => {
-    fetchAnalyses()
+    fetchData()
   }, [])
 
-  async function fetchAnalyses() {
+  async function fetchData() {
     setLoading(true)
-    const { data } = await supabase
+
+    // Fetch analyses
+    const { data: analysesData } = await supabase
       .from('analyses')
       .select('*')
       .order('created_at', { ascending: false })
 
-    setAnalyses(data ?? [])
+    const allAnalyses = analysesData ?? []
+    setAnalyses(allAnalyses)
+
+    // Fetch all client names for analyses that have client_id
+    const clientIds = Array.from(new Set(allAnalyses.filter(a => a.client_id).map(a => a.client_id!)))
+    if (clientIds.length > 0) {
+      const { data: clientsData } = await supabase
+        .from('clients')
+        .select('id, name')
+        .in('id', clientIds)
+
+      const map: Record<string, ClientInfo> = {}
+      const list: ClientInfo[] = []
+      for (const c of (clientsData || [])) {
+        map[c.id] = c
+        list.push(c)
+      }
+      setClients(map)
+      setClientList(list.sort((a, b) => a.name.localeCompare(b.name)))
+    }
+
     setLoading(false)
   }
 
-  const filtered = filter === 'all'
-    ? analyses
-    : analyses.filter(a => a.status === filter)
+  const filtered = analyses.filter(a => {
+    if (filter !== 'all' && a.status !== filter) return false
+    if (clientFilter !== 'all') {
+      if (clientFilter === 'none' && a.client_id !== null) return false
+      if (clientFilter !== 'none' && a.client_id !== clientFilter) return false
+    }
+    return true
+  })
 
   const statusColor = (status: string) => {
     switch (status) {
@@ -55,9 +91,32 @@ export default function ResultsPage() {
     <div style={{ padding: '32px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <h1 style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '24px', fontWeight: 700, color: '#ffffff' }}>
-          Saved Results
+          Risultati
         </h1>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {/* Client filter */}
+          {clientList.length > 0 && (
+            <select
+              value={clientFilter}
+              onChange={e => setClientFilter(e.target.value)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                border: 'none',
+                fontSize: '12px',
+                background: '#1e2028',
+                color: '#a0a0a0',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="all">Tutti i clienti</option>
+              <option value="none">Senza cliente</option>
+              {clientList.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          )}
+          {/* Status filter */}
           {(['all', 'completed', 'running', 'failed'] as const).map(f => (
             <button
               key={f}
@@ -74,7 +133,7 @@ export default function ResultsPage() {
                 transition: 'all 0.2s',
               }}
             >
-              {f.charAt(0).toUpperCase() + f.slice(1)}
+              {f === 'all' ? 'Tutti' : f === 'completed' ? 'Completate' : f === 'running' ? 'In corso' : 'Fallite'}
             </button>
           ))}
         </div>
@@ -82,12 +141,12 @@ export default function ResultsPage() {
 
       {loading ? (
         <div style={{ color: '#6b7280', textAlign: 'center', padding: '60px 0' }}>
-          Loading analyses...
+          Caricamento analisi...
         </div>
       ) : filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 0' }}>
           <p style={{ color: '#6b7280', fontSize: '16px', marginBottom: '16px' }}>
-            {filter === 'all' ? 'No analyses yet.' : `No ${filter} analyses.`}
+            {filter === 'all' ? 'Nessuna analisi.' : `Nessuna analisi ${filter}.`}
           </p>
           <Link
             href="/analyzer"
@@ -102,13 +161,14 @@ export default function ResultsPage() {
               fontSize: '14px',
             }}
           >
-            Run Your First Analysis
+            Lancia prima analisi
           </Link>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {filtered.map(analysis => {
             const band = analysis.overall_score !== null ? getScoreBand(analysis.overall_score) : null
+            const clientName = analysis.client_id ? clients[analysis.client_id]?.name : null
             return (
               <Link
                 key={analysis.id}
@@ -178,10 +238,25 @@ export default function ResultsPage() {
                       >
                         {analysis.status}
                       </span>
+                      {/* Client badge */}
+                      {clientName && (
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            background: 'rgba(200, 230, 74, 0.08)',
+                            color: '#c8e64a',
+                          }}
+                        >
+                          {clientName}
+                        </span>
+                      )}
                     </div>
                     <div style={{ display: 'flex', gap: '16px', fontSize: '13px', color: '#6b7280' }}>
                       <span>{analysis.country?.toUpperCase()}</span>
-                      <span>{new Date(analysis.created_at).toLocaleDateString('en-GB', {
+                      <span>{new Date(analysis.created_at).toLocaleDateString('it-IT', {
                         day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
                       })}</span>
                       {analysis.competitors && analysis.competitors.length > 0 && (
