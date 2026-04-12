@@ -5,6 +5,7 @@ import { calcDelta } from '@/lib/trends/calculate'
 import Link from 'next/link'
 import ClientOverviewTrend from '@/components/clients/ClientOverviewTrend'
 import LifecycleActions from '@/components/clients/LifecycleActions'
+import MonitoringPanel from '@/components/clients/MonitoringPanel'
 import TeamPanel from '@/components/clients/TeamPanel'
 import T from '@/components/ui/T'
 import type { ClientLifecycleStage } from '@/lib/types/client'
@@ -442,6 +443,11 @@ export default async function ClientOverviewPage({
             })}
           </div>
         </div>
+      )}
+
+      {/* Monitoring (Phase 4C) — only meaningful when there's an active engagement */}
+      {(lifecycleStage === 'active' || lifecycleStage === 'churned') && (
+        <MonitoringPanel clientId={params.id} canEdit={canEdit} />
       )}
 
       {/* Team & Sharing (Phase 4A) */}
