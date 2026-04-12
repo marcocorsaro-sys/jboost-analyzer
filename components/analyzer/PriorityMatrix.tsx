@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useLocale } from '@/lib/i18n/context'
 
 interface MatrixItem {
   title: string
@@ -20,13 +21,6 @@ interface PriorityMatrixProps {
   hasData: boolean
 }
 
-const QUADRANTS = [
-  { key: 'opportunities', label: 'Opportunities', subtitle: 'Quick Wins', color: '#22c55e', icon: '⚡' },
-  { key: 'issues', label: 'Issues', subtitle: 'Must Fix', color: '#ef4444', icon: '🔴' },
-  { key: 'improvements', label: 'Improvements', subtitle: 'Strategic', color: '#6366f1', icon: '📈' },
-  { key: 'suggestions', label: 'Suggestions', subtitle: 'Nice to Have', color: '#6b7280', icon: '💡' },
-] as const
-
 export default function PriorityMatrix({
   opportunities = [],
   issues = [],
@@ -37,6 +31,14 @@ export default function PriorityMatrix({
   hasData,
 }: PriorityMatrixProps) {
   const [hovered, setHovered] = useState<string | null>(null)
+  const { t } = useLocale()
+
+  const QUADRANTS = [
+    { key: 'opportunities', label: t('matrix.opportunities'), subtitle: t('matrix.opportunitiesSub'), color: '#22c55e', icon: '\u26A1' },
+    { key: 'issues', label: t('matrix.issues'), subtitle: t('matrix.issuesSub'), color: '#ef4444', icon: '\uD83D\uDD34' },
+    { key: 'improvements', label: t('matrix.improvements'), subtitle: t('matrix.improvementsSub'), color: '#6366f1', icon: '\uD83D\uDCC8' },
+    { key: 'suggestions', label: t('matrix.suggestions'), subtitle: t('matrix.suggestionsSub'), color: '#6b7280', icon: '\uD83D\uDCA1' },
+  ] as const
 
   const dataMap: Record<string, MatrixItem[]> = {
     opportunities,
@@ -62,10 +64,10 @@ export default function PriorityMatrix({
           marginBottom: '12px',
           textTransform: 'uppercase',
         }}>
-          Priority Matrix
+          {t('matrix.title')}
         </h3>
         <p style={{ color: '#6b7280', fontSize: '13px', marginBottom: '16px' }}>
-          Generate an AI-powered priority matrix to classify solutions into actionable quadrants.
+          {t('matrix.description')}
         </p>
         {onGenerate && (
           <button
@@ -82,7 +84,7 @@ export default function PriorityMatrix({
               cursor: isGenerating ? 'default' : 'pointer',
             }}
           >
-            {isGenerating ? 'Generating Matrix...' : 'Generate Priority Matrix'}
+            {isGenerating ? t('matrix.generating') : t('matrix.generate')}
           </button>
         )}
       </div>
@@ -105,7 +107,7 @@ export default function PriorityMatrix({
         textTransform: 'uppercase',
         letterSpacing: '0.5px',
       }}>
-        Priority Matrix
+        {t('matrix.title')}
       </h3>
 
       <div style={{
@@ -177,7 +179,7 @@ export default function PriorityMatrix({
                     {item.title}
                   </div>
                   <div style={{ fontSize: '11px', color: '#6b7280' }}>
-                    {item.driver} • Impact: {item.impact_score}/10 • Effort: {item.effort_score}/10
+                    {item.driver} &bull; {t('matrix.impact')}: {item.impact_score}/10 &bull; {t('matrix.effort')}: {item.effort_score}/10
                   </div>
                   {hovered === `${q.key}-${i}` && (
                     <div style={{
@@ -193,7 +195,7 @@ export default function PriorityMatrix({
               ))}
               {(dataMap[q.key] ?? []).length === 0 && (
                 <div style={{ fontSize: '11px', color: '#4a4d55', fontStyle: 'italic', padding: '8px' }}>
-                  No items
+                  {t('matrix.noItems')}
                 </div>
               )}
             </div>

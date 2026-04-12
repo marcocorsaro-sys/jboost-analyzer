@@ -4,6 +4,9 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { DRIVERS, getScoreBand } from '@/lib/constants'
+import { useLocale } from '@/lib/i18n/context'
+import { formatLocalDate } from '@/lib/i18n'
+import type { TranslationKey } from '@/lib/i18n'
 import ScoreDisplay from '@/components/analyzer/ScoreDisplay'
 import SpiderChart from '@/components/analyzer/SpiderChart'
 import DriverDetail from '@/components/analyzer/DriverDetail'
@@ -34,6 +37,7 @@ interface PriorityMatrixRow {
 export default function AnalysisDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const { locale, t } = useLocale()
   const analysisId = params.id as string
   const supabase = createClient()
 
@@ -96,6 +100,8 @@ export default function AnalysisDetailPage() {
           issues: dr?.issues ?? [],
           domain: analysis?.domain,
           companyContext: analysis?.company_context,
+          clientId,
+          locale,
         }),
       })
       if (res.ok) {
@@ -113,7 +119,7 @@ export default function AnalysisDetailPage() {
       const res = await fetch('/api/llm/priority-matrix', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ analysisId }),
+        body: JSON.stringify({ analysisId, clientId, locale }),
       })
       if (res.ok) {
         await fetchData()
@@ -126,17 +132,17 @@ export default function AnalysisDetailPage() {
 
   if (loading) {
     return (
-      <div style={{ padding: '32px', color: '#6b7280', textAlign: 'center', marginTop: '60px' }}>
-        Loading analysis...
+      <div className="p-8 text-gray-500 text-center mt-[60px]">
+        {t('results.loadingAnalysis')}
       </div>
     )
   }
 
   if (!analysis) {
     return (
-      <div style={{ padding: '32px', textAlign: 'center' }}>
-        <p style={{ color: '#ef4444', marginBottom: '16px' }}>Analysis not found.</p>
-        <Link href="/results" style={{ color: '#c8e64a', textDecoration: 'none' }}>← Back to Results</Link>
+      <div className="p-8 text-center">
+        <p className="text-destructive mb-4">{t('results.notFound')}</p>
+        <Link href="/results" className="text-primary no-underline">{t('results.backToResults')}</Link>
       </div>
     )
   }
@@ -165,22 +171,22 @@ export default function AnalysisDetailPage() {
   const bandColor = band ? BAND_COLORS[band.color] ?? '#6b7280' : '#6b7280'
 
   return (
-    <div style={{ padding: '32px', maxWidth: '1200px' }}>
+    <div className="p-8 max-w-[1200px]">
       {/* Header */}
-      <div style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', gap: '12px', marginBottom: '12px', fontSize: '13px' }}>
+      <div className="mb-6">
+        <div className="flex gap-3 mb-3 text-[13px]">
           <Link
             href="/results"
-            style={{ color: '#6b7280', textDecoration: 'none' }}
+            className="text-gray-500 no-underline"
           >
-            ← Risultati
+            ← {t('results.backResults')}
           </Link>
           {clientName && clientId && (
             <>
-              <span style={{ color: '#2a2d35' }}>|</span>
+              <span className="text-border">|</span>
               <Link
                 href={`/clients/${clientId}`}
-                style={{ color: '#c8e64a', textDecoration: 'none' }}
+                className="text-primary no-underline"
               >
                 ← {clientName}
               </Link>
@@ -188,50 +194,30 @@ export default function AnalysisDetailPage() {
           )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+        <div className="flex items-center gap-5">
           <ScoreDisplay score={overallScore} size="lg" />
           <div>
-            <h1 style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: '24px',
-              fontWeight: 700,
-              color: '#ffffff',
-              marginBottom: '4px',
-            }}>
+            <h1 className="font-mono text-2xl font-bold text-foreground mb-1">
               {domain}
             </h1>
-            <div style={{ display: 'flex', gap: '12px', fontSize: '13px', color: '#6b7280', alignItems: 'center' }}>
-              <span style={{
-                padding: '2px 8px',
-                borderRadius: '4px',
-                fontSize: '11px',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                background: status === 'completed' ? '#c8e64a15' : '#f59e0b15',
-                color: status === 'completed' ? '#c8e64a' : '#f59e0b',
-              }}>
+            <div className="flex gap-3 text-[13px] text-gray-500 items-center">
+              <span className={`px-2 py-0.5 rounded text-[11px] font-semibold uppercase ${
+                status === 'completed'
+                  ? 'bg-primary/[0.08] text-primary'
+                  : 'bg-amber-500/[0.08] text-amber-500'
+              }`}>
                 {status}
               </span>
               {clientName && (
                 <Link
                   href={`/clients/${clientId}`}
-                  style={{
-                    padding: '2px 8px',
-                    borderRadius: '4px',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    background: 'rgba(200, 230, 74, 0.08)',
-                    color: '#c8e64a',
-                    textDecoration: 'none',
-                  }}
+                  className="px-2 py-0.5 rounded text-[11px] font-semibold bg-primary/[0.08] text-primary no-underline"
                 >
                   {clientName}
                 </Link>
               )}
               <span>{(analysis.country as string)?.toUpperCase()}</span>
-              <span>{new Date(analysis.created_at as string).toLocaleDateString('it-IT', {
-                day: '2-digit', month: 'short', year: 'numeric',
-              })}</span>
+              <span>{formatLocalDate(new Date(analysis.created_at as string), locale)}</span>
               {analysis.target_topic ? <span>Topic: {String(analysis.target_topic)}</span> : null}
             </div>
           </div>
@@ -239,12 +225,7 @@ export default function AnalysisDetailPage() {
       </div>
 
       {/* KPI Grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
-        gap: '10px',
-        marginBottom: '24px',
-      }}>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(110px,1fr))] gap-2.5 mb-6">
         {DRIVERS.map(driver => {
           const dr = driverResults.find(r => r.driver_name === driver.key)
           const s = dr?.score ?? null
@@ -254,24 +235,15 @@ export default function AnalysisDetailPage() {
           return (
             <div
               key={driver.key}
-              style={{
-                background: '#1a1d24',
-                borderRadius: '10px',
-                padding: '12px',
-                border: '1px solid #2a2d35',
-                textAlign: 'center',
-              }}
+              className="bg-card rounded-xl p-3 border border-border text-center"
             >
-              <div style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: '22px',
-                fontWeight: 700,
-                color: dColor,
-                marginBottom: '4px',
-              }}>
+              <div
+                className="font-mono text-[22px] font-bold mb-1"
+                style={{ color: dColor }}
+              >
                 {s ?? '—'}
               </div>
-              <div style={{ fontSize: '10px', color: '#a0a0a0', fontWeight: 500 }}>
+              <div className="text-[10px] text-[#a0a0a0] font-medium">
                 {driver.label}
               </div>
             </div>
@@ -280,7 +252,7 @@ export default function AnalysisDetailPage() {
       </div>
 
       {/* Spider Chart */}
-      <div style={{ marginBottom: '24px' }}>
+      <div className="mb-6">
         <SpiderChart
           driverScores={driverScoresMap}
           competitorScores={competitorChartData}
@@ -288,17 +260,11 @@ export default function AnalysisDetailPage() {
       </div>
 
       {/* Driver Details */}
-      <div style={{ marginBottom: '24px' }}>
-        <h2 style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: '16px',
-          fontWeight: 600,
-          color: '#ffffff',
-          marginBottom: '12px',
-        }}>
-          Driver Analysis
+      <div className="mb-6">
+        <h2 className="font-mono text-base font-semibold text-foreground mb-3">
+          {t('results.driverAnalysis')}
         </h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div className="flex flex-col gap-2">
           {DRIVERS.map(driver => {
             const dr = driverResults.find(r => r.driver_name === driver.key)
             return (
@@ -320,7 +286,7 @@ export default function AnalysisDetailPage() {
       </div>
 
       {/* Priority Matrix */}
-      <div style={{ marginBottom: '24px' }}>
+      <div className="mb-6">
         <PriorityMatrix
           opportunities={(priorityMatrix?.opportunities ?? []) as never[]}
           issues={(priorityMatrix?.issues ?? []) as never[]}

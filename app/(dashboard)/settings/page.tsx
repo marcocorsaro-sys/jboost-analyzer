@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useLocale, type Locale } from '@/lib/i18n'
+import { useLocale, LOCALE_LABELS, type Locale } from '@/lib/i18n'
+import { cn } from '@/lib/utils'
+
+const LOCALES: Locale[] = ['en', 'it', 'es', 'fr']
 
 export default function SettingsPage() {
   const supabase = createClient()
-  const { locale, setLocale } = useLocale()
+  const { locale, setLocale, t } = useLocale()
   const [profile, setProfile] = useState<Record<string, unknown> | null>(null)
   const [fullName, setFullName] = useState('')
   const [company, setCompany] = useState('')
@@ -65,11 +68,11 @@ export default function SettingsPage() {
     setPasswordError('')
     setPasswordSaved(false)
     if (newPassword.length < 8) {
-      setPasswordError('Password must be at least 8 characters')
+      setPasswordError(t('settings.passwordMinLength'))
       return
     }
     if (newPassword !== confirmPassword) {
-      setPasswordError('Passwords do not match')
+      setPasswordError(t('settings.passwordMismatch'))
       return
     }
     setChangingPassword(true)
@@ -85,147 +88,118 @@ export default function SettingsPage() {
     }
   }
 
-  const inputStyle = {
-    width: '100%',
-    padding: '10px 14px',
-    background: '#111318',
-    border: '1px solid #2a2d35',
-    borderRadius: '8px',
-    color: '#ffffff',
-    fontSize: '14px',
-  }
-
-  const labelStyle = {
-    fontSize: '12px',
-    color: '#a0a0a0',
-    display: 'block' as const,
-    marginBottom: '6px',
-    fontWeight: 500 as const,
-  }
-
   return (
-    <div style={{ padding: '32px', maxWidth: '640px' }}>
-      <h1 style={{
-        fontFamily: "'JetBrains Mono', monospace",
-        fontSize: '24px',
-        fontWeight: 700,
-        color: '#ffffff',
-        marginBottom: '32px',
-      }}>
-        Settings
+    <div className="max-w-[640px] p-8">
+      <h1 className="mb-8 font-mono text-2xl font-bold text-foreground">
+        {t('settings.title')}
       </h1>
 
       {/* Profile */}
-      <div style={{
-        background: '#1a1d24',
-        borderRadius: '12px',
-        border: '1px solid #2a2d35',
-        padding: '24px',
-        marginBottom: '20px',
-      }}>
-        <h2 style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: '14px',
-          fontWeight: 600,
-          color: '#ffffff',
-          marginBottom: '20px',
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px',
-        }}>
-          Profile
+      <div className="mb-5 rounded-xl border bg-card p-6">
+        <h2 className="mb-5 font-mono text-sm font-semibold uppercase tracking-wider text-foreground">
+          {t('settings.profile')}
         </h2>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div className="flex flex-col gap-4">
           <div>
-            <label style={labelStyle}>Full Name</label>
-            <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} style={inputStyle} />
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              {t('settings.fullName')}
+            </label>
+            <input
+              type="text"
+              value={fullName}
+              onChange={e => setFullName(e.target.value)}
+              className="w-full rounded-lg border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-primary"
+            />
           </div>
           <div>
-            <label style={labelStyle}>Company</label>
-            <input type="text" value={company} onChange={e => setCompany(e.target.value)} style={inputStyle} />
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              {t('settings.company')}
+            </label>
+            <input
+              type="text"
+              value={company}
+              onChange={e => setCompany(e.target.value)}
+              className="w-full rounded-lg border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-primary"
+            />
           </div>
           <div>
-            <label style={labelStyle}>Preferred Language</label>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              {t('settings.preferredLanguage')}
+            </label>
             <select
               value={language}
               onChange={e => setLanguage(e.target.value as Locale)}
-              style={inputStyle}
+              className="w-full rounded-lg border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-primary"
             >
-              <option value="en">English</option>
-              <option value="it">Italiano</option>
-              <option value="es">Español</option>
-              <option value="fr">Français</option>
+              {LOCALES.map(l => (
+                <option key={l} value={l}>{LOCALE_LABELS[l]}</option>
+              ))}
             </select>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="flex items-center gap-3">
             <button
               onClick={handleSaveProfile}
               disabled={saving}
-              style={{
-                padding: '10px 20px',
-                background: saving ? '#2a2d35' : '#c8e64a',
-                color: saving ? '#6b7280' : '#111318',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: saving ? 'default' : 'pointer',
-              }}
+              className={cn(
+                'rounded-lg px-5 py-2.5 text-[13px] font-semibold transition-colors',
+                saving
+                  ? 'cursor-default bg-secondary text-muted-foreground'
+                  : 'cursor-pointer bg-primary text-primary-foreground hover:opacity-90'
+              )}
             >
-              {saving ? 'Saving...' : 'Save Profile'}
+              {saving ? t('settings.saving') : t('settings.saveProfile')}
             </button>
-            {saved && <span style={{ fontSize: '13px', color: '#22c55e' }}>Saved!</span>}
+            {saved && <span className="text-[13px] text-green-500">{t('settings.saved')}</span>}
           </div>
         </div>
       </div>
 
       {/* Password */}
-      <div style={{
-        background: '#1a1d24',
-        borderRadius: '12px',
-        border: '1px solid #2a2d35',
-        padding: '24px',
-      }}>
-        <h2 style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: '14px',
-          fontWeight: 600,
-          color: '#ffffff',
-          marginBottom: '20px',
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px',
-        }}>
-          Change Password
+      <div className="rounded-xl border bg-card p-6">
+        <h2 className="mb-5 font-mono text-sm font-semibold uppercase tracking-wider text-foreground">
+          {t('settings.changePassword')}
         </h2>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div className="flex flex-col gap-4">
           <div>
-            <label style={labelStyle}>New Password</label>
-            <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} style={inputStyle} placeholder="Min 8 characters" />
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              {t('settings.newPassword')}
+            </label>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={e => setNewPassword(e.target.value)}
+              className="w-full rounded-lg border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-primary"
+              placeholder={t('settings.minChars')}
+            />
           </div>
           <div>
-            <label style={labelStyle}>Confirm Password</label>
-            <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} style={inputStyle} />
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              {t('settings.confirmPassword')}
+            </label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)}
+              className="w-full rounded-lg border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-primary"
+            />
           </div>
-          {passwordError && <p style={{ color: '#ef4444', fontSize: '13px', margin: 0 }}>{passwordError}</p>}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {passwordError && <p className="m-0 text-[13px] text-destructive">{passwordError}</p>}
+          <div className="flex items-center gap-3">
             <button
               onClick={handleChangePassword}
               disabled={changingPassword}
-              style={{
-                padding: '10px 20px',
-                background: changingPassword ? '#2a2d35' : '#c8e64a',
-                color: changingPassword ? '#6b7280' : '#111318',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: changingPassword ? 'default' : 'pointer',
-              }}
+              className={cn(
+                'rounded-lg px-5 py-2.5 text-[13px] font-semibold transition-colors',
+                changingPassword
+                  ? 'cursor-default bg-secondary text-muted-foreground'
+                  : 'cursor-pointer bg-primary text-primary-foreground hover:opacity-90'
+              )}
             >
-              {changingPassword ? 'Updating...' : 'Update Password'}
+              {changingPassword ? t('settings.updating') : t('settings.updatePassword')}
             </button>
-            {passwordSaved && <span style={{ fontSize: '13px', color: '#22c55e' }}>Password updated!</span>}
+            {passwordSaved && <span className="text-[13px] text-green-500">{t('settings.passwordUpdated')}</span>}
           </div>
         </div>
       </div>

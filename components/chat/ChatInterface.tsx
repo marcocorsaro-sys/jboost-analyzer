@@ -3,7 +3,10 @@
 import { useChat } from 'ai/react'
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useLocale } from '@/lib/i18n'
+import { cn } from '@/lib/utils'
 import ChatMessage from './ChatMessage'
+import type { MemoryGap } from '@/lib/types/client'
 
 interface ClientOption {
   id: string
@@ -19,11 +22,13 @@ interface ChatInterfaceProps {
 }
 
 export default function ChatInterface({ clientId: initialClientId, clientName: initialClientName, mode, clients }: ChatInterfaceProps) {
+  const { t } = useLocale()
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [selectedClientId, setSelectedClientId] = useState<string | null>(initialClientId || null)
   const [selectedClientName, setSelectedClientName] = useState<string | null>(initialClientName || null)
   const [chatError, setChatError] = useState<string | null>(null)
+  const [memoryGaps, setMemoryGaps] = useState<MemoryGap[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
 
@@ -41,7 +46,7 @@ export default function ChatInterface({ clientId: initialClientId, clientName: i
     },
     onError(error) {
       console.error('[Ask J] Chat error:', error)
-      setChatError(error.message || 'Errore nella comunicazione con il server')
+      setChatError(error.message || t('chat.serverError'))
     },
   })
 
@@ -53,6 +58,32 @@ export default function ChatInterface({ clientId: initialClientId, clientName: i
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
+  // Load memory gaps for contextual mode
+  useEffect(() => {
+    if (activeClientId && mode === 'contextual') {
+      fetch(`/api/clients/${activeClientId}/memory`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.memory?.gaps) {
+            // Top 3 high/medium gaps
+            const sorted = [...data.memory.gaps]
+              .filter((g: MemoryGap) => g.importance !== 'low')
+              .sort((a: MemoryGap, b: MemoryGap) => {
+                const order = { high: 0, medium: 1, low: 2 }
+                return (order[a.importance] ?? 2) - (order[b.importance] ?? 2)
+              })
+              .slice(0, 3)
+            setMemoryGaps(sorted)
+          } else {
+            setMemoryGaps([])
+          }
+        })
+        .catch(() => setMemoryGaps([]))
+    } else {
+      setMemoryGaps([])
+    }
+  }, [activeClientId, mode])
+
   // Create or load conversation on mount or client change
   useEffect(() => {
     initConversation()
@@ -63,7 +94,7 @@ export default function ChatInterface({ clientId: initialClientId, clientName: i
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         console.error('[Ask J] No authenticated user')
-        setChatError('Utente non autenticato. Ricarica la pagina.')
+        setChatError(t('chat.authError'))
         setLoadingHistory(false)
         return
       }
@@ -113,7 +144,7 @@ export default function ChatInterface({ clientId: initialClientId, clientName: i
           setMessages([])
         }
       } else {
-        const title = activeClientName ? `Chat con ${activeClientName}` : 'Ask J'
+        const title = activeClientName ? `${t('chat.chatWith')} ${activeClientName}` : 'Ask J'
         const { data: newConv, error: insertError } = await supabase
           .from('conversations')
           .insert({
@@ -127,7 +158,7 @@ export default function ChatInterface({ clientId: initialClientId, clientName: i
 
         if (insertError) {
           console.error('[Ask J] Failed to create conversation:', insertError)
-          setChatError(`Errore creazione conversazione: ${insertError.message}`)
+          setChatError(`${t('chat.conversationError')}: ${insertError.message}`)
         } else if (newConv) {
           setConversationId(newConv.id)
           setMessages([])
@@ -135,7 +166,7 @@ export default function ChatInterface({ clientId: initialClientId, clientName: i
       }
     } catch (err) {
       console.error('[Ask J] initConversation error:', err)
-      setChatError(`Errore inizializzazione: ${err instanceof Error ? err.message : String(err)}`)
+      setChatError(`${t('chat.initError')}: ${err instanceof Error ? err.message : String(err)}`)
     }
 
     setLoadingHistory(false)
@@ -165,7 +196,7 @@ export default function ChatInterface({ clientId: initialClientId, clientName: i
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const title = activeClientName ? `Chat con ${activeClientName}` : 'Ask J'
+    const title = activeClientName ? `${t('chat.chatWith')} ${activeClientName}` : 'Ask J'
     const { data: newConv } = await supabase
       .from('conversations')
       .insert({
@@ -196,89 +227,48 @@ export default function ChatInterface({ clientId: initialClientId, clientName: i
 
   const suggestions = mode === 'contextual'
     ? [
-      'Riassumi l\'ultima analisi',
-      'Quali driver migliorare?',
-      'Crea un brief SEO',
-      'Analizza lo stack MarTech',
+      t('chat.sugContextual1'),
+      t('chat.sugContextual2'),
+      t('chat.sugContextual3'),
+      t('chat.sugContextual4'),
     ]
     : [
-      'Come migliorare il Core Web Vitals?',
-      'Best practice per GEO',
-      'Confronta GA4 vs Matomo',
-      'Checklist SEO tecnica',
+      t('chat.sugAssistant1'),
+      t('chat.sugAssistant2'),
+      t('chat.sugAssistant3'),
+      t('chat.sugAssistant4'),
     ]
 
+  const isSubmitDisabled = isLoading || !input.trim() || loadingHistory
+
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: 'calc(100vh - 220px)',
-      background: '#111318',
-      borderRadius: '12px',
-      border: '1px solid #2a2d35',
-      overflow: 'hidden',
-    }}>
+    <div className="flex flex-col h-[calc(100vh-220px)] bg-background rounded-xl border border-border overflow-hidden">
       {/* Header */}
-      <div style={{
-        padding: '12px 20px',
-        borderBottom: '1px solid #2a2d35',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        background: '#1a1c24',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{
-            width: 32,
-            height: 32,
-            borderRadius: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(200, 230, 74, 0.1)',
-            fontSize: '14px',
-            fontWeight: 700,
-            color: '#c8e64a',
-            fontFamily: "'JetBrains Mono', monospace",
-          }}>
+      <div className="px-5 py-3 border-b border-border flex justify-between items-center bg-card">
+        <div className="flex items-center gap-2.5">
+          <span className="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10 text-sm font-bold text-primary font-mono">
             J
           </span>
           <div>
-            <div style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: '13px',
-              fontWeight: 600,
-              color: '#c8e64a',
-            }}>
+            <div className="font-mono text-[13px] font-semibold text-primary">
               Ask J
             </div>
-            <div style={{ fontSize: '11px', color: '#6b7280' }}>
+            <div className="text-[11px] text-muted-foreground">
               {activeClientName
-                ? `Contesto: ${activeClientName}`
-                : 'Assistente SEO & Marketing'}
+                ? `${t('chat.context')}: ${activeClientName}`
+                : t('chat.seoAssistant')}
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="flex items-center gap-2">
           {mode === 'assistant' && clients && clients.length > 0 && (
             <select
               value={selectedClientId || ''}
               onChange={(e) => handleClientChange(e.target.value)}
-              style={{
-                padding: '5px 10px',
-                background: '#111318',
-                border: '1px solid #2a2d35',
-                borderRadius: '6px',
-                color: '#a0a0a0',
-                fontSize: '11px',
-                fontFamily: "'JetBrains Mono', monospace",
-                outline: 'none',
-                cursor: 'pointer',
-                maxWidth: '200px',
-              }}
+              className="px-2.5 py-1.5 bg-background border border-border rounded-md text-muted-foreground text-[11px] font-mono outline-none cursor-pointer max-w-[200px]"
             >
-              <option value="">Nessun cliente</option>
+              <option value="">{t('chat.noClient')}</option>
               {clients.map(c => (
                 <option key={c.id} value={c.id}>
                   {c.name}{c.domain ? ` (${c.domain})` : ''}
@@ -288,73 +278,35 @@ export default function ChatInterface({ clientId: initialClientId, clientName: i
           )}
           <button
             onClick={handleNewChat}
-            style={{
-              padding: '5px 12px',
-              background: '#2a2d35',
-              border: 'none',
-              borderRadius: '6px',
-              color: '#a0a0a0',
-              fontSize: '11px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontFamily: "'JetBrains Mono', monospace",
-            }}
+            className="px-3 py-1.5 bg-secondary border-none rounded-md text-muted-foreground text-[11px] font-semibold cursor-pointer font-mono hover:bg-secondary/80 transition-colors"
           >
-            + Nuova Chat
+            {t('chat.newChat')}
           </button>
         </div>
       </div>
 
       {/* Messages */}
-      <div style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: '20px',
-      }}>
+      <div className="flex-1 overflow-y-auto p-5">
         {loadingHistory ? (
-          <div style={{ textAlign: 'center', color: '#6b7280', padding: '40px 0', fontSize: '13px' }}>
-            Caricamento conversazione...
+          <div className="text-center text-muted-foreground py-10 text-[13px]">
+            {t('chat.loadingConversation')}
           </div>
         ) : messages.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px 0' }}>
-            <div style={{
-              width: 56,
-              height: 56,
-              borderRadius: '16px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'rgba(200, 230, 74, 0.08)',
-              marginBottom: '16px',
-              fontSize: '24px',
-              fontWeight: 700,
-              color: '#c8e64a',
-              fontFamily: "'JetBrains Mono', monospace",
-            }}>
+          <div className="text-center py-10">
+            <div className="w-14 h-14 rounded-2xl inline-flex items-center justify-center bg-primary/[0.08] mb-4 text-2xl font-bold text-primary font-mono">
               J
             </div>
-            <div style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: '14px',
-              color: '#c8e64a',
-              marginBottom: '8px',
-            }}>
+            <div className="font-mono text-sm text-primary mb-2">
               {activeClientName
-                ? `Chatta con Ask J su ${activeClientName}`
-                : 'Chatta con Ask J'}
+                ? `${t('chat.chatWithAbout')} ${activeClientName}`
+                : t('chat.chatWith')}
             </div>
-            <p style={{ fontSize: '12px', color: '#6b7280', maxWidth: '400px', margin: '0 auto' }}>
+            <p className="text-xs text-muted-foreground max-w-[400px] mx-auto">
               {activeClientName
-                ? 'Posso analizzare i dati del cliente, suggerire azioni di miglioramento, creare report e brief strategici.'
-                : 'Posso aiutarti con domande su SEO, digital marketing, strategie di crescita e best practice.'}
+                ? t('chat.contextualHelp')
+                : t('chat.assistantHelp')}
             </p>
-            <div style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '6px',
-              justifyContent: 'center',
-              marginTop: '16px',
-            }}>
+            <div className="flex flex-wrap gap-1.5 justify-center mt-4">
               {suggestions.map(suggestion => (
                 <button
                   key={suggestion}
@@ -379,21 +331,51 @@ export default function ChatInterface({ clientId: initialClientId, clientName: i
                       if (form) form.requestSubmit()
                     }, 150)
                   }}
-                  style={{
-                    padding: '6px 12px',
-                    background: '#1a1c24',
-                    border: '1px solid #2a2d35',
-                    borderRadius: '20px',
-                    color: '#a0a0a0',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    transition: 'border-color 0.2s',
-                  }}
+                  className="px-3 py-1.5 bg-card border border-border rounded-full text-muted-foreground text-xs cursor-pointer transition-colors hover:border-primary"
                 >
                   {suggestion}
                 </button>
               ))}
             </div>
+
+            {/* Memory Gap Suggestions */}
+            {memoryGaps.length > 0 && (
+              <div className="mt-4">
+                <div className="text-[11px] text-muted-foreground mb-2 font-mono">
+                  {t('memory.completeClientMemory')}:
+                </div>
+                <div className="flex flex-wrap gap-1.5 justify-center">
+                  {memoryGaps.map(gap => (
+                    <button
+                      key={gap.id}
+                      onClick={async () => {
+                        setChatError(null)
+                        const msg = `${t('chat.aboutClient')} ${activeClientName}: ${gap.question}`
+                        if (conversationId) {
+                          try {
+                            await supabase.from('conversation_messages').insert({
+                              conversation_id: conversationId,
+                              role: 'user',
+                              content: msg,
+                            })
+                          } catch (err) {
+                            console.error('[Ask J] Failed to save gap question:', err)
+                          }
+                        }
+                        handleInputChange({ target: { value: msg } } as React.ChangeEvent<HTMLInputElement>)
+                        setTimeout(() => {
+                          const form = document.querySelector('form[data-chat-form]') as HTMLFormElement
+                          if (form) form.requestSubmit()
+                        }, 150)
+                      }}
+                      className="px-3 py-1.5 bg-amber/[0.06] border border-amber/20 rounded-full text-amber text-[11px] cursor-pointer transition-colors hover:border-amber/50"
+                    >
+                      {gap.question.length > 50 ? gap.question.substring(0, 50) + '...' : gap.question}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           messages.map((m) => (
@@ -407,74 +389,27 @@ export default function ChatInterface({ clientId: initialClientId, clientName: i
 
         {/* Error display */}
         {chatError && (
-          <div style={{
-            display: 'flex',
-            justifyContent: 'flex-start',
-            marginBottom: '12px',
-          }}>
-            <div style={{
-              maxWidth: '80%',
-              padding: '12px 16px',
-              borderRadius: '16px 16px 16px 4px',
-              background: 'rgba(239, 68, 68, 0.08)',
-              border: '1px solid rgba(239, 68, 68, 0.2)',
-              color: '#ef4444',
-              fontSize: '13px',
-            }}>
-              <strong>Errore:</strong> {chatError}
+          <div className="flex justify-start mb-3">
+            <div className="max-w-[80%] px-4 py-3 rounded-[16px_16px_16px_4px] bg-destructive/[0.08] border border-destructive/20 text-destructive text-[13px]">
+              <strong>{t('chat.error')}:</strong> {chatError}
               <button
                 onClick={() => setChatError(null)}
-                style={{
-                  marginLeft: '8px',
-                  background: 'none',
-                  border: 'none',
-                  color: '#ef4444',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  textDecoration: 'underline',
-                }}
+                className="ml-2 bg-transparent border-none text-destructive cursor-pointer text-xs underline"
               >
-                Chiudi
+                {t('chat.dismiss')}
               </button>
             </div>
           </div>
         )}
 
         {isLoading && messages[messages.length - 1]?.role === 'user' && (
-          <div style={{
-            display: 'flex',
-            justifyContent: 'flex-start',
-            marginBottom: '12px',
-          }}>
-            <div style={{
-              padding: '12px 16px',
-              borderRadius: '16px 16px 16px 4px',
-              background: '#1a1c24',
-              border: '1px solid #2a2d35',
-              color: '#6b7280',
-              fontSize: '13px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}>
-              <span style={{
-                width: 20,
-                height: 20,
-                borderRadius: '4px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'rgba(200, 230, 74, 0.1)',
-                fontSize: '10px',
-                fontWeight: 700,
-                color: '#c8e64a',
-                fontFamily: "'JetBrains Mono', monospace",
-              }}>J</span>
-              <span style={{
-                display: 'inline-block',
-                animation: 'pulse 1.5s ease-in-out infinite',
-              }}>
-                Sto pensando...
+          <div className="flex justify-start mb-3">
+            <div className="px-4 py-3 rounded-[16px_16px_16px_4px] bg-card border border-border text-muted-foreground text-[13px] flex items-center gap-2">
+              <span className="w-5 h-5 rounded inline-flex items-center justify-center bg-primary/10 text-[10px] font-bold text-primary font-mono">
+                J
+              </span>
+              <span className="inline-block animate-pulse">
+                {t('chat.thinking')}
               </span>
             </div>
           </div>
@@ -487,53 +422,30 @@ export default function ChatInterface({ clientId: initialClientId, clientName: i
       <form
         data-chat-form
         onSubmit={handleFormSubmit}
-        style={{
-          padding: '16px 20px',
-          borderTop: '1px solid #2a2d35',
-          background: '#1a1c24',
-          display: 'flex',
-          gap: '10px',
-        }}
+        className="px-5 py-4 border-t border-border bg-card flex gap-2.5"
       >
         <input
           value={input}
           onChange={handleInputChange}
           placeholder={
             activeClientName
-              ? `Chiedi ad Ask J su ${activeClientName}...`
-              : 'Chiedi qualcosa su SEO, marketing...'
+              ? `${t('chat.askAboutClient')} ${activeClientName}...`
+              : t('chat.askGeneric')
           }
           disabled={isLoading || loadingHistory}
-          style={{
-            flex: 1,
-            padding: '12px 16px',
-            background: '#111318',
-            border: '1px solid #2a2d35',
-            borderRadius: '10px',
-            color: '#ffffff',
-            fontSize: '14px',
-            outline: 'none',
-          }}
-          onFocus={e => (e.currentTarget.style.borderColor = '#c8e64a')}
-          onBlur={e => (e.currentTarget.style.borderColor = '#2a2d35')}
+          className="flex-1 px-4 py-3 bg-background border border-border rounded-[10px] text-foreground text-sm outline-none focus:border-primary transition-colors"
         />
         <button
           type="submit"
-          disabled={isLoading || !input.trim() || loadingHistory}
-          style={{
-            padding: '12px 24px',
-            background: isLoading || !input.trim() ? '#2a2d35' : '#c8e64a',
-            color: isLoading || !input.trim() ? '#6b7280' : '#111318',
-            border: 'none',
-            borderRadius: '10px',
-            fontWeight: 700,
-            fontSize: '13px',
-            fontFamily: "'JetBrains Mono', monospace",
-            cursor: isLoading || !input.trim() ? 'not-allowed' : 'pointer',
-            transition: 'all 0.2s',
-          }}
+          disabled={isSubmitDisabled}
+          className={cn(
+            'px-6 py-3 border-none rounded-[10px] font-bold text-[13px] font-mono transition-all',
+            isSubmitDisabled
+              ? 'bg-secondary text-muted-foreground cursor-not-allowed'
+              : 'bg-primary text-background cursor-pointer hover:bg-primary/90'
+          )}
         >
-          {isLoading ? '...' : 'Invia'}
+          {isLoading ? '...' : t('chat.send')}
         </button>
       </form>
     </div>

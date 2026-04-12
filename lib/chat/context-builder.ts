@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import type { ClientMemory, MemoryFact, MemoryGap } from '@/lib/types/client'
 
 // ─── Chat Context (full client data for Ask J) ─────────────────
 
@@ -658,4 +659,198 @@ export function formatExecutiveSummaryData(ctx: ExecutiveSummaryContext): string
   }
 
   return lines.join('\n')
+}
+
+// ─── Memory-based Context Builder ───────────────────────────
+
+/**
+ * Build client context using the pre-digested Client Memory when available.
+ * Falls back to the raw context builder if memory is not ready.
+ *
+ * Returns: { contextBlock: string, gaps: MemoryGap[] }
+ */
+export async function buildClientContextWithMemory(
+  clientId: string,
+  userId: string
+): Promise<{ contextBlock: string; gaps: MemoryGap[] }> {
+  const supabase = await createClient()
+
+  // Try to load client memory
+  const { data: memory } = await supabase
+    .from('client_memory')
+    .select('*')
+    .eq('client_id', clientId)
+    .single()
+
+  if (memory && memory.status === 'ready') {
+    const m = memory as unknown as ClientMemory
+    return {
+      contextBlock: formatMemoryContext(m),
+      gaps: m.gaps,
+    }
+  }
+
+  // Fallback: use raw context builder
+  const ctx = await buildClientContext(clientId, userId)
+  if (ctx) {
+    return {
+      contextBlock: formatContextForPrompt(ctx),
+      gaps: [],
+    }
+  }
+
+  return { contextBlock: '', gaps: [] }
+}
+
+/**
+ * Format client memory into a compact, structured context block.
+ * ~12K chars vs ~33K+ of raw context — more efficient and informative.
+ */
+function formatMemoryContext(memory: ClientMemory): string {
+  const lines: string[] = []
+  const p = memory.profile
+
+  // ── Client Profile ──
+  lines.push('## Profilo Cliente')
+  if (p.company_name) lines.push(`**Azienda:** ${p.company_name}`)
+  if (p.domain) lines.push(`**Dominio:** ${p.domain}`)
+  if (p.industry) lines.push(`**Settore:** ${p.industry}`)
+  if (p.description) lines.push(`**Descrizione:** ${p.description}`)
+  if (p.founded) lines.push(`**Fondazione:** ${p.founded}`)
+  if (p.headquarters) lines.push(`**Sede:** ${p.headquarters}`)
+  if (p.key_products_services && p.key_products_services.length > 0) {
+    lines.push(`**Prodotti/Servizi:** ${p.key_products_services.join(', ')}`)
+  }
+  if (p.target_audience) lines.push(`**Target:** ${p.target_audience}`)
+  if (p.geographic_markets && p.geographic_markets.length > 0) {
+    lines.push(`**Mercati:** ${p.geographic_markets.join(', ')}`)
+  }
+  if (p.team_contacts && p.team_contacts.length > 0) {
+    lines.push('**Team:**')
+    for (const c of p.team_contacts) {
+      lines.push(`  - ${c.name} (${c.role})${c.email ? ` — ${c.email}` : ''}`)
+    }
+  }
+  if (p.business_goals && p.business_goals.length > 0) {
+    lines.push('**Obiettivi Business:**')
+    for (const g of p.business_goals) lines.push(`  - ${g}`)
+  }
+  if (p.budget_info) lines.push(`**Budget:** ${p.budget_info}`)
+  if (p.challenges && p.challenges.length > 0) {
+    lines.push(`**Sfide:** ${p.challenges.join(', ')}`)
+  }
+  if (p.competitors && p.competitors.length > 0) {
+    lines.push(`**Competitor:** ${p.competitors.join(', ')}`)
+  }
+  if (p.tools_platforms && p.tools_platforms.length > 0) {
+    lines.push(`**Tool/Piattaforme:** ${p.tools_platforms.join(', ')}`)
+  }
+  if (p.engagement) {
+    const e = p.engagement
+    const parts: string[] = []
+    if (e.type) parts.push(e.type)
+    if (e.contract_type) parts.push(e.contract_type)
+    if (e.services && e.services.length > 0) parts.push(e.services.join(', '))
+    if (parts.length > 0) lines.push(`**Engagement:** ${parts.join(' — ')}`)
+  }
+  if (p.preferences) {
+    const pr = p.preferences
+    const parts: string[] = []
+    if (pr.communication_language) parts.push(`Lingua: ${pr.communication_language}`)
+    if (pr.report_frequency) parts.push(`Report: ${pr.report_frequency}`)
+    if (pr.preferred_contact) parts.push(`Contatto: ${pr.preferred_contact}`)
+    if (parts.length > 0) lines.push(`**Preferenze:** ${parts.join(', ')}`)
+  }
+  lines.push('')
+
+  // ── Key Facts ──
+  if (memory.facts.length > 0) {
+    lines.push('## Fatti Chiave')
+    const factsByCategory = groupFactsByCategory(memory.facts)
+
+    const categoryLabels: Record<string, string> = {
+      seo_performance: 'Performance SEO',
+      business: 'Business',
+      technical: 'Tecnico',
+      content: 'Contenuti',
+      competitor: 'Competitor',
+      martech: 'MarTech',
+      contact: 'Contatti',
+      timeline: 'Timeline',
+      budget: 'Budget',
+      preference: 'Preferenze',
+      conversation_insight: 'Insight Conversazioni',
+    }
+
+    for (const [cat, facts] of Object.entries(factsByCategory)) {
+      const label = categoryLabels[cat] || cat
+      lines.push(`### ${label}`)
+      for (const f of facts.slice(0, 10)) {
+        lines.push(`- ${f.fact}`)
+      }
+      lines.push('')
+    }
+  }
+
+  // ── Narrative Summary ──
+  if (memory.narrative) {
+    lines.push('## Riassunto Cliente')
+    lines.push(memory.narrative)
+    lines.push('')
+  }
+
+  // ── Knowledge Gaps ──
+  if (memory.gaps.length > 0) {
+    lines.push('## Lacune Informative (chiedi quando pertinente)')
+    lines.push('IMPORTANTE: Chiedi al massimo UNA domanda per risposta, solo se rilevante alla conversazione.')
+    lines.push('')
+
+    const highGaps = memory.gaps.filter((g: MemoryGap) => g.importance === 'high')
+    const mediumGaps = memory.gaps.filter((g: MemoryGap) => g.importance === 'medium')
+
+    if (highGaps.length > 0) {
+      lines.push('**Priorita\' Alta:**')
+      for (const g of highGaps) {
+        lines.push(`- ${g.question} (Contesto: ${g.context})`)
+      }
+    }
+    if (mediumGaps.length > 0) {
+      lines.push('**Priorita\' Media:**')
+      for (const g of mediumGaps) {
+        lines.push(`- ${g.question}`)
+      }
+    }
+    lines.push('')
+  }
+
+  // ── Recent Answers ──
+  if (memory.answers.length > 0) {
+    lines.push('## Informazioni Fornite dall\'Utente')
+    const recentAnswers = memory.answers.slice(-5)
+    for (const a of recentAnswers) {
+      lines.push(`- **D:** ${a.question}`)
+      lines.push(`  **R:** ${a.answer}`)
+    }
+    lines.push('')
+  }
+
+  // ── Memory Metadata ──
+  lines.push(`Completezza memoria: ${memory.completeness}%`)
+  if (memory.last_refreshed_at) {
+    const date = new Date(memory.last_refreshed_at).toLocaleDateString('it-IT', {
+      day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    })
+    lines.push(`Ultimo aggiornamento: ${date}`)
+  }
+
+  return lines.join('\n')
+}
+
+function groupFactsByCategory(facts: MemoryFact[]): Record<string, MemoryFact[]> {
+  const grouped: Record<string, MemoryFact[]> = {}
+  for (const f of facts) {
+    if (!grouped[f.category]) grouped[f.category] = []
+    grouped[f.category].push(f)
+  }
+  return grouped
 }

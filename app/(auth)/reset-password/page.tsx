@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { useLocale } from '@/lib/i18n'
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState('')
@@ -10,17 +11,18 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const { t } = useLocale()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match')
+      setError(t('settings.passwordMismatch'))
       return
     }
     if (password.length < 8) {
-      setError('Password must be at least 8 characters')
+      setError(t('settings.passwordMinLength'))
       return
     }
 
@@ -45,14 +47,14 @@ export default function ResetPasswordPage() {
             // JBoost Analyzer
           </div>
           <h1 className="text-2xl font-bold mt-4" style={{ color: 'var(--white)' }}>
-            Set New Password
+            {t('auth.setNewPassword')}
           </h1>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider mb-2"
-              style={{ color: 'var(--lime)' }}>New Password</label>
+              style={{ color: 'var(--lime)' }}>{t('settings.newPassword')}</label>
             <input type="password" value={password}
               onChange={e => setPassword(e.target.value)} required minLength={8}
               className="w-full px-4 py-3 rounded-lg text-sm outline-none"
@@ -60,7 +62,7 @@ export default function ResetPasswordPage() {
           </div>
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider mb-2"
-              style={{ color: 'var(--lime)' }}>Confirm Password</label>
+              style={{ color: 'var(--lime)' }}>{t('settings.confirmPassword')}</label>
             <input type="password" value={confirmPassword}
               onChange={e => setConfirmPassword(e.target.value)} required
               className="w-full px-4 py-3 rounded-lg text-sm outline-none"
@@ -77,7 +79,7 @@ export default function ResetPasswordPage() {
           <button type="submit" disabled={loading}
             className="w-full py-3.5 rounded-lg text-sm font-bold uppercase tracking-widest"
             style={{ background: 'var(--lime)', color: 'var(--bg)' }}>
-            {loading ? 'Updating...' : 'Update Password'}
+            {loading ? t('settings.updating') : t('settings.updatePassword')}
           </button>
         </form>
       </div>

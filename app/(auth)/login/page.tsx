@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { LocaleProvider, useLocale } from '@/lib/i18n'
+import { useLocale } from '@/lib/i18n'
 import LocaleSwitcher from '@/components/ui/LocaleSwitcher'
 
 function LoginForm() {
@@ -122,9 +122,5 @@ function LoginForm() {
 }
 
 export default function LoginPage() {
-  return (
-    <LocaleProvider>
-      <LoginForm />
-    </LocaleProvider>
-  )
+  return <LoginForm />
 }

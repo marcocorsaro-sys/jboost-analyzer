@@ -145,6 +145,16 @@
   50% { opacity: 0.4; }
 }
 
+/* Utility classes */
+.mono-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: hsl(var(--muted-foreground));
+}
+
 /* Score band colors */
 .score-critical { color: var(--red); }
 .score-improve { color: var(--amber); }

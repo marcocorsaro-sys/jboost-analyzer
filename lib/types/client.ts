@@ -128,6 +128,108 @@ export interface ApiKey {
   created_at: string
 }
 
+// ─── Client Memory ──────────────────────────────────────────
+
+export interface MemoryProfile {
+  company_name?: string
+  domain?: string
+  industry?: string
+  description?: string
+  founded?: string
+  headquarters?: string
+  key_products_services?: string[]
+  target_audience?: string
+  geographic_markets?: string[]
+  team_contacts?: { name: string; role: string; email?: string }[]
+  business_goals?: string[]
+  budget_info?: string
+  challenges?: string[]
+  competitors?: string[]
+  tools_platforms?: string[]
+  engagement?: {
+    type?: string
+    started_at?: string
+    contract_type?: string
+    services?: string[]
+  }
+  preferences?: {
+    communication_language?: string
+    report_frequency?: string
+    preferred_contact?: string
+  }
+}
+
+export type MemoryFactCategory =
+  | 'seo_performance'
+  | 'business'
+  | 'technical'
+  | 'content'
+  | 'competitor'
+  | 'martech'
+  | 'contact'
+  | 'timeline'
+  | 'budget'
+  | 'preference'
+  | 'conversation_insight'
+
+export interface MemoryFact {
+  id: string
+  category: MemoryFactCategory
+  fact: string
+  source: 'analysis' | 'knowledge_file' | 'conversation' | 'executive_summary' | 'martech' | 'user_answer' | 'company_context'
+  source_id?: string
+  confidence: number
+  extracted_at: string
+}
+
+export type MemoryGapImportance = 'high' | 'medium' | 'low'
+export type MemoryGapCategory =
+  | 'business'
+  | 'team'
+  | 'technical'
+  | 'goals'
+  | 'budget'
+  | 'timeline'
+  | 'competitor'
+  | 'content_strategy'
+  | 'tools'
+
+export interface MemoryGap {
+  id: string
+  category: MemoryGapCategory
+  question: string
+  importance: MemoryGapImportance
+  context: string
+}
+
+export interface MemoryAnswer {
+  id: string
+  gap_id: string
+  question: string
+  answer: string
+  answered_at: string
+  answered_by: string
+}
+
+export type ClientMemoryStatus = 'empty' | 'building' | 'ready' | 'refreshing' | 'failed'
+
+export interface ClientMemory {
+  id: string
+  client_id: string
+  profile: MemoryProfile
+  facts: MemoryFact[]
+  gaps: MemoryGap[]
+  narrative: string | null
+  answers: MemoryAnswer[]
+  status: ClientMemoryStatus
+  completeness: number
+  source_versions: Record<string, unknown>
+  error_message: string | null
+  last_refreshed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
 // Client with stats (for list views)
 export interface ClientWithStats extends Client {
   analyses_count: number

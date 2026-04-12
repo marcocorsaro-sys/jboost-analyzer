@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { useLocale } from '@/lib/i18n'
+import { useLocale, formatLocalDate } from '@/lib/i18n'
+import { cn } from '@/lib/utils'
 
 // ─── Types ─────────────────────────────────────────────
 interface UserProfile {
@@ -83,73 +84,11 @@ const OPERATION_LABELS: Record<string, string> = {
 
 type Tab = 'users' | 'apikeys' | 'createuser' | 'costs' | 'activity'
 
-// ─── Styles ────────────────────────────────────────────
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '10px 14px',
-  background: '#111318',
-  border: '1px solid #2a2d35',
-  borderRadius: '8px',
-  color: '#ffffff',
-  fontSize: '14px',
-  outline: 'none',
-}
-
-const labelStyle: React.CSSProperties = {
-  fontSize: '12px',
-  color: '#a0a0a0',
-  display: 'block',
-  marginBottom: '6px',
-  fontWeight: 500,
-}
-
-const cardStyle: React.CSSProperties = {
-  background: '#1a1d24',
-  borderRadius: '12px',
-  border: '1px solid #2a2d35',
-  overflow: 'hidden',
-}
-
-const btnPrimary: React.CSSProperties = {
-  padding: '10px 20px',
-  background: '#c8e64a',
-  color: '#111318',
-  border: 'none',
-  borderRadius: '8px',
-  fontSize: '13px',
-  fontWeight: 600,
-  cursor: 'pointer',
-}
-
-const btnDisabled: React.CSSProperties = {
-  ...btnPrimary,
-  background: '#2a2d35',
-  color: '#6b7280',
-  cursor: 'default',
-}
-
-const thStyle: React.CSSProperties = {
-  padding: '12px 16px',
-  textAlign: 'left',
-  fontFamily: "'JetBrains Mono', monospace",
-  fontSize: '11px',
-  fontWeight: 600,
-  color: '#6b7280',
-  textTransform: 'uppercase',
-  letterSpacing: '0.5px',
-}
-
-const tdStyle: React.CSSProperties = {
-  padding: '10px 16px',
-  fontSize: '13px',
-  color: '#e0e0e0',
-}
-
 // ─── Component ─────────────────────────────────────────
 export default function AdminPage() {
   const supabase = createClient()
   const router = useRouter()
-  const { t } = useLocale()
+  const { t, locale } = useLocale()
 
   const [isAdmin, setIsAdmin] = useState(false)
   const [activeTab, setActiveTab] = useState<Tab>('users')
@@ -301,15 +240,15 @@ export default function AdminPage() {
       })
       const json = await res.json()
       if (json.success) {
-        setKeyMessage({ text: `${key} saved successfully`, type: 'success' })
+        setKeyMessage({ text: `${key} ${t('admin.savedSuccess')}`, type: 'success' })
         setEditingKey(null)
         setEditValue('')
         await loadConfigKeys()
       } else {
-        setKeyMessage({ text: json.error || 'Failed to save', type: 'error' })
+        setKeyMessage({ text: json.error || t('admin.failedToSave'), type: 'error' })
       }
     } catch {
-      setKeyMessage({ text: 'Network error', type: 'error' })
+      setKeyMessage({ text: t('admin.networkError'), type: 'error' })
     }
     setSavingKey(false)
     setTimeout(() => setKeyMessage(null), 4000)
@@ -325,13 +264,13 @@ export default function AdminPage() {
       })
       const json = await res.json()
       if (json.success) {
-        setKeyMessage({ text: `${key} removed`, type: 'success' })
+        setKeyMessage({ text: `${key} ${t('admin.removed')}`, type: 'success' })
         await loadConfigKeys()
       } else {
-        setKeyMessage({ text: json.error || 'Failed to remove', type: 'error' })
+        setKeyMessage({ text: json.error || t('admin.failedToRemove'), type: 'error' })
       }
     } catch {
-      setKeyMessage({ text: 'Network error', type: 'error' })
+      setKeyMessage({ text: t('admin.networkError'), type: 'error' })
     }
     setTimeout(() => setKeyMessage(null), 4000)
   }
@@ -340,11 +279,11 @@ export default function AdminPage() {
   async function handleCreateUser() {
     setCreateMessage(null)
     if (!newEmail || !newPassword) {
-      setCreateMessage({ text: 'Email and password are required', type: 'error' })
+      setCreateMessage({ text: t('admin.emailRequired'), type: 'error' })
       return
     }
     if (newPassword.length < 8) {
-      setCreateMessage({ text: 'Password must be at least 8 characters', type: 'error' })
+      setCreateMessage({ text: t('admin.passwordMin'), type: 'error' })
       return
     }
 
@@ -362,7 +301,7 @@ export default function AdminPage() {
       })
       const json = await res.json()
       if (json.success) {
-        setCreateMessage({ text: `User ${newEmail} created successfully!`, type: 'success' })
+        setCreateMessage({ text: t('admin.userCreated'), type: 'success' })
         setNewEmail('')
         setNewPassword('')
         setNewFullName('')
@@ -377,7 +316,7 @@ export default function AdminPage() {
         setCreateMessage({ text: json.error || 'Failed to create user', type: 'error' })
       }
     } catch {
-      setCreateMessage({ text: 'Network error', type: 'error' })
+      setCreateMessage({ text: t('admin.networkError'), type: 'error' })
     }
     setCreatingUser(false)
   }
@@ -395,7 +334,7 @@ export default function AdminPage() {
 
   // ─── Render ───────────────────────────────────────────
   if (!isAdmin) {
-    return <div style={{ padding: '32px', color: '#6b7280' }}>{t('admin.checkingPermissions')}</div>
+    return <div className="p-8 text-gray-500">{t('admin.checkingPermissions')}</div>
   }
 
   const tabs: { id: Tab; label: string }[] = [
@@ -407,46 +346,23 @@ export default function AdminPage() {
   ]
 
   return (
-    <div style={{ padding: '32px', maxWidth: '1100px' }}>
-      <h1 style={{
-        fontFamily: "'JetBrains Mono', monospace",
-        fontSize: '24px',
-        fontWeight: 700,
-        color: '#ffffff',
-        marginBottom: '24px',
-      }}>
-        Admin Panel
+    <div className="max-w-[1100px] p-8">
+      <h1 className="mb-6 font-mono text-2xl font-bold text-foreground">
+        {t('admin.adminPanel')}
       </h1>
 
       {/* Tab Bar */}
-      <div style={{
-        display: 'flex',
-        gap: '4px',
-        marginBottom: '24px',
-        background: '#111318',
-        borderRadius: '10px',
-        padding: '4px',
-        border: '1px solid #2a2d35',
-      }}>
+      <div className="mb-6 flex gap-1 rounded-[10px] border border-border bg-background p-1">
         {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            style={{
-              flex: 1,
-              padding: '10px 16px',
-              borderRadius: '8px',
-              border: 'none',
-              fontSize: '13px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              background: activeTab === tab.id ? '#1a1d24' : 'transparent',
-              color: activeTab === tab.id ? '#c8e64a' : '#6b7280',
-              fontFamily: "'JetBrains Mono', monospace",
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-            }}
+            className={cn(
+              'flex-1 rounded-lg border-none px-4 py-2.5 text-[13px] font-semibold font-mono uppercase tracking-wider cursor-pointer transition-all',
+              activeTab === tab.id
+                ? 'bg-card text-primary'
+                : 'bg-transparent text-gray-500'
+            )}
           >
             {tab.label}
           </button>
@@ -457,71 +373,61 @@ export default function AdminPage() {
       {activeTab === 'users' && (
         <>
           {loadingUsers ? (
-            <div style={{ color: '#6b7280' }}>Loading users...</div>
+            <div className="text-gray-500">{t('admin.loadingUsers')}</div>
           ) : (
-            <div style={cardStyle}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div className="rounded-xl border bg-card overflow-hidden">
+              <table className="w-full border-collapse">
                 <thead>
-                  <tr style={{ borderBottom: '1px solid #2a2d35' }}>
-                    {['Name', 'Company', 'Role', 'Status', 'Joined', 'Actions'].map(h => (
-                      <th key={h} style={thStyle}>{h}</th>
+                  <tr className="border-b border-border">
+                    {[t('admin.headerName'), t('admin.headerCompany'), t('admin.headerRole'), t('admin.headerStatus'), t('admin.headerJoined'), t('admin.headerActions')].map(h => (
+                      <th key={h} className="px-4 py-3 text-left font-mono text-[11px] font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {users.map(user => (
-                    <tr key={user.id} style={{ borderBottom: '1px solid #2a2d3520' }}>
-                      <td style={{ padding: '12px 16px', color: '#ffffff', fontSize: '13px' }}>
+                    <tr key={user.id} className="border-b border-border/10">
+                      <td className="px-4 py-3 text-[13px] text-foreground">
                         {user.full_name || '\u2014'}
                       </td>
-                      <td style={{ padding: '12px 16px', color: '#a0a0a0', fontSize: '13px' }}>
+                      <td className="px-4 py-3 text-[13px] text-[#a0a0a0]">
                         {user.company || '\u2014'}
                       </td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <span style={{
-                          fontSize: '11px', fontWeight: 600, padding: '2px 8px',
-                          borderRadius: '4px', textTransform: 'uppercase',
-                          background: user.role === 'admin' ? '#c8e64a15' : '#6b728015',
-                          color: user.role === 'admin' ? '#c8e64a' : '#6b7280',
-                        }}>
+                      <td className="px-4 py-3">
+                        <span className={cn(
+                          'text-[11px] font-semibold px-2 py-0.5 rounded uppercase',
+                          user.role === 'admin'
+                            ? 'bg-primary/[0.08] text-primary'
+                            : 'bg-gray-500/[0.08] text-gray-500'
+                        )}>
                           {user.role}
                         </span>
                       </td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <span style={{
-                          fontSize: '11px', fontWeight: 600, padding: '2px 8px',
-                          borderRadius: '4px',
-                          background: user.is_active ? '#22c55e15' : '#ef444415',
-                          color: user.is_active ? '#22c55e' : '#ef4444',
-                        }}>
-                          {user.is_active ? 'Active' : 'Inactive'}
+                      <td className="px-4 py-3">
+                        <span className={cn(
+                          'text-[11px] font-semibold px-2 py-0.5 rounded',
+                          user.is_active
+                            ? 'bg-green-500/[0.08] text-green-500'
+                            : 'bg-red-500/[0.08] text-red-500'
+                        )}>
+                          {user.is_active ? t('admin.active') : t('admin.inactive')}
                         </span>
                       </td>
-                      <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: '12px' }}>
-                        {new Date(user.created_at).toLocaleDateString('en-GB', {
-                          day: '2-digit', month: 'short', year: 'numeric',
-                        })}
+                      <td className="px-4 py-3 text-xs text-gray-500">
+                        {formatLocalDate(new Date(user.created_at), locale)}
                       </td>
-                      <td style={{ padding: '12px 16px', display: 'flex', gap: '8px' }}>
+                      <td className="flex gap-2 px-4 py-3">
                         <button
                           onClick={() => toggleActive(user.id, user.is_active)}
-                          style={{
-                            padding: '4px 10px', background: '#1e2028',
-                            border: '1px solid #2a2d35', borderRadius: '4px',
-                            color: '#a0a0a0', fontSize: '11px', cursor: 'pointer',
-                          }}
+                          className="cursor-pointer rounded border border-border bg-[#1e2028] px-2.5 py-1 text-[11px] text-[#a0a0a0]"
                         >
-                          {user.is_active ? 'Deactivate' : 'Activate'}
+                          {user.is_active ? t('admin.deactivate') : t('admin.activate')}
                         </button>
                         <button
                           onClick={() => toggleRole(user.id, user.role)}
-                          style={{
-                            padding: '4px 10px', background: '#1e2028',
-                            border: '1px solid #2a2d35', borderRadius: '4px',
-                            color: '#a0a0a0', fontSize: '11px', cursor: 'pointer',
-                          }}
+                          className="cursor-pointer rounded border border-border bg-[#1e2028] px-2.5 py-1 text-[11px] text-[#a0a0a0]"
                         >
-                          {user.role === 'admin' ? 'Remove Admin' : 'Make Admin'}
+                          {user.role === 'admin' ? t('admin.removeAdmin') : t('admin.makeAdmin')}
                         </button>
                       </td>
                     </tr>
@@ -537,67 +443,55 @@ export default function AdminPage() {
       {activeTab === 'apikeys' && (
         <div>
           {keyMessage && (
-            <div style={{
-              padding: '10px 16px', borderRadius: '8px', marginBottom: '16px',
-              fontSize: '13px',
-              background: keyMessage.type === 'success' ? 'rgba(34, 197, 94, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-              border: `1px solid ${keyMessage.type === 'success' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
-              color: keyMessage.type === 'success' ? '#22c55e' : '#ef4444',
-            }}>
+            <div className={cn(
+              'mb-4 rounded-lg border px-4 py-2.5 text-[13px]',
+              keyMessage.type === 'success'
+                ? 'border-green-500/20 bg-green-500/[0.08] text-green-500'
+                : 'border-red-500/20 bg-red-500/[0.08] text-red-500'
+            )}>
               {keyMessage.text}
             </div>
           )}
 
           {loadingKeys ? (
-            <div style={{ color: '#6b7280' }}>Loading API keys...</div>
+            <div className="text-gray-500">{t('admin.loadingApiKeys')}</div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div className="flex flex-col gap-3">
               {API_KEY_DEFS.map(def => {
                 const stored = configKeys.find(c => c.key === def.key)
                 const isEditing = editingKey === def.key
 
                 return (
-                  <div key={def.key} style={{
-                    ...cardStyle,
-                    padding: '16px 20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '16px',
-                  }}>
+                  <div key={def.key} className="flex items-center gap-4 rounded-xl border bg-card overflow-hidden px-5 py-4">
                     {/* Status dot */}
-                    <div style={{
-                      width: '10px', height: '10px', borderRadius: '50%', flexShrink: 0,
-                      background: stored ? '#22c55e' : '#ef4444',
-                      boxShadow: stored ? '0 0 8px rgba(34, 197, 94, 0.4)' : '0 0 8px rgba(239, 68, 68, 0.4)',
-                    }} />
+                    <div className={cn(
+                      'h-2.5 w-2.5 shrink-0 rounded-full',
+                      stored
+                        ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]'
+                        : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]'
+                    )} />
 
                     {/* Info */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{
-                        fontSize: '14px', fontWeight: 600, color: '#ffffff',
-                        fontFamily: "'JetBrains Mono', monospace",
-                      }}>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold font-mono text-foreground">
                         {def.label}
                       </div>
-                      <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+                      <div className="mt-0.5 text-[11px] text-gray-500">
                         {stored
-                          ? `Configured: ${stored.masked_value}`
-                          : 'Not configured'}
+                          ? `${t('admin.configured')}: ${stored.masked_value}`
+                          : t('admin.notConfigured')}
                       </div>
                     </div>
 
                     {/* Actions */}
                     {isEditing ? (
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <div className="flex items-center gap-2">
                         <input
                           type="password"
                           value={editValue}
                           onChange={e => setEditValue(e.target.value)}
-                          placeholder="Paste API key..."
-                          style={{
-                            ...inputStyle,
-                            width: '280px',
-                          }}
+                          placeholder={t('admin.pasteApiKey')}
+                          className="w-[280px] rounded-lg border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-primary"
                           autoFocus
                           onKeyDown={e => {
                             if (e.key === 'Enter') saveApiKey(def.key)
@@ -607,45 +501,36 @@ export default function AdminPage() {
                         <button
                           onClick={() => saveApiKey(def.key)}
                           disabled={savingKey || !editValue.trim()}
-                          style={savingKey || !editValue.trim() ? btnDisabled : btnPrimary}
+                          className={cn(
+                            'rounded-lg px-5 py-2.5 text-[13px] font-semibold border-none',
+                            savingKey || !editValue.trim()
+                              ? 'bg-secondary text-muted-foreground cursor-default'
+                              : 'bg-primary text-primary-foreground cursor-pointer'
+                          )}
                         >
-                          {savingKey ? '...' : 'Save'}
+                          {savingKey ? '...' : t('admin.save')}
                         </button>
                         <button
                           onClick={() => { setEditingKey(null); setEditValue('') }}
-                          style={{
-                            padding: '10px 14px', background: 'transparent',
-                            border: '1px solid #2a2d35', borderRadius: '8px',
-                            color: '#6b7280', fontSize: '13px', cursor: 'pointer',
-                          }}
+                          className="cursor-pointer rounded-lg border border-border bg-transparent px-3.5 py-2.5 text-[13px] text-gray-500"
                         >
-                          Cancel
+                          {t('admin.cancel')}
                         </button>
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', gap: '8px' }}>
+                      <div className="flex gap-2">
                         <button
                           onClick={() => { setEditingKey(def.key); setEditValue('') }}
-                          style={{
-                            padding: '6px 14px', background: '#1e2028',
-                            border: '1px solid #2a2d35', borderRadius: '6px',
-                            color: '#c8e64a', fontSize: '12px', fontWeight: 500,
-                            cursor: 'pointer',
-                          }}
+                          className="cursor-pointer rounded-md border border-border bg-[#1e2028] px-3.5 py-1.5 text-xs font-medium text-primary"
                         >
-                          {stored ? 'Update' : 'Set Key'}
+                          {stored ? t('admin.update') : t('admin.setKey')}
                         </button>
                         {stored && (
                           <button
                             onClick={() => removeApiKey(def.key)}
-                            style={{
-                              padding: '6px 14px', background: '#1e2028',
-                              border: '1px solid #2a2d35', borderRadius: '6px',
-                              color: '#ef4444', fontSize: '12px', fontWeight: 500,
-                              cursor: 'pointer',
-                            }}
+                            className="cursor-pointer rounded-md border border-border bg-[#1e2028] px-3.5 py-1.5 text-xs font-medium text-red-500"
                           >
-                            Remove
+                            {t('admin.remove')}
                           </button>
                         )}
                       </div>
@@ -660,65 +545,61 @@ export default function AdminPage() {
 
       {/* ═══ CREATE USER TAB ═══ */}
       {activeTab === 'createuser' && (
-        <div style={{ ...cardStyle, padding: '24px', maxWidth: '500px' }}>
-          <h2 style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '14px', fontWeight: 600, color: '#ffffff',
-            marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.5px',
-          }}>
-            Create New User
+        <div className="max-w-[500px] rounded-xl border bg-card overflow-hidden p-6">
+          <h2 className="mb-5 font-mono text-sm font-semibold uppercase tracking-wider text-foreground">
+            {t('admin.createNewUser')}
           </h2>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="flex flex-col gap-4">
             <div>
-              <label style={labelStyle}>Email *</label>
+              <label className="block text-xs font-medium text-[#a0a0a0] mb-1.5">{t('admin.emailLabel')}</label>
               <input
                 type="email"
                 value={newEmail}
                 onChange={e => setNewEmail(e.target.value)}
-                style={inputStyle}
+                className="w-full rounded-lg border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-primary"
                 placeholder="user@example.com"
               />
             </div>
             <div>
-              <label style={labelStyle}>Password * (min 8 chars)</label>
+              <label className="block text-xs font-medium text-[#a0a0a0] mb-1.5">{t('admin.passwordLabel')}</label>
               <input
                 type="password"
                 value={newPassword}
                 onChange={e => setNewPassword(e.target.value)}
-                style={inputStyle}
+                className="w-full rounded-lg border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-primary"
                 placeholder="Min 8 characters"
               />
             </div>
             <div>
-              <label style={labelStyle}>Full Name</label>
+              <label className="block text-xs font-medium text-[#a0a0a0] mb-1.5">{t('admin.fullNameLabel')}</label>
               <input
                 type="text"
                 value={newFullName}
                 onChange={e => setNewFullName(e.target.value)}
-                style={inputStyle}
+                className="w-full rounded-lg border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-primary"
                 placeholder="John Doe"
               />
             </div>
             <div>
-              <label style={labelStyle}>Role</label>
+              <label className="block text-xs font-medium text-[#a0a0a0] mb-1.5">{t('admin.roleLabel')}</label>
               <select
                 value={newRole}
                 onChange={e => setNewRole(e.target.value as 'user' | 'admin')}
-                style={inputStyle}
+                className="w-full rounded-lg border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-primary"
               >
-                <option value="user">User</option>
-                <option value="admin">Admin</option>
+                <option value="user">{t('admin.userRole')}</option>
+                <option value="admin">{t('admin.adminRole')}</option>
               </select>
             </div>
 
             {createMessage && (
-              <div style={{
-                padding: '10px 16px', borderRadius: '8px', fontSize: '13px',
-                background: createMessage.type === 'success' ? 'rgba(34, 197, 94, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-                border: `1px solid ${createMessage.type === 'success' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
-                color: createMessage.type === 'success' ? '#22c55e' : '#ef4444',
-              }}>
+              <div className={cn(
+                'rounded-lg border px-4 py-2.5 text-[13px]',
+                createMessage.type === 'success'
+                  ? 'border-green-500/20 bg-green-500/[0.08] text-green-500'
+                  : 'border-red-500/20 bg-red-500/[0.08] text-red-500'
+              )}>
                 {createMessage.text}
               </div>
             )}
@@ -726,9 +607,14 @@ export default function AdminPage() {
             <button
               onClick={handleCreateUser}
               disabled={creatingUser}
-              style={creatingUser ? btnDisabled : btnPrimary}
+              className={cn(
+                'rounded-lg px-5 py-2.5 text-[13px] font-semibold border-none',
+                creatingUser
+                  ? 'bg-secondary text-muted-foreground cursor-default'
+                  : 'bg-primary text-primary-foreground cursor-pointer'
+              )}
             >
-              {creatingUser ? 'Creating...' : 'Create User'}
+              {creatingUser ? t('admin.creating') : t('admin.createUserBtn')}
             </button>
           </div>
         </div>
@@ -738,22 +624,17 @@ export default function AdminPage() {
       {activeTab === 'costs' && (
         <div>
           {/* Period selector */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+          <div className="mb-5 flex gap-2">
             {([['today', t('admin.today')], ['7d', t('admin.7days')], ['30d', t('admin.30days')]] as const).map(([val, label]) => (
               <button
                 key={val}
                 onClick={() => setCostPeriod(val)}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  fontFamily: "'JetBrains Mono', monospace",
-                  background: costPeriod === val ? '#c8e64a' : '#1a1d24',
-                  color: costPeriod === val ? '#111318' : '#6b7280',
-                }}
+                className={cn(
+                  'rounded-lg border-none px-4 py-2 text-[13px] font-semibold font-mono cursor-pointer',
+                  costPeriod === val
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-card text-gray-500'
+                )}
               >
                 {label}
               </button>
@@ -761,26 +642,25 @@ export default function AdminPage() {
           </div>
 
           {loadingCosts ? (
-            <div style={{ color: '#6b7280', padding: '40px', textAlign: 'center' }}>{t('admin.loadingCosts')}</div>
+            <div className="p-10 text-center text-gray-500">{t('admin.loadingCosts')}</div>
           ) : costData ? (
             <>
               {/* KPI Cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '24px' }}>
+              <div className="mb-6 grid grid-cols-4 gap-3">
                 {[
-                  { label: t('admin.totalCost'), value: formatCost(costData.totals.cost), color: '#c8e64a' },
-                  { label: t('admin.apiCalls'), value: String(costData.totals.calls), color: '#ffffff' },
-                  { label: t('admin.inputTokens'), value: formatTokens(costData.totals.input_tokens), color: '#ffffff' },
-                  { label: t('admin.outputTokens'), value: formatTokens(costData.totals.output_tokens), color: '#ffffff' },
+                  { label: t('admin.totalCost'), value: formatCost(costData.totals.cost), highlight: true },
+                  { label: t('admin.apiCalls'), value: String(costData.totals.calls), highlight: false },
+                  { label: t('admin.inputTokens'), value: formatTokens(costData.totals.input_tokens), highlight: false },
+                  { label: t('admin.outputTokens'), value: formatTokens(costData.totals.output_tokens), highlight: false },
                 ].map((kpi) => (
-                  <div key={kpi.label} style={{
-                    ...cardStyle,
-                    padding: '16px 20px',
-                    textAlign: 'center',
-                  }}>
-                    <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px', fontFamily: "'JetBrains Mono', monospace" }}>
+                  <div key={kpi.label} className="rounded-xl border bg-card overflow-hidden px-5 py-4 text-center">
+                    <div className="mb-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-gray-500">
                       {kpi.label}
                     </div>
-                    <div style={{ fontSize: '24px', fontWeight: 700, color: kpi.color, fontFamily: "'JetBrains Mono', monospace" }}>
+                    <div className={cn(
+                      'font-mono text-2xl font-bold',
+                      kpi.highlight ? 'text-primary' : 'text-foreground'
+                    )}>
                       {kpi.value}
                     </div>
                   </div>
@@ -788,22 +668,22 @@ export default function AdminPage() {
               </div>
 
               {/* Breakdown tables - 3 columns */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
+              <div className="mb-6 grid grid-cols-3 gap-4">
                 {/* By User */}
-                <div style={cardStyle}>
-                  <div style={{ padding: '12px 16px', borderBottom: '1px solid #2a2d35' }}>
-                    <h3 style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', fontWeight: 600, color: '#c8e64a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('admin.byUser')}</h3>
+                <div className="rounded-xl border bg-card overflow-hidden">
+                  <div className="border-b border-border px-4 py-3">
+                    <h3 className="font-mono text-[11px] font-semibold uppercase tracking-wider text-primary">{t('admin.byUser')}</h3>
                   </div>
                   {costData.byUser.length === 0 ? (
-                    <div style={{ padding: '20px', color: '#6b7280', fontSize: '12px', textAlign: 'center' }}>Nessun dato</div>
+                    <div className="p-5 text-center text-xs text-gray-500">{t('admin.noData')}</div>
                   ) : (
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <table className="w-full border-collapse">
                       <tbody>
                         {costData.byUser.map((u) => (
-                          <tr key={u.user_id} style={{ borderBottom: '1px solid #2a2d3520' }}>
-                            <td style={{ ...tdStyle, fontSize: '12px' }}>{u.user_name}</td>
-                            <td style={{ ...tdStyle, fontSize: '12px', textAlign: 'right', color: '#c8e64a', fontFamily: "'JetBrains Mono', monospace" }}>{formatCost(u.cost)}</td>
-                            <td style={{ ...tdStyle, fontSize: '11px', textAlign: 'right', color: '#6b7280' }}>{u.calls} ch.</td>
+                          <tr key={u.user_id} className="border-b border-border/10">
+                            <td className="px-4 py-2.5 text-xs text-foreground/90">{u.user_name}</td>
+                            <td className="px-4 py-2.5 text-right font-mono text-xs text-primary">{formatCost(u.cost)}</td>
+                            <td className="px-4 py-2.5 text-right text-[11px] text-gray-500">{u.calls} {t('admin.calls')}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -812,20 +692,20 @@ export default function AdminPage() {
                 </div>
 
                 {/* By Client */}
-                <div style={cardStyle}>
-                  <div style={{ padding: '12px 16px', borderBottom: '1px solid #2a2d35' }}>
-                    <h3 style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', fontWeight: 600, color: '#c8e64a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('admin.byClient')}</h3>
+                <div className="rounded-xl border bg-card overflow-hidden">
+                  <div className="border-b border-border px-4 py-3">
+                    <h3 className="font-mono text-[11px] font-semibold uppercase tracking-wider text-primary">{t('admin.byClient')}</h3>
                   </div>
                   {costData.byClient.length === 0 ? (
-                    <div style={{ padding: '20px', color: '#6b7280', fontSize: '12px', textAlign: 'center' }}>Nessun dato</div>
+                    <div className="p-5 text-center text-xs text-gray-500">{t('admin.noData')}</div>
                   ) : (
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <table className="w-full border-collapse">
                       <tbody>
                         {costData.byClient.map((c) => (
-                          <tr key={c.client_id} style={{ borderBottom: '1px solid #2a2d3520' }}>
-                            <td style={{ ...tdStyle, fontSize: '12px' }}>{c.client_name}</td>
-                            <td style={{ ...tdStyle, fontSize: '12px', textAlign: 'right', color: '#c8e64a', fontFamily: "'JetBrains Mono', monospace" }}>{formatCost(c.cost)}</td>
-                            <td style={{ ...tdStyle, fontSize: '11px', textAlign: 'right', color: '#6b7280' }}>{c.calls} ch.</td>
+                          <tr key={c.client_id} className="border-b border-border/10">
+                            <td className="px-4 py-2.5 text-xs text-foreground/90">{c.client_name}</td>
+                            <td className="px-4 py-2.5 text-right font-mono text-xs text-primary">{formatCost(c.cost)}</td>
+                            <td className="px-4 py-2.5 text-right text-[11px] text-gray-500">{c.calls} {t('admin.calls')}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -834,20 +714,20 @@ export default function AdminPage() {
                 </div>
 
                 {/* By Operation */}
-                <div style={cardStyle}>
-                  <div style={{ padding: '12px 16px', borderBottom: '1px solid #2a2d35' }}>
-                    <h3 style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', fontWeight: 600, color: '#c8e64a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('admin.byOperation')}</h3>
+                <div className="rounded-xl border bg-card overflow-hidden">
+                  <div className="border-b border-border px-4 py-3">
+                    <h3 className="font-mono text-[11px] font-semibold uppercase tracking-wider text-primary">{t('admin.byOperation')}</h3>
                   </div>
                   {costData.byOperation.length === 0 ? (
-                    <div style={{ padding: '20px', color: '#6b7280', fontSize: '12px', textAlign: 'center' }}>Nessun dato</div>
+                    <div className="p-5 text-center text-xs text-gray-500">{t('admin.noData')}</div>
                   ) : (
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <table className="w-full border-collapse">
                       <tbody>
                         {costData.byOperation.map((o) => (
-                          <tr key={o.operation} style={{ borderBottom: '1px solid #2a2d3520' }}>
-                            <td style={{ ...tdStyle, fontSize: '12px' }}>{OPERATION_LABELS[o.operation] || o.operation}</td>
-                            <td style={{ ...tdStyle, fontSize: '12px', textAlign: 'right', color: '#c8e64a', fontFamily: "'JetBrains Mono', monospace" }}>{formatCost(o.cost)}</td>
-                            <td style={{ ...tdStyle, fontSize: '11px', textAlign: 'right', color: '#6b7280' }}>{o.calls} ch.</td>
+                          <tr key={o.operation} className="border-b border-border/10">
+                            <td className="px-4 py-2.5 text-xs text-foreground/90">{OPERATION_LABELS[o.operation] || o.operation}</td>
+                            <td className="px-4 py-2.5 text-right font-mono text-xs text-primary">{formatCost(o.cost)}</td>
+                            <td className="px-4 py-2.5 text-right text-[11px] text-gray-500">{o.calls} {t('admin.calls')}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -857,41 +737,38 @@ export default function AdminPage() {
               </div>
 
               {/* Recent Operations */}
-              <div style={cardStyle}>
-                <div style={{ padding: '12px 16px', borderBottom: '1px solid #2a2d35' }}>
-                  <h3 style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', fontWeight: 600, color: '#c8e64a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('admin.recentOperations')}</h3>
+              <div className="rounded-xl border bg-card overflow-hidden">
+                <div className="border-b border-border px-4 py-3">
+                  <h3 className="font-mono text-[11px] font-semibold uppercase tracking-wider text-primary">{t('admin.recentOperations')}</h3>
                 </div>
                 {costData.recent.length === 0 ? (
-                  <div style={{ padding: '20px', color: '#6b7280', fontSize: '12px', textAlign: 'center' }}>Nessuna operazione nel periodo</div>
+                  <div className="p-5 text-center text-xs text-gray-500">{t('admin.noOperations')}</div>
                 ) : (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-[800px] w-full border-collapse">
                       <thead>
-                        <tr style={{ borderBottom: '1px solid #2a2d35' }}>
-                          {['Data', 'Utente', 'Operazione', 'Modello', 'Token In', 'Token Out', 'Costo'].map(h => (
-                            <th key={h} style={thStyle}>{h}</th>
+                        <tr className="border-b border-border">
+                          {[t('admin.headerDate'), t('admin.headerUser'), t('admin.headerOperation'), t('admin.headerModel'), t('admin.headerTokenIn'), t('admin.headerTokenOut'), t('admin.headerCost')].map(h => (
+                            <th key={h} className="px-4 py-3 text-left font-mono text-[11px] font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {costData.recent.map((r) => (
-                          <tr key={r.id} style={{ borderBottom: '1px solid #2a2d3520' }}>
-                            <td style={{ ...tdStyle, fontSize: '11px', color: '#6b7280', whiteSpace: 'nowrap' }}>
-                              {new Date(r.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                          <tr key={r.id} className="border-b border-border/10">
+                            <td className="whitespace-nowrap px-4 py-2.5 text-[11px] text-gray-500">
+                              {new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : locale === 'it' ? 'it-IT' : locale === 'es' ? 'es-ES' : 'fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(r.created_at))}
                             </td>
-                            <td style={{ ...tdStyle, fontSize: '12px' }}>{r.user_name}</td>
-                            <td style={tdStyle}>
-                              <span style={{
-                                fontSize: '11px', fontWeight: 600, padding: '2px 8px',
-                                borderRadius: '4px', background: '#c8e64a15', color: '#c8e64a',
-                              }}>
+                            <td className="px-4 py-2.5 text-xs text-foreground/90">{r.user_name}</td>
+                            <td className="px-4 py-2.5">
+                              <span className="rounded bg-primary/[0.08] px-2 py-0.5 text-[11px] font-semibold text-primary">
                                 {OPERATION_LABELS[r.operation] || r.operation}
                               </span>
                             </td>
-                            <td style={{ ...tdStyle, fontSize: '11px', color: '#6b7280', fontFamily: "'JetBrains Mono', monospace" }}>{r.model}</td>
-                            <td style={{ ...tdStyle, fontSize: '12px', fontFamily: "'JetBrains Mono', monospace" }}>{formatTokens(r.input_tokens)}</td>
-                            <td style={{ ...tdStyle, fontSize: '12px', fontFamily: "'JetBrains Mono', monospace" }}>{formatTokens(r.output_tokens)}</td>
-                            <td style={{ ...tdStyle, fontSize: '12px', color: '#c8e64a', fontFamily: "'JetBrains Mono', monospace" }}>{formatCost(Number(r.estimated_cost_usd))}</td>
+                            <td className="px-4 py-2.5 font-mono text-[11px] text-gray-500">{r.model}</td>
+                            <td className="px-4 py-2.5 font-mono text-xs text-foreground/90">{formatTokens(r.input_tokens)}</td>
+                            <td className="px-4 py-2.5 font-mono text-xs text-foreground/90">{formatTokens(r.output_tokens)}</td>
+                            <td className="px-4 py-2.5 font-mono text-xs text-primary">{formatCost(Number(r.estimated_cost_usd))}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -908,14 +785,14 @@ export default function AdminPage() {
       {activeTab === 'activity' && (
         <div>
           {/* Filter */}
-          <div style={{ marginBottom: '16px', display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <label style={{ fontSize: '12px', color: '#6b7280' }}>Filtra per utente:</label>
+          <div className="mb-4 flex items-center gap-3">
+            <label className="text-xs text-gray-500">{t('admin.filterByUser')}</label>
             <select
               value={activityFilterUser}
               onChange={e => setActivityFilterUser(e.target.value)}
-              style={{ ...inputStyle, width: '250px' }}
+              className="w-[250px] rounded-lg border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-primary"
             >
-              <option value="">Tutti gli utenti</option>
+              <option value="">{t('admin.allUsers')}</option>
               {activityUsers.map(u => (
                 <option key={u.id} value={u.id}>{u.name}</option>
               ))}
@@ -923,49 +800,49 @@ export default function AdminPage() {
           </div>
 
           {loadingActivity ? (
-            <div style={{ color: '#6b7280', padding: '40px', textAlign: 'center' }}>Caricamento attivita...</div>
+            <div className="p-10 text-center text-gray-500">{t('admin.loadingActivity')}</div>
           ) : (
-            <div style={cardStyle}>
+            <div className="rounded-xl border bg-card overflow-hidden">
               {activityLogs.length === 0 ? (
-                <div style={{ padding: '40px', color: '#6b7280', fontSize: '13px', textAlign: 'center' }}>Nessuna attivita registrata</div>
+                <div className="p-10 text-center text-[13px] text-gray-500">{t('admin.noActivity')}</div>
               ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '750px' }}>
+                <div className="overflow-x-auto">
+                  <table className="min-w-[750px] w-full border-collapse">
                     <thead>
-                      <tr style={{ borderBottom: '1px solid #2a2d35' }}>
-                        {['Data/Ora', 'Utente', 'Azione', 'Risorsa', 'Dettagli', 'IP'].map(h => (
-                          <th key={h} style={thStyle}>{h}</th>
+                      <tr className="border-b border-border">
+                        {[t('admin.headerDateTime'), t('admin.headerUser'), t('admin.headerAction'), t('admin.headerResource'), t('admin.headerDetails'), t('admin.headerIP')].map(h => (
+                          <th key={h} className="px-4 py-3 text-left font-mono text-[11px] font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {activityLogs.map((log) => (
-                        <tr key={log.id} style={{ borderBottom: '1px solid #2a2d3520' }}>
-                          <td style={{ ...tdStyle, fontSize: '11px', color: '#6b7280', whiteSpace: 'nowrap' }}>
-                            {new Date(log.created_at).toLocaleString('it-IT', {
+                        <tr key={log.id} className="border-b border-border/10">
+                          <td className="whitespace-nowrap px-4 py-2.5 text-[11px] text-gray-500">
+                            {new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : locale === 'it' ? 'it-IT' : locale === 'es' ? 'es-ES' : 'fr-FR', {
                               day: '2-digit', month: '2-digit', year: '2-digit',
                               hour: '2-digit', minute: '2-digit',
-                            })}
+                            }).format(new Date(log.created_at))}
                           </td>
-                          <td style={{ ...tdStyle, fontSize: '12px' }}>{log.user_name}</td>
-                          <td style={tdStyle}>
-                            <span style={{
-                              fontSize: '11px', fontWeight: 600, padding: '2px 8px',
-                              borderRadius: '4px',
-                              background: log.action === 'login' ? '#14b8a615' : '#c8e64a15',
-                              color: log.action === 'login' ? '#14b8a6' : '#c8e64a',
-                            }}>
+                          <td className="px-4 py-2.5 text-xs text-foreground/90">{log.user_name}</td>
+                          <td className="px-4 py-2.5">
+                            <span className={cn(
+                              'rounded px-2 py-0.5 text-[11px] font-semibold',
+                              log.action === 'login'
+                                ? 'bg-teal-500/[0.08] text-teal-500'
+                                : 'bg-primary/[0.08] text-primary'
+                            )}>
                               {ACTION_LABELS[log.action] || log.action}
                             </span>
                           </td>
-                          <td style={{ ...tdStyle, fontSize: '12px', color: '#6b7280' }}>
-                            {log.resource_type || '—'}
+                          <td className="px-4 py-2.5 text-xs text-gray-500">
+                            {log.resource_type || '\u2014'}
                           </td>
-                          <td style={{ ...tdStyle, fontSize: '11px', color: '#6b7280', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {log.details ? JSON.stringify(log.details).slice(0, 60) : '—'}
+                          <td className="max-w-[200px] truncate px-4 py-2.5 text-[11px] text-gray-500">
+                            {log.details ? JSON.stringify(log.details).slice(0, 60) : '\u2014'}
                           </td>
-                          <td style={{ ...tdStyle, fontSize: '11px', color: '#4b5563', fontFamily: "'JetBrains Mono', monospace" }}>
-                            {log.ip_address || '—'}
+                          <td className="px-4 py-2.5 font-mono text-[11px] text-gray-600">
+                            {log.ip_address || '\u2014'}
                           </td>
                         </tr>
                       ))}

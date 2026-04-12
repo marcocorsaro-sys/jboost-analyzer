@@ -162,46 +162,35 @@ export default async function ClientOverviewPage({
 
   // Delta colors
   const deltaColor = overallDelta.direction === 'up' ? '#22c55e' : overallDelta.direction === 'down' ? '#ef4444' : '#6b7280'
-  const deltaArrow = overallDelta.direction === 'up' ? '↑' : overallDelta.direction === 'down' ? '↓' : '→'
+  const deltaArrow = overallDelta.direction === 'up' ? '\u2191' : overallDelta.direction === 'down' ? '\u2193' : '\u2192'
 
   return (
     <div>
       {/* Lifecycle stage banner */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '16px',
-        padding: '14px 18px',
-        background: stageColors.bg,
-        border: `1px solid ${stageColors.border}`,
-        borderRadius: '12px',
-        marginBottom: '20px',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div
+        className="flex items-center justify-between gap-4 px-[18px] py-[14px] rounded-xl mb-5"
+        style={{
+          background: stageColors.bg,
+          border: `1px solid ${stageColors.border}`,
+        }}
+      >
+        <div className="flex items-center gap-3">
           <span
+            className="inline-block px-2.5 py-[3px] rounded-full text-[11px] font-bold tracking-wide uppercase font-mono"
             style={{
-              display: 'inline-block',
-              padding: '3px 10px',
-              borderRadius: '999px',
               background: stageColors.fg + '22',
               color: stageColors.fg,
-              fontSize: '11px',
-              fontWeight: 700,
-              letterSpacing: '0.5px',
-              textTransform: 'uppercase',
-              fontFamily: "'JetBrains Mono', monospace",
             }}
           >
             <T k={stageLabelKey} />
           </span>
           {lifecycleStage === 'active' && client.engagement_started_at && (
-            <span style={{ fontSize: '12px', color: '#6b7280' }}>
+            <span className="text-xs text-gray-500">
               <T k="clients.engaged_since" />: {new Date(client.engagement_started_at).toLocaleDateString('en-US')}
             </span>
           )}
           {lifecycleStage === 'churned' && client.engagement_ended_at && (
-            <span style={{ fontSize: '12px', color: '#6b7280' }}>
+            <span className="text-xs text-gray-500">
               <T k="clients.churned_on" />: {new Date(client.engagement_ended_at).toLocaleDateString('en-US')}
             </span>
           )}
@@ -212,104 +201,70 @@ export default async function ClientOverviewPage({
       </div>
 
       {/* Quick stats grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: '16px',
-        marginBottom: '24px',
-      }}>
+      <div className="grid grid-cols-4 gap-4 mb-6">
         {/* Overall Score + Delta */}
-        <div style={{
-          background: '#1a1c24',
-          borderRadius: '12px',
-          border: '1px solid #2a2d35',
-          padding: '20px',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', fontFamily: "'JetBrains Mono', monospace" }}>
+        <div className="bg-card rounded-xl border border-border p-5 text-center">
+          <div className="text-[11px] text-gray-500 uppercase tracking-wide mb-2 font-mono">
             <T k="clients.currentScore" />
           </div>
-          <div style={{
-            fontSize: '36px',
-            fontWeight: 700,
-            color: overallScore !== null ? color : '#6b7280',
-            fontFamily: "'JetBrains Mono', monospace",
-          }}>
-            {overallScore ?? '—'}
+          <div
+            className="text-4xl font-bold font-mono"
+            style={{ color: overallScore !== null ? color : '#6b7280' }}
+          >
+            {overallScore ?? '\u2014'}
           </div>
           {band && (
-            <div style={{ fontSize: '12px', color, marginTop: '4px' }}>
-              {band.label}
+            <div className="text-xs mt-1" style={{ color }}>
+              <T k={band.label as TranslationKey} />
             </div>
           )}
           {overallDelta.direction !== 'unknown' && (
-            <div style={{
-              fontSize: '12px',
-              color: deltaColor,
-              marginTop: '4px',
-              fontFamily: "'JetBrains Mono', monospace",
-              fontWeight: 600,
-            }}>
+            <div
+              className="text-xs mt-1 font-mono font-semibold"
+              style={{ color: deltaColor }}
+            >
               {deltaArrow} {overallDelta.delta !== null && (overallDelta.delta > 0 ? '+' : '')}{overallDelta.delta !== null ? Math.round(overallDelta.delta) : ''} <T k="clients.vsPrevious" />
             </div>
           )}
         </div>
 
         {/* Analyses count */}
-        <div style={{
-          background: '#1a1c24',
-          borderRadius: '12px',
-          border: '1px solid #2a2d35',
-          padding: '20px',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', fontFamily: "'JetBrains Mono', monospace" }}>
+        <div className="bg-card rounded-xl border border-border p-5 text-center">
+          <div className="text-[11px] text-gray-500 uppercase tracking-wide mb-2 font-mono">
             <T k="clients.analyses" />
           </div>
-          <div style={{ fontSize: '36px', fontWeight: 700, color: '#ffffff', fontFamily: "'JetBrains Mono', monospace" }}>
+          <div className="text-4xl font-bold text-white font-mono">
             {analysesCount ?? 0}
           </div>
           {latestAnalysis?.completed_at && (
-            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+            <div className="text-xs text-gray-500 mt-1">
               <T k="clients.last" />: {new Date(latestAnalysis.completed_at).toLocaleDateString('en-US')}
             </div>
           )}
         </div>
 
         {/* MarTech Stack */}
-        <div style={{
-          background: '#1a1c24',
-          borderRadius: '12px',
-          border: '1px solid #2a2d35',
-          padding: '20px',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', fontFamily: "'JetBrains Mono', monospace" }}>
+        <div className="bg-card rounded-xl border border-border p-5 text-center">
+          <div className="text-[11px] text-gray-500 uppercase tracking-wide mb-2 font-mono">
             <T k="clients.martechStack" />
           </div>
-          <div style={{ fontSize: '36px', fontWeight: 700, color: '#ffffff', fontFamily: "'JetBrains Mono', monospace" }}>
+          <div className="text-4xl font-bold text-white font-mono">
             {martechCount ?? 0}
           </div>
-          <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+          <div className="text-xs text-gray-500 mt-1">
             {(martechCount ?? 0) > 0 ? <T k="clients.toolsDetected" /> : <T k="clients.toAnalyze" />}
           </div>
         </div>
 
         {/* Files */}
-        <div style={{
-          background: '#1a1c24',
-          borderRadius: '12px',
-          border: '1px solid #2a2d35',
-          padding: '20px',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', fontFamily: "'JetBrains Mono', monospace" }}>
+        <div className="bg-card rounded-xl border border-border p-5 text-center">
+          <div className="text-[11px] text-gray-500 uppercase tracking-wide mb-2 font-mono">
             <T k="clients.knowledge" />
           </div>
-          <div style={{ fontSize: '36px', fontWeight: 700, color: '#ffffff', fontFamily: "'JetBrains Mono', monospace" }}>
+          <div className="text-4xl font-bold text-white font-mono">
             {filesCount ?? 0}
           </div>
-          <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+          <div className="text-xs text-gray-500 mt-1">
             <T k="clients.documents" />
           </div>
         </div>
@@ -317,22 +272,8 @@ export default async function ClientOverviewPage({
 
       {/* Trend Chart */}
       {trendData.length >= 2 && (
-        <div style={{
-          background: '#1a1c24',
-          borderRadius: '12px',
-          border: '1px solid #2a2d35',
-          padding: '20px',
-          marginBottom: '24px',
-        }}>
-          <h3 style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '13px',
-            fontWeight: 600,
-            color: '#c8e64a',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-            marginBottom: '16px',
-          }}>
+        <div className="bg-card rounded-xl border border-border p-5 mb-6">
+          <h3 className="font-mono text-[13px] font-semibold text-primary uppercase tracking-wide mb-4">
             <T k="clients.trendScore" />
           </h3>
           <ClientOverviewTrend data={trendData} />
@@ -341,69 +282,37 @@ export default async function ClientOverviewPage({
 
       {/* Driver Scores grid with delta arrows */}
       {driverScores.length > 0 && (
-        <div style={{
-          background: '#1a1c24',
-          borderRadius: '12px',
-          border: '1px solid #2a2d35',
-          padding: '20px',
-          marginBottom: '24px',
-        }}>
-          <h3 style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '13px',
-            fontWeight: 600,
-            color: '#c8e64a',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-            marginBottom: '16px',
-          }}>
+        <div className="bg-card rounded-xl border border-border p-5 mb-6">
+          <h3 className="font-mono text-[13px] font-semibold text-primary uppercase tracking-wide mb-4">
             <T k="clients.driverScores" />
           </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+          <div className="grid grid-cols-3 gap-3">
             {driverScores.map((dr) => {
               const drBand = dr.score !== null ? getScoreBand(dr.score) : null
               const drColor = drBand ? BAND_COLORS[drBand.color] ?? '#6b7280' : '#6b7280'
               const drDelta = calcDelta(dr.score, prevDriverScores[dr.driver_name] ?? null)
               const drDeltaColor = drDelta.direction === 'up' ? '#22c55e' : drDelta.direction === 'down' ? '#ef4444' : '#6b7280'
-              const drArrow = drDelta.direction === 'up' ? '↑' : drDelta.direction === 'down' ? '↓' : drDelta.direction === 'stable' ? '→' : ''
+              const drArrow = drDelta.direction === 'up' ? '\u2191' : drDelta.direction === 'down' ? '\u2193' : drDelta.direction === 'stable' ? '\u2192' : ''
 
               return (
-                <div key={dr.driver_name} style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  padding: '10px 14px',
-                  background: '#111318',
-                  borderRadius: '8px',
-                }}>
-                  <div style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: '6px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: '14px',
-                    fontWeight: 700,
-                    background: `${drColor}15`,
-                    color: drColor,
-                    flexShrink: 0,
-                  }}>
-                    {dr.score ?? '—'}
+                <div key={dr.driver_name} className="flex items-center gap-3 px-3.5 py-2.5 bg-background rounded-lg">
+                  <div
+                    className="w-9 h-9 rounded-md flex items-center justify-center font-mono text-sm font-bold shrink-0"
+                    style={{ background: `${drColor}15`, color: drColor }}
+                  >
+                    {dr.score ?? '\u2014'}
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#ffffff' }}>
+                  <div className="flex-1">
+                    <div className="text-[13px] font-semibold text-white">
                       {DRIVER_LABELS[dr.driver_name] || dr.driver_name}
                     </div>
-                    <div style={{ fontSize: '11px', color: drColor, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      {drBand?.label ?? dr.status}
+                    <div className="text-[11px] flex items-center gap-1.5" style={{ color: drColor }}>
+                      {drBand ? <T k={drBand.label as TranslationKey} /> : dr.status}
                       {drArrow && (
-                        <span style={{
-                          fontFamily: "'JetBrains Mono', monospace",
-                          fontWeight: 700,
-                          color: drDeltaColor,
-                        }}>
+                        <span
+                          className="font-mono font-bold"
+                          style={{ color: drDeltaColor }}
+                        >
                           {drArrow}{drDelta.delta !== null ? (drDelta.delta > 0 ? '+' : '') + Math.round(drDelta.delta) : ''}
                         </span>
                       )}
@@ -417,72 +326,34 @@ export default async function ClientOverviewPage({
       )}
 
       {/* Quick actions */}
-      <div style={{
-        background: '#1a1c24',
-        borderRadius: '12px',
-        border: '1px solid #2a2d35',
-        padding: '20px',
-      }}>
-        <h3 style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: '13px',
-          fontWeight: 600,
-          color: '#a0a0a0',
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px',
-          marginBottom: '16px',
-        }}>
+      <div className="bg-card rounded-xl border border-border p-5">
+        <h3 className="font-mono text-[13px] font-semibold text-[#a0a0a0] uppercase tracking-wide mb-4">
           <T k="clients.quickActions" />
         </h3>
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+        <div className="flex gap-3 flex-wrap">
           <Link
             href={`/analyzer?client=${params.id}&domain=${client.domain || ''}`}
-            style={{
-              padding: '10px 20px',
-              background: '#c8e64a',
-              color: '#111318',
-              borderRadius: '8px',
-              fontSize: '13px',
-              fontWeight: 700,
-              textDecoration: 'none',
-              fontFamily: "'JetBrains Mono', monospace",
-            }}
+            className="px-5 py-2.5 bg-primary text-background rounded-lg text-[13px] font-bold no-underline font-mono"
           >
             <T k="clients.newAnalysis" />
           </Link>
           <Link
             href={`/clients/${params.id}/martech`}
-            style={{
-              padding: '10px 20px',
-              background: '#2a2d35',
-              color: '#ffffff',
-              borderRadius: '8px',
-              fontSize: '13px',
-              fontWeight: 600,
-              textDecoration: 'none',
-            }}
+            className="px-5 py-2.5 bg-border text-white rounded-lg text-[13px] font-semibold no-underline"
           >
             <T k="clients.detectMartech" />
           </Link>
           <Link
             href={`/clients/${params.id}/chat`}
-            style={{
-              padding: '10px 20px',
-              background: '#2a2d35',
-              color: '#ffffff',
-              borderRadius: '8px',
-              fontSize: '13px',
-              fontWeight: 600,
-              textDecoration: 'none',
-            }}
+            className="px-5 py-2.5 bg-border text-white rounded-lg text-[13px] font-semibold no-underline"
           >
             <T k="common.askJ" />
           </Link>
           {client.contact_name && (
-            <div style={{ fontSize: '13px', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
-              <T k="clients.contact" />: <span style={{ color: '#a0a0a0' }}>{client.contact_name}</span>
+            <div className="text-[13px] text-gray-500 flex items-center gap-1.5 ml-auto">
+              <T k="clients.contact" />: <span className="text-[#a0a0a0]">{client.contact_name}</span>
               {client.contact_email && (
-                <span style={{ color: '#6b7280' }}>({client.contact_email})</span>
+                <span className="text-gray-500">({client.contact_email})</span>
               )}
             </div>
           )}
