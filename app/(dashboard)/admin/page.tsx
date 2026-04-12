@@ -85,7 +85,31 @@ const OPERATION_LABELS: Record<string, string> = {
   llm_priority_matrix: 'Priority Matrix',
 }
 
-type Tab = 'users' | 'apikeys' | 'createuser' | 'costs' | 'activity'
+type Tab = 'users' | 'apikeys' | 'createuser' | 'costs' | 'activity' | 'memory'
+
+// ─── Memory Health types (Phase 5E) ─────────────────────
+interface MemoryHealthRow {
+  client_id: string
+  client_name: string | null
+  status: string
+  completeness: number
+  last_refreshed_at: string | null
+  error_message: string | null
+  updated_at: string
+}
+interface MemoryHealthData {
+  total_memories: number
+  counts: Record<string, number>
+  avg_completeness: number | null
+  failed: MemoryHealthRow[]
+  stale_over_7d: MemoryHealthRow[]
+  recent_costs_30d: {
+    total_usd: number
+    input_tokens: number
+    output_tokens: number
+    calls_by_operation: Record<string, number>
+  }
+}
 
 // ─── Component ─────────────────────────────────────────
 export default function AdminPage() {
@@ -185,6 +209,39 @@ export default function AdminPage() {
       loadActivity()
     }
   }, [activeTab, isAdmin, activityFilterUser])
+
+  // Phase 5E: load memory health when switching to the memory tab
+  const [memoryHealth, setMemoryHealth] = useState<MemoryHealthData | null>(null)
+  const [loadingMemoryHealth, setLoadingMemoryHealth] = useState(false)
+  const [memoryHealthError, setMemoryHealthError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (activeTab !== 'memory' || !isAdmin) return
+    let cancelled = false
+    setLoadingMemoryHealth(true)
+    setMemoryHealthError(null)
+    fetch('/api/admin/memory-health')
+      .then(async res => {
+        const data = await res.json().catch(() => ({}))
+        if (cancelled) return
+        if (!res.ok) {
+          setMemoryHealthError(data.error || 'Failed to load memory health')
+          setMemoryHealth(null)
+        } else {
+          setMemoryHealth(data as MemoryHealthData)
+        }
+      })
+      .catch(err => {
+        if (cancelled) return
+        setMemoryHealthError(err instanceof Error ? err.message : 'Network error')
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingMemoryHealth(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab, isAdmin])
 
   async function loadConfigKeys() {
     setLoadingKeys(true)
@@ -420,6 +477,7 @@ export default function AdminPage() {
     { id: 'createuser', label: t('admin.createUser') },
     { id: 'costs', label: t('admin.aiCosts') },
     { id: 'activity', label: t('admin.activity') },
+    { id: 'memory', label: 'Memory Health' },
   ]
 
   return (
@@ -960,6 +1018,163 @@ export default function AdminPage() {
                           </td>
                           <td className="px-4 py-2.5 font-mono text-[11px] text-gray-600">
                             {log.ip_address || '\u2014'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══ MEMORY HEALTH TAB (Phase 5E) ═══ */}
+      {activeTab === 'memory' && (
+        <div>
+          {loadingMemoryHealth && (
+            <div className="text-gray-500">Loading memory health...</div>
+          )}
+          {memoryHealthError && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/[0.08] px-4 py-3 text-sm text-destructive">
+              {memoryHealthError}
+            </div>
+          )}
+          {memoryHealth && !loadingMemoryHealth && (
+            <div className="space-y-6">
+              {/* Aggregate counters */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="rounded-xl border border-border bg-card p-5">
+                  <div className="font-mono text-[11px] uppercase tracking-wider text-gray-500">
+                    Total memories
+                  </div>
+                  <div className="font-mono text-3xl font-bold text-foreground">
+                    {memoryHealth.total_memories}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-border bg-card p-5">
+                  <div className="font-mono text-[11px] uppercase tracking-wider text-gray-500">
+                    Avg completeness
+                  </div>
+                  <div className="font-mono text-3xl font-bold text-primary">
+                    {memoryHealth.avg_completeness ?? '\u2014'}
+                    {memoryHealth.avg_completeness !== null && '%'}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-border bg-card p-5">
+                  <div className="font-mono text-[11px] uppercase tracking-wider text-gray-500">
+                    Refresh costs (30d)
+                  </div>
+                  <div className="font-mono text-3xl font-bold text-foreground">
+                    ${memoryHealth.recent_costs_30d.total_usd.toFixed(2)}
+                  </div>
+                  <div className="font-mono text-[11px] text-gray-500 mt-1">
+                    {memoryHealth.recent_costs_30d.input_tokens.toLocaleString()} in /{' '}
+                    {memoryHealth.recent_costs_30d.output_tokens.toLocaleString()} out
+                  </div>
+                </div>
+              </div>
+
+              {/* Status breakdown */}
+              <div className="rounded-xl border border-border bg-card p-5">
+                <div className="font-mono text-[11px] uppercase tracking-wider text-gray-500 mb-3">
+                  Status breakdown
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(memoryHealth.counts).map(([status, n]) => (
+                    <div
+                      key={status}
+                      className={cn(
+                        'rounded border px-3 py-1.5 font-mono text-xs',
+                        status === 'failed'
+                          ? 'border-destructive/40 bg-destructive/[0.08] text-destructive'
+                          : status === 'stale'
+                          ? 'border-amber-500/40 bg-amber-500/[0.08] text-amber-500'
+                          : status === 'ready'
+                          ? 'border-primary/40 bg-primary/[0.08] text-primary'
+                          : 'border-border bg-background text-gray-500'
+                      )}
+                    >
+                      <span className="font-bold">{n}</span>{' '}
+                      <span className="uppercase tracking-wider">{status}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Failed memories */}
+              {memoryHealth.failed.length > 0 && (
+                <div className="rounded-xl border border-destructive/40 bg-card overflow-hidden">
+                  <div className="border-b border-destructive/20 bg-destructive/[0.04] px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-destructive">
+                    Failed memories ({memoryHealth.failed.length})
+                  </div>
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="px-4 py-2.5 text-left font-mono text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                          Client
+                        </th>
+                        <th className="px-4 py-2.5 text-left font-mono text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                          Error
+                        </th>
+                        <th className="px-4 py-2.5 text-left font-mono text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                          Updated
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {memoryHealth.failed.map(m => (
+                        <tr key={m.client_id} className="border-b border-border/10">
+                          <td className="px-4 py-2.5 text-xs text-foreground/90">
+                            {m.client_name || m.client_id.slice(0, 8)}
+                          </td>
+                          <td className="px-4 py-2.5 font-mono text-[11px] text-destructive">
+                            {m.error_message || '\u2014'}
+                          </td>
+                          <td className="px-4 py-2.5 text-[11px] text-gray-500">
+                            {new Date(m.updated_at).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Stale > 7 days */}
+              {memoryHealth.stale_over_7d.length > 0 && (
+                <div className="rounded-xl border border-amber-500/40 bg-card overflow-hidden">
+                  <div className="border-b border-amber-500/20 bg-amber-500/[0.04] px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-amber-500">
+                    Stale &gt; 7 days ({memoryHealth.stale_over_7d.length})
+                  </div>
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="px-4 py-2.5 text-left font-mono text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                          Client
+                        </th>
+                        <th className="px-4 py-2.5 text-left font-mono text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                          Completeness
+                        </th>
+                        <th className="px-4 py-2.5 text-left font-mono text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                          Last refresh
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {memoryHealth.stale_over_7d.map(m => (
+                        <tr key={m.client_id} className="border-b border-border/10">
+                          <td className="px-4 py-2.5 text-xs text-foreground/90">
+                            {m.client_name || m.client_id.slice(0, 8)}
+                          </td>
+                          <td className="px-4 py-2.5 font-mono text-[11px] text-gray-500">
+                            {m.completeness}%
+                          </td>
+                          <td className="px-4 py-2.5 text-[11px] text-gray-500">
+                            {m.last_refreshed_at
+                              ? new Date(m.last_refreshed_at).toLocaleString()
+                              : '\u2014'}
                           </td>
                         </tr>
                       ))}

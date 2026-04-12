@@ -175,14 +175,53 @@ export default function MemoryViewer({ memory, onClose }: MemoryViewerProps) {
                 <div className="text-[11px] font-bold text-muted-foreground/80 mb-1 font-mono uppercase tracking-wide">
                   {categoryLabels[cat] || cat}
                 </div>
-                {facts.map((f, i) => (
-                  <div key={i} className="text-xs text-foreground/80 pl-3 mb-0.5 leading-relaxed">
-                    • {f.fact}
-                    <span className="text-[10px] text-muted-foreground ml-1.5">
-                      [{f.source}]
-                    </span>
-                  </div>
-                ))}
+                {facts.map((f, i) => {
+                  // Phase 5E: freshness coloring based on extracted_at age
+                  const ageDays = f.extracted_at
+                    ? Math.floor(
+                        (Date.now() - new Date(f.extracted_at).getTime()) /
+                          86400000
+                      )
+                    : null
+                  const freshnessClass =
+                    ageDays === null
+                      ? 'text-muted-foreground/40'
+                      : ageDays <= 7
+                      ? 'text-emerald-500'
+                      : ageDays <= 30
+                      ? 'text-amber-500'
+                      : ageDays <= 90
+                      ? 'text-muted-foreground'
+                      : 'text-muted-foreground/40'
+
+                  return (
+                    <div
+                      key={i}
+                      className="text-xs text-foreground/80 pl-3 mb-0.5 leading-relaxed flex items-start gap-1.5"
+                    >
+                      <span
+                        className={cn('mt-1 text-[10px] shrink-0', freshnessClass)}
+                        title={
+                          ageDays !== null
+                            ? `${ageDays}d`
+                            : 'unknown age'
+                        }
+                      >
+                        ●
+                      </span>
+                      <span className="flex-1">
+                        {f.fact}
+                        <span className="text-[10px] text-muted-foreground ml-1.5">
+                          [{f.source}
+                          {typeof f.confidence === 'number'
+                            ? ` ${Math.round(f.confidence * 100)}%`
+                            : ''}
+                          ]
+                        </span>
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             ))}
           </div>
