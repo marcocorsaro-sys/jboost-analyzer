@@ -28,7 +28,7 @@ export default function LocaleSwitcher() {
         style={{
           padding: '4px 10px',
           background: 'transparent',
-          border: '1px solid var(--border)',
+          border: '1px solid hsl(var(--border))',
           borderRadius: '6px',
           color: 'var(--gray)',
           fontSize: '11px',
@@ -45,7 +45,7 @@ export default function LocaleSwitcher() {
         }}
         onMouseLeave={e => {
           e.currentTarget.style.color = 'var(--gray)'
-          e.currentTarget.style.borderColor = 'var(--border)'
+          e.currentTarget.style.borderColor = 'hsl(var(--border))'
         }}
       >
         {locale.toUpperCase()}

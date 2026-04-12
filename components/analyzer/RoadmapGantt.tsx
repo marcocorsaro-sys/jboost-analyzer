@@ -57,7 +57,7 @@ export default function RoadmapGantt({ solutions }: RoadmapGanttProps) {
     return (
       <div
         className="p-6 rounded-xl text-center"
-        style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+        style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
       >
         <p className="text-sm" style={{ color: 'var(--gray)' }}>
           No solutions available yet. Generate solutions for drivers first.
@@ -69,7 +69,7 @@ export default function RoadmapGantt({ solutions }: RoadmapGanttProps) {
   return (
     <div
       className="p-6 rounded-xl space-y-5"
-      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+      style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
     >
       {/* Header with filter */}
       <div className="flex items-center justify-between">
@@ -115,7 +115,7 @@ export default function RoadmapGantt({ solutions }: RoadmapGanttProps) {
               <div className="flex items-center gap-3 mb-3">
                 <div
                   className="h-px flex-1"
-                  style={{ background: 'var(--border)' }}
+                  style={{ background: 'hsl(var(--border))' }}
                 />
                 <span
                   className="text-xs font-semibold uppercase tracking-wider px-3 py-1 rounded-full"
@@ -125,7 +125,7 @@ export default function RoadmapGantt({ solutions }: RoadmapGanttProps) {
                 </span>
                 <div
                   className="h-px flex-1"
-                  style={{ background: 'var(--border)' }}
+                  style={{ background: 'hsl(var(--border))' }}
                 />
               </div>
 

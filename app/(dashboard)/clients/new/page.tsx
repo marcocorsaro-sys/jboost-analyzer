@@ -2,7 +2,7 @@ import ClientForm from '@/components/clients/ClientForm'
 import T from '@/components/ui/T'
 
 // Note: all new clients are created with lifecycle_stage='prospect' (API default).
-// The user-facing "+ New Prospect" CTA now points to /prospects/new, but this
+// The user-facing "+ New Prospect" CTA now points to /pre-sales/new, but this
 // route is kept for backwards compatibility with deep links / bookmarks.
 export default function NewClientPage() {
   return (

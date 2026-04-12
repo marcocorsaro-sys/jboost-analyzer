@@ -74,7 +74,7 @@ export default function AnalysisProgress({
   return (
     <div
       className="p-6 rounded-xl space-y-5"
-      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+      style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
     >
       {/* Header */}
       <div className="flex items-center justify-between">

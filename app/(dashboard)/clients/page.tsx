@@ -91,7 +91,7 @@ export default function ClientsPage() {
           </p>
         </div>
         <Link
-          href="/prospects/new"
+          href="/pre-sales/new"
           style={{
             padding: '10px 20px',
             background: '#c8e64a',
@@ -168,7 +168,7 @@ export default function ClientsPage() {
           </p>
           {!search && (
             <Link
-              href="/prospects"
+              href="/pre-sales"
               style={{ color: '#c8e64a', textDecoration: 'underline', fontSize: '14px' }}
             >
               {t('clients.see_prospects_link')}

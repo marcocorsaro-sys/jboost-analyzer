@@ -284,7 +284,7 @@ export default function AnalyzerPage() {
                 onChange={e => handleClientChange(e.target.value)}
                 disabled={isRunning || loadingClients}
                 className="flex-1 px-4 py-3 rounded-lg text-sm outline-none"
-                style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--white)' }}
+                style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'var(--white)' }}
               >
                 <option value="">{t('analyzer.noClient')}</option>
                 {clients.map(c => (
@@ -297,8 +297,8 @@ export default function AnalyzerPage() {
                 href="/clients/new"
                 style={{
                   padding: '10px 14px',
-                  background: 'var(--card)',
-                  border: '1px solid var(--border)',
+                  background: 'hsl(var(--card))',
+                  border: '1px solid hsl(var(--border))',
                   borderRadius: '8px',
                   color: 'var(--lime)',
                   fontSize: '13px',
@@ -331,12 +331,12 @@ export default function AnalyzerPage() {
               error={!!domainError}
               className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-colors"
               style={{
-                background: 'var(--card)',
-                border: `1px solid ${domainError ? 'var(--red)' : 'var(--border)'}`,
+                background: 'hsl(var(--card))',
+                border: `1px solid ${domainError ? 'var(--red)' : 'hsl(var(--border))'}`,
                 color: 'var(--white)',
               }}
               onFocus={e => { if (!domainError) e.currentTarget.style.borderColor = 'var(--lime)' }}
-              onBlur={e => { if (!domainError) e.currentTarget.style.borderColor = 'var(--border)' }}
+              onBlur={e => { if (!domainError) e.currentTarget.style.borderColor = 'hsl(var(--border))' }}
             />
             {domainError ? (
               <p className="mt-1 text-xs" style={{ color: 'var(--red)' }}>{domainError}</p>
@@ -357,7 +357,7 @@ export default function AnalyzerPage() {
                 onChange={e => setCountry(e.target.value)}
                 disabled={isRunning}
                 className="w-full px-4 py-3 rounded-lg text-sm outline-none"
-                style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--white)' }}
+                style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'var(--white)' }}
               >
                 <option value="us">United States</option>
                 <option value="gb">United Kingdom</option>
@@ -375,7 +375,7 @@ export default function AnalyzerPage() {
                 onChange={e => setLanguage(e.target.value)}
                 disabled={isRunning}
                 className="w-full px-4 py-3 rounded-lg text-sm outline-none"
-                style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--white)' }}
+                style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'var(--white)' }}
               >
                 <option value="en">English</option>
                 <option value="it">Italian</option>
@@ -404,14 +404,14 @@ export default function AnalyzerPage() {
                     placeholder={`competitor${i + 1}.com`}
                     disabled={isRunning}
                     className="flex-1 px-4 py-2.5 rounded-lg text-sm outline-none"
-                    style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--white)' }}
+                    style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'var(--white)' }}
                   />
                   {competitors.length > 1 && (
                     <button
                       onClick={() => removeCompetitor(i)}
                       disabled={isRunning}
                       className="px-3 rounded-lg text-sm"
-                      style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--red)' }}
+                      style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'var(--red)' }}
                     >
                       ✕
                     </button>
@@ -447,7 +447,7 @@ export default function AnalyzerPage() {
               placeholder="e.g., luxury watches, home heating systems..."
               disabled={isRunning}
               className="w-full px-4 py-3 rounded-lg text-sm outline-none"
-              style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--white)' }}
+              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'var(--white)' }}
             />
             <p className="mt-1 text-xs" style={{ color: 'var(--gray)' }}>
               {t('analyzer.targetTopicHelp')}
@@ -455,7 +455,7 @@ export default function AnalyzerPage() {
           </div>
 
           {/* Drivers Preview */}
-          <div className="p-4 rounded-lg" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <div className="p-4 rounded-lg" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
             <div className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--lime-dim)' }}>
               {t('analyzer.driversPreview')}
             </div>

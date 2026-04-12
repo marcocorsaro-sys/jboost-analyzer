@@ -2,18 +2,18 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
-import { useTheme } from 'next-themes'
 import {
   Building2,
   LogOut,
   MessageSquare,
-  Moon,
   Plus,
   Settings,
   Shield,
   Sparkles,
   UserPlus,
 } from 'lucide-react'
+
+import { createClient } from '@/lib/supabase/client'
 
 import {
   CommandDialog,
@@ -23,7 +23,6 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-  CommandShortcut,
 } from '@/components/ui/command'
 import { PRIMARY_NAV } from '@/components/layout/nav-items'
 import { useLocale } from '@/lib/i18n'
@@ -58,8 +57,14 @@ export function CommandPaletteProvider({
 }: CommandPaletteProviderProps) {
   const [open, setOpen] = React.useState(false)
   const router = useRouter()
-  const { setTheme } = useTheme()
   const { t } = useLocale()
+
+  const handleLogout = React.useCallback(async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }, [router])
 
   // Global keyboard shortcut: ⌘K / Ctrl+K
   React.useEffect(() => {
@@ -112,7 +117,7 @@ export function CommandPaletteProvider({
           <CommandGroup heading={t('command.quick_actions')}>
             <CommandItem
               value="new-prospect"
-              onSelect={() => runCommand(() => router.push('/clients/new'))}
+              onSelect={() => runCommand(() => router.push('/pre-sales/new'))}
             >
               <Plus />
               <span>{t('command.new_prospect')}</span>
@@ -151,28 +156,6 @@ export function CommandPaletteProvider({
 
           <CommandGroup heading={t('command.settings')}>
             <CommandItem
-              value="toggle-theme-system"
-              onSelect={() => runCommand(() => setTheme('system'))}
-            >
-              <Moon />
-              <span>{t('command.toggle_theme')}</span>
-              <CommandShortcut>{t('theme.system')}</CommandShortcut>
-            </CommandItem>
-            <CommandItem
-              value="toggle-theme-light"
-              onSelect={() => runCommand(() => setTheme('light'))}
-            >
-              <Moon />
-              <span>{t('theme.light')}</span>
-            </CommandItem>
-            <CommandItem
-              value="toggle-theme-dark"
-              onSelect={() => runCommand(() => setTheme('dark'))}
-            >
-              <Moon />
-              <span>{t('theme.dark')}</span>
-            </CommandItem>
-            <CommandItem
               value="account-settings"
               onSelect={() => runCommand(() => router.push('/settings'))}
             >
@@ -190,7 +173,7 @@ export function CommandPaletteProvider({
             )}
             <CommandItem
               value="logout"
-              onSelect={() => runCommand(() => router.push('/logout'))}
+              onSelect={() => runCommand(handleLogout)}
             >
               <LogOut />
               <span>{t('nav.logout')}</span>
