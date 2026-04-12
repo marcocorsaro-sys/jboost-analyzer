@@ -1,5 +1,5 @@
 const en = {
-  // Navigation
+  // Navigation (legacy — kept for backwards-compat with old sidebar)
   'nav.dashboard': 'Dashboard',
   'nav.clients': 'Clients',
   'nav.askJ': 'Ask J',
@@ -11,9 +11,37 @@ const en = {
   'nav.system': 'System',
   'nav.adminPanel': 'Admin Panel',
 
-  // Sidebar (Phase 2 — lifecycle split)
+  // Sidebar (Phase 2 — lifecycle split, legacy)
   'sidebar.prospects': 'Prospects',
   'sidebar.active_clients': 'Active Clients',
+
+  // Navigation — Horizon 1 shell
+  'nav.home': 'Home',
+  'nav.pre_sales': 'Pre-Sales',
+  'nav.ask_j': 'Ask J',
+  'nav.library': 'Library',
+  'nav.notifications': 'Notifications',
+  'nav.search': 'Search',
+  'nav.account': 'Account',
+  'nav.logout': 'Logout',
+  'nav.admin': 'Admin',
+  'nav.me': 'Me',
+
+  // Command palette
+  'command.placeholder': 'Type a command or search…',
+  'command.empty': 'No results found.',
+  'command.navigation': 'Navigation',
+  'command.quick_actions': 'Quick actions',
+  'command.settings': 'Settings',
+  'command.toggle_theme': 'Toggle theme',
+  'command.new_prospect': 'New prospect',
+  'command.new_analysis': 'New analysis',
+  'command.invite_member': 'Invite member',
+
+  // Theme
+  'theme.light': 'Light',
+  'theme.dark': 'Dark',
+  'theme.system': 'System',
 
   // Dashboard
   'dashboard.activeClients': 'Active Clients',

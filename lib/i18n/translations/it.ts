@@ -1,5 +1,5 @@
 const it = {
-  // Navigation
+  // Navigation (legacy — mantenute per la vecchia sidebar)
   'nav.dashboard': 'Dashboard',
   'nav.clients': 'Clienti',
   'nav.askJ': 'Ask J',
@@ -11,9 +11,37 @@ const it = {
   'nav.system': 'Sistema',
   'nav.adminPanel': 'Admin Panel',
 
-  // Sidebar (Fase 2 — split lifecycle)
+  // Sidebar (Fase 2 — split lifecycle, legacy)
   'sidebar.prospects': 'Prospect',
   'sidebar.active_clients': 'Clienti Attivi',
+
+  // Navigation — shell Horizon 1
+  'nav.home': 'Home',
+  'nav.pre_sales': 'Pre-Sales',
+  'nav.ask_j': 'Ask J',
+  'nav.library': 'Libreria',
+  'nav.notifications': 'Notifiche',
+  'nav.search': 'Cerca',
+  'nav.account': 'Account',
+  'nav.logout': 'Esci',
+  'nav.admin': 'Admin',
+  'nav.me': 'Io',
+
+  // Command palette
+  'command.placeholder': 'Scrivi un comando o cerca…',
+  'command.empty': 'Nessun risultato.',
+  'command.navigation': 'Navigazione',
+  'command.quick_actions': 'Azioni rapide',
+  'command.settings': 'Impostazioni',
+  'command.toggle_theme': 'Cambia tema',
+  'command.new_prospect': 'Nuovo prospect',
+  'command.new_analysis': 'Nuova analisi',
+  'command.invite_member': 'Invita membro',
+
+  // Tema
+  'theme.light': 'Chiaro',
+  'theme.dark': 'Scuro',
+  'theme.system': 'Sistema',
 
   // Dashboard
   'dashboard.activeClients': 'Clienti Attivi',
