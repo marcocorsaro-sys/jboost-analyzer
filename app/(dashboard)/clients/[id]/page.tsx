@@ -4,7 +4,7 @@ import { getScoreBand } from '@/lib/constants'
 import { calcDelta } from '@/lib/trends/calculate'
 import Link from 'next/link'
 import ClientOverviewTrend from '@/components/clients/ClientOverviewTrend'
-import PromoteButton from '@/components/clients/PromoteButton'
+import LifecycleActions from '@/components/clients/LifecycleActions'
 import TeamPanel from '@/components/clients/TeamPanel'
 import T from '@/components/ui/T'
 import type { ClientLifecycleStage } from '@/lib/types/client'
@@ -60,14 +60,36 @@ export default async function ClientOverviewPage({
 
   if (!client) redirect('/clients')
 
-  // Fetch current user profile to determine admin privileges (needed for
-  // the "Promote to Active" CTA on prospect clients).
+  // Fetch current user profile to determine admin privileges.
   const { data: profile } = await supabase
     .from('profiles')
     .select('role')
     .eq('id', user.id)
     .single()
   const isAdmin = profile?.role === 'admin'
+
+  // Fetch caller's membership on this client to determine action permissions
+  // (Stage 4B). canEdit covers most lifecycle actions, canManageOwners is
+  // restricted to archive + hard-delete (and member management).
+  const { data: myMembership } = await supabase
+    .from('client_members')
+    .select('role')
+    .eq('client_id', params.id)
+    .eq('user_id', user.id)
+    .maybeSingle()
+  const myRole = myMembership?.role ?? null
+  const canEdit = isAdmin || myRole === 'owner' || myRole === 'editor'
+  const canManageOwners = isAdmin || myRole === 'owner'
+
+  // Fetch monitoring subscription so the lifecycle panel can render the
+  // pause/resume action correctly.
+  const { data: subscription } = await supabase
+    .from('client_update_subscriptions')
+    .select('is_active')
+    .eq('client_id', params.id)
+    .maybeSingle()
+  const subscriptionActive: boolean | null = subscription?.is_active ?? null
+
   const lifecycleStage = (client.lifecycle_stage ?? 'prospect') as ClientLifecycleStage
   const stageColors = STAGE_COLORS[lifecycleStage]
   const stageLabelKey = STAGE_LABEL_KEYS[lifecycleStage]
@@ -207,9 +229,14 @@ export default async function ClientOverviewPage({
             </span>
           )}
         </div>
-        {isAdmin && lifecycleStage === 'prospect' && (
-          <PromoteButton clientId={params.id} />
-        )}
+        <LifecycleActions
+          clientId={params.id}
+          stage={lifecycleStage}
+          subscriptionActive={subscriptionActive}
+          engagementStartedAt={client.engagement_started_at ?? null}
+          canEdit={canEdit}
+          canManageOwners={canManageOwners}
+        />
       </div>
 
       {/* Quick stats grid */}
