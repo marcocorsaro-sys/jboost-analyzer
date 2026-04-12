@@ -11,6 +11,10 @@ const en = {
   'nav.system': 'System',
   'nav.adminPanel': 'Admin Panel',
 
+  // Sidebar (Phase 2 — lifecycle split)
+  'sidebar.prospects': 'Prospects',
+  'sidebar.active_clients': 'Active Clients',
+
   // Dashboard
   'dashboard.activeClients': 'Active Clients',
   'dashboard.completedAnalyses': 'Completed Analyses',
@@ -40,6 +44,34 @@ const en = {
   'clients.contact': 'Contact',
   'clients.quickActions': 'Quick Actions',
   'clients.last': 'Last',
+
+  // Clients — Phase 2 (lifecycle)
+  'clients.prospect_label': 'Prospect',
+  'clients.active_label': 'Active',
+  'clients.churned_label': 'Churned',
+  'clients.archived_label': 'Archived',
+  'clients.prospects_page_title': 'Prospects',
+  'clients.prospects_page_subtitle': 'Pre-sales pipeline — clients not yet active',
+  'clients.active_clients_title': 'Active Clients',
+  'clients.active_clients_subtitle': 'Engaged and monitored clients',
+  'clients.new_prospect_button': '+ New Prospect',
+  'clients.new_prospect_title': 'New Prospect',
+  'clients.new_prospect_subtitle': 'Add a new prospect to your pre-sales pipeline',
+  'clients.new_prospect_notice': 'The new client will be created as a prospect. An admin can promote it to active later.',
+  'clients.promote_to_active': 'Promote to Active',
+  'clients.promote_confirm': 'Promote this prospect to an active client? This will stamp the engagement start date and seed an update subscription.',
+  'clients.promoted_success': 'Client successfully promoted to active.',
+  'clients.engaged_since': 'Engaged since',
+  'clients.churned_on': 'Churned on',
+  'clients.search_placeholder': 'Search clients...',
+  'clients.filter_all': 'All',
+  'clients.filter_active': 'Active',
+  'clients.filter_archived': 'Archived',
+  'clients.empty_search': 'No clients match your search',
+  'clients.empty_active': 'No active clients yet',
+  'clients.empty_prospects': 'No prospects yet',
+  'clients.see_prospects_link': 'Go to prospects pipeline →',
+  'clients.create_first_prospect': 'Create your first prospect',
 
   // Client Form
   'clientForm.clientName': 'Client Name *',

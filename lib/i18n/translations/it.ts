@@ -11,6 +11,10 @@ const it = {
   'nav.system': 'Sistema',
   'nav.adminPanel': 'Admin Panel',
 
+  // Sidebar (Fase 2 — split lifecycle)
+  'sidebar.prospects': 'Prospect',
+  'sidebar.active_clients': 'Clienti Attivi',
+
   // Dashboard
   'dashboard.activeClients': 'Clienti Attivi',
   'dashboard.completedAnalyses': 'Analisi Completate',
@@ -40,6 +44,34 @@ const it = {
   'clients.contact': 'Contatto',
   'clients.quickActions': 'Azioni Rapide',
   'clients.last': 'Ultima',
+
+  // Clients — Fase 2 (lifecycle)
+  'clients.prospect_label': 'Prospect',
+  'clients.active_label': 'Attivo',
+  'clients.churned_label': 'Perso',
+  'clients.archived_label': 'Archiviato',
+  'clients.prospects_page_title': 'Prospect',
+  'clients.prospects_page_subtitle': 'Pipeline pre-sales — clienti non ancora attivi',
+  'clients.active_clients_title': 'Clienti Attivi',
+  'clients.active_clients_subtitle': 'Clienti in engagement e monitorati',
+  'clients.new_prospect_button': '+ Nuovo Prospect',
+  'clients.new_prospect_title': 'Nuovo Prospect',
+  'clients.new_prospect_subtitle': 'Aggiungi un nuovo prospect alla pipeline pre-sales',
+  'clients.new_prospect_notice': 'Il nuovo cliente verrà creato come prospect. Un amministratore potrà promuoverlo ad attivo in seguito.',
+  'clients.promote_to_active': 'Promuovi ad Attivo',
+  'clients.promote_confirm': 'Promuovere questo prospect a cliente attivo? Verrà registrata la data di inizio engagement e creato un abbonamento agli aggiornamenti.',
+  'clients.promoted_success': 'Cliente promosso ad attivo con successo.',
+  'clients.engaged_since': 'In engagement dal',
+  'clients.churned_on': 'Perso il',
+  'clients.search_placeholder': 'Cerca clienti...',
+  'clients.filter_all': 'Tutti',
+  'clients.filter_active': 'Attivi',
+  'clients.filter_archived': 'Archiviati',
+  'clients.empty_search': 'Nessun cliente trovato',
+  'clients.empty_active': 'Nessun cliente attivo',
+  'clients.empty_prospects': 'Nessun prospect ancora',
+  'clients.see_prospects_link': 'Vai alla pipeline prospect →',
+  'clients.create_first_prospect': 'Crea il tuo primo prospect',
 
   // Client Form
   'clientForm.clientName': 'Nome Cliente *',

@@ -1,6 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { logActivity } from '@/lib/tracking/activity'
+import type { ClientLifecycleStage } from '@/lib/types/client'
+
+const VALID_STAGES: ClientLifecycleStage[] = ['prospect', 'active', 'churned', 'archived']
 
 // GET /api/clients/[id] — get client detail
 export async function GET(
@@ -42,17 +45,42 @@ export async function PUT(
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
 
   // Only include provided fields
-  const allowedFields = ['name', 'domain', 'industry', 'website_url', 'logo_url',
-    'contact_name', 'contact_email', 'contact_phone', 'notes', 'status']
+  const allowedFields = [
+    'name', 'domain', 'industry', 'website_url', 'logo_url',
+    'contact_name', 'contact_email', 'contact_phone', 'notes', 'status',
+    'lifecycle_stage', 'engagement_started_at', 'engagement_ended_at', 'pre_sales_notes',
+  ]
   for (const field of allowedFields) {
     if (body[field] !== undefined) {
       updates[field] = typeof body[field] === 'string' ? body[field].trim() : body[field]
     }
   }
 
+  // Validate lifecycle_stage if provided
+  if (updates.lifecycle_stage !== undefined) {
+    if (!VALID_STAGES.includes(updates.lifecycle_stage as ClientLifecycleStage)) {
+      return NextResponse.json(
+        { error: `Invalid lifecycle_stage. Must be one of: ${VALID_STAGES.join(', ')}` },
+        { status: 400 }
+      )
+    }
+  }
+
   // Clean domain if provided
   if (updates.domain && typeof updates.domain === 'string') {
     updates.domain = updates.domain.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '').toLowerCase()
+  }
+
+  // If lifecycle_stage is being changed, we need the previous value to log the transition
+  let previousStage: ClientLifecycleStage | null = null
+  if (updates.lifecycle_stage !== undefined) {
+    const { data: existing } = await supabase
+      .from('clients')
+      .select('lifecycle_stage')
+      .eq('id', params.id)
+      .eq('user_id', user.id)
+      .single()
+    previousStage = (existing?.lifecycle_stage as ClientLifecycleStage | undefined) ?? null
   }
 
   const { data: client, error } = await supabase
@@ -67,7 +95,21 @@ export async function PUT(
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Log activity (non-blocking)
+  // Log lifecycle transition (non-blocking)
+  if (
+    updates.lifecycle_stage !== undefined &&
+    previousStage !== updates.lifecycle_stage
+  ) {
+    logActivity({
+      userId: user.id,
+      action: 'client_lifecycle_changed',
+      resourceType: 'client',
+      resourceId: params.id,
+      details: { from: previousStage, to: updates.lifecycle_stage },
+    }).catch(() => {})
+  }
+
+  // Log generic update activity (non-blocking)
   logActivity({
     userId: user.id,
     action: 'update_client',

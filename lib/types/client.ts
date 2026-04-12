@@ -2,6 +2,15 @@
 // JBoost v2 — Client & related types
 // ============================================================
 
+/**
+ * Lifecycle stage of a client in the engagement pipeline.
+ * - prospect:  pre-sales, not yet engaged
+ * - active:    active engagement (monitored, billable)
+ * - churned:   engagement ended
+ * - archived:  historical / not visible by default
+ */
+export type ClientLifecycleStage = 'prospect' | 'active' | 'churned' | 'archived'
+
 export interface Client {
   id: string
   user_id: string
@@ -15,6 +24,10 @@ export interface Client {
   contact_phone: string | null
   notes: string | null
   status: 'active' | 'archived'
+  lifecycle_stage: ClientLifecycleStage
+  engagement_started_at: string | null
+  engagement_ended_at: string | null
+  pre_sales_notes: string | null
   created_at: string
   updated_at: string
 }
@@ -28,10 +41,16 @@ export interface ClientCreateInput {
   contact_email?: string
   contact_phone?: string
   notes?: string
+  lifecycle_stage?: ClientLifecycleStage
+  pre_sales_notes?: string
 }
 
 export interface ClientUpdateInput extends Partial<ClientCreateInput> {
   status?: 'active' | 'archived'
+  lifecycle_stage?: ClientLifecycleStage
+  engagement_started_at?: string | null
+  engagement_ended_at?: string | null
+  pre_sales_notes?: string | null
 }
 
 // MarTech Stack
