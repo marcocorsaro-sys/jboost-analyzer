@@ -236,3 +236,24 @@ export interface ClientWithStats extends Client {
   latest_score: number | null
   latest_analysis_at: string | null
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Multi-tenant membership (Phase 4A)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ClientMemberRole = 'owner' | 'editor' | 'viewer'
+
+export interface ClientMember {
+  id: string
+  client_id: string
+  user_id: string
+  role: ClientMemberRole
+  added_by: string | null
+  added_at: string
+}
+
+export interface ClientMemberWithProfile extends ClientMember {
+  full_name: string | null
+  company: string | null
+  email: string | null
+}

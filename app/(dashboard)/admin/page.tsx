@@ -14,6 +14,9 @@ interface UserProfile {
   role: string
   is_active: boolean
   created_at: string
+  email: string | null
+  owned_clients_count: number
+  shared_clients_count: number
 }
 
 interface ConfigKey {
@@ -142,16 +145,25 @@ export default function AdminPage() {
       }
       setIsAdmin(true)
 
-      // Load users
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false })
-      setUsers(data ?? [])
+      // Load users via the admin API so we get email + counts (Phase 4D).
+      await refreshUsers()
       setLoadingUsers(false)
     }
     load()
   }, [])
+
+  // Re-loads the users table from /api/admin/users.
+  async function refreshUsers() {
+    try {
+      const res = await fetch('/api/admin/users')
+      const data = await res.json()
+      if (Array.isArray(data.users)) {
+        setUsers(data.users)
+      }
+    } catch (err) {
+      console.error('Failed to load users:', err)
+    }
+  }
 
   // Load config keys when switching to apikeys tab
   useEffect(() => {
@@ -216,15 +228,80 @@ export default function AdminPage() {
   }
 
   // ─── Users Actions ────────────────────────────────────
+  // All mutations now go through /api/admin/users/[id] so the server-side
+  // last-admin guard runs (it will reject demoting/deactivating the only
+  // remaining active admin).
+  async function patchUser(userId: string, patch: Record<string, unknown>) {
+    const res = await fetch(`/api/admin/users/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      alert(data.error || 'Update failed')
+      return false
+    }
+    await refreshUsers()
+    return true
+  }
+
   async function toggleActive(userId: string, currentActive: boolean) {
-    await supabase.from('profiles').update({ is_active: !currentActive }).eq('id', userId)
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_active: !currentActive } : u))
+    await patchUser(userId, { is_active: !currentActive })
   }
 
   async function toggleRole(userId: string, currentRole: string) {
     const newRole = currentRole === 'admin' ? 'user' : 'admin'
-    await supabase.from('profiles').update({ role: newRole }).eq('id', userId)
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u))
+    await patchUser(userId, { role: newRole })
+  }
+
+  async function resetPassword(userId: string, email: string | null) {
+    if (!confirm(`Send a password recovery email to ${email || userId}?`)) return
+    const res = await fetch(`/api/admin/users/${userId}/reset-password`, {
+      method: 'POST',
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      alert(data.error || 'Reset failed')
+      return
+    }
+    alert('Recovery email sent.')
+  }
+
+  async function softDeleteUser(userId: string, email: string | null) {
+    if (!confirm(`Soft-delete ${email || userId}? They will be deactivated and signed out, but their data and audit trail are kept.`)) return
+    const res = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      alert(data.error || 'Delete failed')
+      return
+    }
+    await refreshUsers()
+  }
+
+  async function purgeUser(userId: string, email: string | null) {
+    if (!email) {
+      alert('Cannot purge a user with no email on record.')
+      return
+    }
+    const typed = window.prompt(
+      `PERMANENT delete. Type the email to confirm:\n\n${email}`
+    )
+    if (!typed || typed.trim().toLowerCase() !== email.toLowerCase()) {
+      alert('Confirmation mismatch — purge aborted.')
+      return
+    }
+    const res = await fetch(`/api/admin/users/${userId}/purge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirm: email }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      alert(data.error || 'Purge failed')
+      return
+    }
+    await refreshUsers()
   }
 
   // ─── API Keys Actions ────────────────────────────────
@@ -379,7 +456,16 @@ export default function AdminPage() {
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b border-border">
-                    {[t('admin.headerName'), t('admin.headerCompany'), t('admin.headerRole'), t('admin.headerStatus'), t('admin.headerJoined'), t('admin.headerActions')].map(h => (
+                    {[
+                      t('admin.headerName'),
+                      'Email',
+                      t('admin.headerCompany'),
+                      t('admin.headerRole'),
+                      'Clients',
+                      t('admin.headerStatus'),
+                      t('admin.headerJoined'),
+                      t('admin.headerActions'),
+                    ].map(h => (
                       <th key={h} className="px-4 py-3 text-left font-mono text-[11px] font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
@@ -389,6 +475,9 @@ export default function AdminPage() {
                     <tr key={user.id} className="border-b border-border/10">
                       <td className="px-4 py-3 text-[13px] text-foreground">
                         {user.full_name || '\u2014'}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-[#a0a0a0]">
+                        {user.email || '\u2014'}
                       </td>
                       <td className="px-4 py-3 text-[13px] text-[#a0a0a0]">
                         {user.company || '\u2014'}
@@ -401,6 +490,14 @@ export default function AdminPage() {
                             : 'bg-gray-500/[0.08] text-gray-500'
                         )}>
                           {user.role}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-[#a0a0a0]">
+                        <span title="Owned / Shared">
+                          {user.owned_clients_count}
+                          {user.shared_clients_count > 0 && (
+                            <span className="text-gray-500"> + {user.shared_clients_count}</span>
+                          )}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -416,19 +513,39 @@ export default function AdminPage() {
                       <td className="px-4 py-3 text-xs text-gray-500">
                         {formatLocalDate(new Date(user.created_at), locale)}
                       </td>
-                      <td className="flex gap-2 px-4 py-3">
-                        <button
-                          onClick={() => toggleActive(user.id, user.is_active)}
-                          className="cursor-pointer rounded border border-border bg-[#1e2028] px-2.5 py-1 text-[11px] text-[#a0a0a0]"
-                        >
-                          {user.is_active ? t('admin.deactivate') : t('admin.activate')}
-                        </button>
-                        <button
-                          onClick={() => toggleRole(user.id, user.role)}
-                          className="cursor-pointer rounded border border-border bg-[#1e2028] px-2.5 py-1 text-[11px] text-[#a0a0a0]"
-                        >
-                          {user.role === 'admin' ? t('admin.removeAdmin') : t('admin.makeAdmin')}
-                        </button>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap gap-1.5">
+                          <button
+                            onClick={() => toggleActive(user.id, user.is_active)}
+                            className="cursor-pointer rounded border border-border bg-[#1e2028] px-2.5 py-1 text-[11px] text-[#a0a0a0]"
+                          >
+                            {user.is_active ? t('admin.deactivate') : t('admin.activate')}
+                          </button>
+                          <button
+                            onClick={() => toggleRole(user.id, user.role)}
+                            className="cursor-pointer rounded border border-border bg-[#1e2028] px-2.5 py-1 text-[11px] text-[#a0a0a0]"
+                          >
+                            {user.role === 'admin' ? t('admin.removeAdmin') : t('admin.makeAdmin')}
+                          </button>
+                          <button
+                            onClick={() => resetPassword(user.id, user.email)}
+                            className="cursor-pointer rounded border border-blue-500/40 bg-[#1e2028] px-2.5 py-1 text-[11px] text-blue-500"
+                          >
+                            Reset PW
+                          </button>
+                          <button
+                            onClick={() => softDeleteUser(user.id, user.email)}
+                            className="cursor-pointer rounded border border-amber-500/40 bg-[#1e2028] px-2.5 py-1 text-[11px] text-amber-500"
+                          >
+                            Delete
+                          </button>
+                          <button
+                            onClick={() => purgeUser(user.id, user.email)}
+                            className="cursor-pointer rounded border border-red-500/40 bg-[#1e2028] px-2.5 py-1 text-[11px] text-red-500"
+                          >
+                            Purge
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

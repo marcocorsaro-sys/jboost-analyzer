@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server'
 import { logActivity } from '@/lib/tracking/activity'
 import type { ClientLifecycleStage } from '@/lib/types/client'
 
+export const dynamic = 'force-dynamic'
+
 const VALID_STAGES: ClientLifecycleStage[] = ['prospect', 'active', 'churned', 'archived']
 
 // GET /api/clients/[id] — get client detail
@@ -120,9 +122,16 @@ export async function PUT(
   return NextResponse.json({ client })
 }
 
-// DELETE /api/clients/[id] — archive client (soft delete)
+// DELETE /api/clients/[id]
+//   default (?mode=archive)  -> soft delete: status='archived'
+//   ?mode=hard               -> hard delete (only allowed for prospects).
+//                               Cascades to client_members + knowledge_*
+//                               (FK ON DELETE CASCADE).
+//
+// Hard delete is restricted to prospects so we never destroy a real client's
+// history (analyses, monitoring snapshots, audit trail).
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   const supabase = await createClient()
@@ -131,7 +140,48 @@ export async function DELETE(
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
 
-  // RLS enforces that only owner/editor members can archive.
+  const { searchParams } = new URL(request.url)
+  const mode = searchParams.get('mode') === 'hard' ? 'hard' : 'archive'
+
+  if (mode === 'hard') {
+    // Pre-flight: only prospects can be hard-deleted, regardless of role.
+    const { data: client, error: fetchError } = await supabase
+      .from('clients')
+      .select('id, name, lifecycle_stage')
+      .eq('id', params.id)
+      .single()
+    if (fetchError || !client) {
+      return NextResponse.json({ error: 'Client not found' }, { status: 404 })
+    }
+    if (client.lifecycle_stage !== 'prospect') {
+      return NextResponse.json(
+        {
+          error: `Hard delete only allowed for prospects (current: ${client.lifecycle_stage}). Use archive instead.`,
+        },
+        { status: 400 }
+      )
+    }
+
+    // RLS DELETE policy requires the caller to be the client's owner or an
+    // admin. Cascade deletes drop client_members + knowledge_* rows tied to
+    // this client.
+    const { error } = await supabase.from('clients').delete().eq('id', params.id)
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    logActivity({
+      userId: user.id,
+      action: 'client_hard_deleted',
+      resourceType: 'client',
+      resourceId: params.id,
+      details: { name: client.name, was_stage: 'prospect' },
+    }).catch(() => {})
+
+    return NextResponse.json({ success: true, mode: 'hard' })
+  }
+
+  // Default: soft archive.
   const { error } = await supabase
     .from('clients')
     .update({ status: 'archived', updated_at: new Date().toISOString() })
@@ -141,13 +191,12 @@ export async function DELETE(
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Log activity (non-blocking)
   logActivity({
     userId: user.id,
-    action: 'archive_client',
+    action: 'client_archived',
     resourceType: 'client',
     resourceId: params.id,
   }).catch(() => {})
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, mode: 'archive' })
 }
