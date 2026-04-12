@@ -48,15 +48,15 @@ export interface ClientContext {
  * Loads ALL available data: analysis details with issues/solutions,
  * company context, competitors, knowledge base files, executive summary.
  */
-export async function buildClientContext(clientId: string, userId: string): Promise<ClientContext | null> {
+export async function buildClientContext(clientId: string, _userId: string): Promise<ClientContext | null> {
   const supabase = await createClient()
 
-  // 1. Client info
+  // 1. Client info. Access is enforced by RLS via client_members; do not
+  //    filter by user_id so shared clients remain visible to editors/viewers.
   const { data: client } = await supabase
     .from('clients')
     .select('name, domain, industry, contact_name, notes')
     .eq('id', clientId)
-    .eq('user_id', userId)
     .single()
 
   if (!client) return null
@@ -415,16 +415,16 @@ export interface ExecutiveSummaryContext {
  */
 export async function buildExecutiveSummaryContext(
   clientId: string,
-  userId: string
+  _userId: string
 ): Promise<ExecutiveSummaryContext | null> {
   const supabase = await createClient()
 
-  // 1. Client info
+  // 1. Client info. Access is enforced by RLS / client_members (editors and
+  //    viewers can still read a client they have been shared on).
   const { data: client } = await supabase
     .from('clients')
     .select('name, domain, industry, notes')
     .eq('id', clientId)
-    .eq('user_id', userId)
     .single()
 
   if (!client) return null
