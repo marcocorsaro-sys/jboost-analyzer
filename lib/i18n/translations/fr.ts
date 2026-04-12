@@ -1,5 +1,5 @@
 const fr = {
-  // Navigation
+  // Navigation (legacy — conservée pour l'ancienne sidebar)
   'nav.dashboard': 'Tableau de bord',
   'nav.clients': 'Clients',
   'nav.askJ': 'Ask J',
@@ -10,6 +10,34 @@ const fr = {
   'nav.tools': 'Outils',
   'nav.system': 'Système',
   'nav.adminPanel': 'Admin Panel',
+
+  // Navigation — shell Horizon 1
+  'nav.home': 'Accueil',
+  'nav.pre_sales': 'Pre-Sales',
+  'nav.ask_j': 'Ask J',
+  'nav.library': 'Bibliothèque',
+  'nav.notifications': 'Notifications',
+  'nav.search': 'Rechercher',
+  'nav.account': 'Compte',
+  'nav.logout': 'Déconnexion',
+  'nav.admin': 'Admin',
+  'nav.me': 'Moi',
+
+  // Command palette
+  'command.placeholder': 'Tapez une commande ou recherchez…',
+  'command.empty': 'Aucun résultat.',
+  'command.navigation': 'Navigation',
+  'command.quick_actions': 'Actions rapides',
+  'command.settings': 'Paramètres',
+  'command.toggle_theme': 'Changer de thème',
+  'command.new_prospect': 'Nouveau prospect',
+  'command.new_analysis': 'Nouvelle analyse',
+  'command.invite_member': 'Inviter un membre',
+
+  // Thème
+  'theme.light': 'Clair',
+  'theme.dark': 'Sombre',
+  'theme.system': 'Système',
 
   // Dashboard
   'dashboard.activeClients': 'Clients Actifs',
