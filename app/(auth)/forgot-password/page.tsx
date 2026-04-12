@@ -68,7 +68,7 @@ function ForgotPasswordForm() {
                 onChange={e => setEmail(e.target.value)}
                 required
                 className="w-full px-4 py-3 rounded-lg text-sm outline-none"
-                style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--white)' }}
+                style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'var(--white)' }}
               />
             </div>
 

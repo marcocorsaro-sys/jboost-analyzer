@@ -56,8 +56,8 @@ export default function ClientCard({
       <div
         className="group relative overflow-hidden rounded-xl border transition-all duration-200 hover:border-[var(--lime)]/30 hover:shadow-lg hover:shadow-[var(--lime)]/5"
         style={{
-          background: 'var(--card)',
-          borderColor: 'var(--border)',
+          background: 'hsl(var(--card))',
+          borderColor: 'hsl(var(--border))',
         }}
       >
         {/* Top-right badges: lifecycle + (optional) archived marker */}

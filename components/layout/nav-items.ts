@@ -3,7 +3,6 @@ import {
   Zap,
   Building2,
   MessageSquare,
-  BookOpen,
   User,
   type LucideIcon,
 } from 'lucide-react'
@@ -18,15 +17,14 @@ export interface NavItem {
 
 /**
  * Primary destinations shown in the desktop Icon Rail.
- * The same five first entries are also surfaced in the mobile tab bar
- * (with "Library" swapped for "Me").
+ * The same entries are also surfaced in the mobile tab bar
+ * (with the last slot replaced by "Me").
  */
 export const PRIMARY_NAV: NavItem[] = [
   { href: '/dashboard', labelKey: 'nav.home', icon: Home },
   { href: '/pre-sales', labelKey: 'nav.pre_sales', icon: Zap },
   { href: '/clients', labelKey: 'nav.clients', icon: Building2 },
   { href: '/ask-j', labelKey: 'nav.ask_j', icon: MessageSquare },
-  { href: '/knowledge', labelKey: 'nav.library', icon: BookOpen },
 ]
 
 /**

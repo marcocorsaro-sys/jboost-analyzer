@@ -9,7 +9,7 @@ import type { TranslationKey } from '@/lib/i18n'
 /* ── Navigation sections ── */
 const NAV_MAIN: { href: string; labelKey: TranslationKey; icon: string }[] = [
   { href: '/dashboard', labelKey: 'nav.dashboard', icon: '◉' },
-  { href: '/prospects', labelKey: 'sidebar.prospects', icon: '◌' },
+  { href: '/pre-sales', labelKey: 'sidebar.prospects', icon: '◌' },
   { href: '/clients', labelKey: 'sidebar.active_clients', icon: '◎' },
   { href: '/ask-j', labelKey: 'nav.askJ', icon: '◈' },
 ]
@@ -72,10 +72,10 @@ export default function Sidebar({
   return (
     <aside
       className="w-64 h-screen fixed left-0 top-0 flex flex-col"
-      style={{ background: 'var(--card)', borderRight: '1px solid var(--border)' }}
+      style={{ background: 'hsl(var(--card))', borderRight: '1px solid hsl(var(--border))' }}
     >
       {/* Logo */}
-      <div className="p-6 border-b" style={{ borderColor: 'var(--border)' }}>
+      <div className="p-6 border-b" style={{ borderColor: 'hsl(var(--border))' }}>
         <div
           className="font-mono text-xs tracking-widest uppercase"
           style={{ color: 'var(--lime-dim)' }}

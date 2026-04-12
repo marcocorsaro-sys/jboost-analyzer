@@ -56,7 +56,7 @@ export default function ResetPasswordPage() {
             <input type="password" value={password}
               onChange={e => setPassword(e.target.value)} required minLength={8}
               className="w-full px-4 py-3 rounded-lg text-sm outline-none"
-              style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--white)' }} />
+              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'var(--white)' }} />
           </div>
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider mb-2"
@@ -64,7 +64,7 @@ export default function ResetPasswordPage() {
             <input type="password" value={confirmPassword}
               onChange={e => setConfirmPassword(e.target.value)} required
               className="w-full px-4 py-3 rounded-lg text-sm outline-none"
-              style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--white)' }} />
+              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'var(--white)' }} />
           </div>
 
           {error && (

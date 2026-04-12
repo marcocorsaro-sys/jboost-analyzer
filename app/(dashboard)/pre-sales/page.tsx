@@ -68,7 +68,7 @@ export default function ProspectsPage() {
           </p>
         </div>
         <Link
-          href="/prospects/new"
+          href="/pre-sales/new"
           style={{
             padding: '10px 20px',
             background: '#c8e64a',
@@ -120,7 +120,7 @@ export default function ProspectsPage() {
           </p>
           {!search && (
             <Link
-              href="/prospects/new"
+              href="/pre-sales/new"
               style={{ color: '#c8e64a', textDecoration: 'underline', fontSize: '14px' }}
             >
               {t('clients.create_first_prospect')}

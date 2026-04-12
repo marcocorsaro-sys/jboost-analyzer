@@ -22,7 +22,7 @@ export default function TopBar({ userEmail }: TopBarProps) {
 
   return (
     <header className="h-14 flex items-center justify-between px-6 border-b"
-      style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+      style={{ background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
       <div className="font-mono text-xs tracking-widest uppercase" style={{ color: 'var(--lime-dim)' }}>
         // JBoost Analyzer · v2.0 · {new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
       </div>
@@ -36,7 +36,7 @@ export default function TopBar({ userEmail }: TopBarProps) {
           className="text-xs px-3 py-1.5 rounded-md transition-colors"
           style={{
             color: 'var(--gray)',
-            border: '1px solid var(--border)',
+            border: '1px solid hsl(var(--border))',
           }}
           onMouseEnter={e => {
             e.currentTarget.style.color = 'var(--white)'
@@ -44,7 +44,7 @@ export default function TopBar({ userEmail }: TopBarProps) {
           }}
           onMouseLeave={e => {
             e.currentTarget.style.color = 'var(--gray)'
-            e.currentTarget.style.borderColor = 'var(--border)'
+            e.currentTarget.style.borderColor = 'hsl(var(--border))'
           }}
         >
           {t('common.logout')}
