@@ -118,6 +118,15 @@ export default function ClientKnowledgePage() {
     loadMemory()
   }, [loadFiles, loadMemory])
 
+  // Phase 5D: poll memory while status is transient (building/refreshing)
+  // so the user sees the new state without reloading the page.
+  useEffect(() => {
+    if (!memory) return
+    if (memory.status !== 'building' && memory.status !== 'refreshing') return
+    const interval = setInterval(loadMemory, 3000)
+    return () => clearInterval(interval)
+  }, [memory, loadMemory])
+
   async function handleUpload(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return
     setUploading(true)

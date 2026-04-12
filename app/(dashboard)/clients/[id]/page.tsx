@@ -7,6 +7,7 @@ import ClientOverviewTrend from '@/components/clients/ClientOverviewTrend'
 import LifecycleActions from '@/components/clients/LifecycleActions'
 import MonitoringPanel from '@/components/clients/MonitoringPanel'
 import TeamPanel from '@/components/clients/TeamPanel'
+import MemoryMainCard from '@/components/memory/MemoryMainCard'
 import T from '@/components/ui/T'
 import type { ClientLifecycleStage } from '@/lib/types/client'
 import type { TranslationKey } from '@/lib/i18n'
@@ -353,6 +354,9 @@ export default async function ClientOverviewPage({
           </div>
         </div>
       )}
+
+      {/* Client Memory (Phase 5D) — compact view always visible */}
+      <MemoryMainCard clientId={params.id} />
 
       {/* Monitoring (Phase 4C) — only meaningful when there's an active engagement */}
       {(lifecycleStage === 'active' || lifecycleStage === 'churned') && (

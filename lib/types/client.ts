@@ -193,6 +193,11 @@ export type MemoryGapCategory =
   | 'competitor'
   | 'content_strategy'
   | 'tools'
+  // Phase 5C: surfaced when two sources contradict each other on the same
+  // topic. The gap question is "We saw X in source A and Y in source B —
+  // which one is correct?", produced by the synthesizer when it detects
+  // a conflict instead of silently picking a side.
+  | 'conflict_resolution'
 
 export interface MemoryGap {
   id: string
@@ -211,7 +216,17 @@ export interface MemoryAnswer {
   answered_by: string
 }
 
-export type ClientMemoryStatus = 'empty' | 'building' | 'ready' | 'refreshing' | 'failed'
+export type ClientMemoryStatus =
+  | 'empty'
+  | 'building'
+  | 'ready'
+  | 'refreshing'
+  // Phase 5A: a previously-ready memory whose data sources have changed
+  // (new analysis completed, file uploaded/deleted, martech updated, ...).
+  // The DB triggers in phase5a_client_memory.sql automatically transition
+  // 'ready' rows to 'stale' when one of those sources changes.
+  | 'stale'
+  | 'failed'
 
 export interface ClientMemory {
   id: string

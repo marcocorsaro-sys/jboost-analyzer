@@ -34,6 +34,7 @@ export default function MemoryStatusCard({
     building: t('memory.statusBuilding'),
     ready: t('memory.statusReady'),
     refreshing: t('memory.statusRefreshing'),
+    stale: t('memory.statusStale'),
     failed: t('memory.statusFailed'),
   }
 
@@ -42,6 +43,7 @@ export default function MemoryStatusCard({
     building: '#f59e0b',
     ready: '#c8e64a',
     refreshing: '#f59e0b',
+    stale: '#f59e0b',
     failed: '#ef4444',
   }
 

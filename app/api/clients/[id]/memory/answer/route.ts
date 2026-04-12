@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { partialRefreshMemory } from '@/lib/memory/refresh'
 import type { ClientMemory, MemoryAnswer, MemoryGap } from '@/lib/types/client'
 
+export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 /**
@@ -33,12 +34,12 @@ export async function POST(
       )
     }
 
-    // Load current memory
+    // Load current memory. maybeSingle so a missing row doesn't throw.
     const { data: memoryRow } = await supabase
       .from('client_memory')
       .select('*')
       .eq('client_id', clientId)
-      .single()
+      .maybeSingle()
 
     if (!memoryRow) {
       return Response.json(
