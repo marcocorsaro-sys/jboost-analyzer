@@ -1,10 +1,7 @@
 import ClientForm from '@/components/clients/ClientForm'
 import T from '@/components/ui/T'
 
-// Note: all new clients are created with lifecycle_stage='prospect' (API default).
-// The user-facing "+ New Prospect" CTA now points to /prospects/new, but this
-// route is kept for backwards compatibility with deep links / bookmarks.
-export default function NewClientPage() {
+export default function NewProspectPage() {
   return (
     <div style={{ maxWidth: '800px' }}>
       <h1 style={{

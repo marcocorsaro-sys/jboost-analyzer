@@ -11,18 +11,27 @@ export default async function DashboardLayout({
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  let clientsCount = 0
+  let prospectsCount = 0
+  let activeClientsCount = 0
   let isAdmin = false
 
   if (user) {
-    // Count active clients
-    const { count: cc } = await supabase
+    // Count prospects
+    const { count: pc } = await supabase
       .from('clients')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
-      .eq('status', 'active')
+      .eq('lifecycle_stage', 'prospect')
+    prospectsCount = pc ?? 0
 
-    clientsCount = cc ?? 0
+    // Count active (lifecycle_stage='active' AND status='active')
+    const { count: ac } = await supabase
+      .from('clients')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('lifecycle_stage', 'active')
+      .eq('status', 'active')
+    activeClientsCount = ac ?? 0
 
     // Check if admin
     const { data: profile } = await supabase
@@ -38,7 +47,8 @@ export default async function DashboardLayout({
     <LocaleProvider>
       <div className="flex min-h-screen">
         <Sidebar
-          clientsCount={clientsCount}
+          prospectsCount={prospectsCount}
+          activeClientsCount={activeClientsCount}
           isAdmin={isAdmin}
         />
         <div className="flex-1 ml-64 flex flex-col">

@@ -4,7 +4,24 @@ import { getScoreBand } from '@/lib/constants'
 import { calcDelta } from '@/lib/trends/calculate'
 import Link from 'next/link'
 import ClientOverviewTrend from '@/components/clients/ClientOverviewTrend'
+import PromoteButton from '@/components/clients/PromoteButton'
 import T from '@/components/ui/T'
+import type { ClientLifecycleStage } from '@/lib/types/client'
+import type { TranslationKey } from '@/lib/i18n'
+
+const STAGE_COLORS: Record<ClientLifecycleStage, { bg: string; fg: string; border: string }> = {
+  prospect: { bg: '#f59e0b15', fg: '#f59e0b', border: '#f59e0b40' },
+  active: { bg: '#22c55e15', fg: '#22c55e', border: '#22c55e40' },
+  churned: { bg: '#6b728015', fg: '#9ca3af', border: '#6b728040' },
+  archived: { bg: '#ffffff08', fg: '#6b7280', border: '#ffffff10' },
+}
+
+const STAGE_LABEL_KEYS: Record<ClientLifecycleStage, TranslationKey> = {
+  prospect: 'clients.prospect_label',
+  active: 'clients.active_label',
+  churned: 'clients.churned_label',
+  archived: 'clients.archived_label',
+}
 
 const BAND_COLORS: Record<string, string> = {
   green: '#22c55e',
@@ -41,6 +58,18 @@ export default async function ClientOverviewPage({
     .single()
 
   if (!client) redirect('/clients')
+
+  // Fetch current user profile to determine admin privileges (needed for
+  // the "Promote to Active" CTA on prospect clients).
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+  const isAdmin = profile?.role === 'admin'
+  const lifecycleStage = (client.lifecycle_stage ?? 'prospect') as ClientLifecycleStage
+  const stageColors = STAGE_COLORS[lifecycleStage]
+  const stageLabelKey = STAGE_LABEL_KEYS[lifecycleStage]
 
   // Fetch last 2 completed analyses for delta calculation
   const { data: recentAnalyses } = await supabase
@@ -137,6 +166,51 @@ export default async function ClientOverviewPage({
 
   return (
     <div>
+      {/* Lifecycle stage banner */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '16px',
+        padding: '14px 18px',
+        background: stageColors.bg,
+        border: `1px solid ${stageColors.border}`,
+        borderRadius: '12px',
+        marginBottom: '20px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span
+            style={{
+              display: 'inline-block',
+              padding: '3px 10px',
+              borderRadius: '999px',
+              background: stageColors.fg + '22',
+              color: stageColors.fg,
+              fontSize: '11px',
+              fontWeight: 700,
+              letterSpacing: '0.5px',
+              textTransform: 'uppercase',
+              fontFamily: "'JetBrains Mono', monospace",
+            }}
+          >
+            <T k={stageLabelKey} />
+          </span>
+          {lifecycleStage === 'active' && client.engagement_started_at && (
+            <span style={{ fontSize: '12px', color: '#6b7280' }}>
+              <T k="clients.engaged_since" />: {new Date(client.engagement_started_at).toLocaleDateString('en-US')}
+            </span>
+          )}
+          {lifecycleStage === 'churned' && client.engagement_ended_at && (
+            <span style={{ fontSize: '12px', color: '#6b7280' }}>
+              <T k="clients.churned_on" />: {new Date(client.engagement_ended_at).toLocaleDateString('en-US')}
+            </span>
+          )}
+        </div>
+        {isAdmin && lifecycleStage === 'prospect' && (
+          <PromoteButton clientId={params.id} />
+        )}
+      </div>
+
       {/* Quick stats grid */}
       <div style={{
         display: 'grid',

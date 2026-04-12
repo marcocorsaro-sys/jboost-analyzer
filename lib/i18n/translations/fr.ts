@@ -11,6 +11,10 @@ const fr = {
   'nav.system': 'Système',
   'nav.adminPanel': 'Admin Panel',
 
+  // Sidebar (Phase 2 — split lifecycle)
+  'sidebar.prospects': 'Prospects',
+  'sidebar.active_clients': 'Clients Actifs',
+
   // Dashboard
   'dashboard.activeClients': 'Clients Actifs',
   'dashboard.completedAnalyses': 'Analyses Terminées',
@@ -40,6 +44,34 @@ const fr = {
   'clients.contact': 'Contact',
   'clients.quickActions': 'Actions Rapides',
   'clients.last': 'Dernière',
+
+  // Clients — Phase 2 (lifecycle)
+  'clients.prospect_label': 'Prospect',
+  'clients.active_label': 'Actif',
+  'clients.churned_label': 'Perdu',
+  'clients.archived_label': 'Archivé',
+  'clients.prospects_page_title': 'Prospects',
+  'clients.prospects_page_subtitle': 'Pipeline pré-vente — clients pas encore actifs',
+  'clients.active_clients_title': 'Clients Actifs',
+  'clients.active_clients_subtitle': 'Clients engagés et suivis',
+  'clients.new_prospect_button': '+ Nouveau Prospect',
+  'clients.new_prospect_title': 'Nouveau Prospect',
+  'clients.new_prospect_subtitle': 'Ajouter un nouveau prospect à votre pipeline pré-vente',
+  'clients.new_prospect_notice': 'Le nouveau client sera créé comme prospect. Un administrateur pourra le promouvoir à actif plus tard.',
+  'clients.promote_to_active': 'Promouvoir en Actif',
+  'clients.promote_confirm': 'Promouvoir ce prospect en client actif ? La date de début d\'engagement sera enregistrée et un abonnement aux mises à jour sera créé.',
+  'clients.promoted_success': 'Client promu en actif avec succès.',
+  'clients.engaged_since': 'Engagé depuis le',
+  'clients.churned_on': 'Perdu le',
+  'clients.search_placeholder': 'Rechercher des clients...',
+  'clients.filter_all': 'Tous',
+  'clients.filter_active': 'Actifs',
+  'clients.filter_archived': 'Archivés',
+  'clients.empty_search': 'Aucun client ne correspond à la recherche',
+  'clients.empty_active': 'Aucun client actif pour le moment',
+  'clients.empty_prospects': 'Aucun prospect pour le moment',
+  'clients.see_prospects_link': 'Aller au pipeline des prospects →',
+  'clients.create_first_prospect': 'Créez votre premier prospect',
 
   // Client Form
   'clientForm.clientName': 'Nom du Client *',
