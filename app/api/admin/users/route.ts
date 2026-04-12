@@ -3,6 +3,87 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { logActivity } from '@/lib/tracking/activity'
 
+export const dynamic = 'force-dynamic'
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared admin gate. Returns the authenticated user + admin status, or null
+// if the caller is not authenticated / not admin.
+// ─────────────────────────────────────────────────────────────────────────────
+async function requireAdmin() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+  if (profile?.role !== 'admin') return null
+  return { supabase, user }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/admin/users — list every user with email + membership counts.
+// Admin only. Joins profiles + auth.users (via service role) + client_members
+// rollup so the admin panel can show "owns N clients, member of M others".
+// ─────────────────────────────────────────────────────────────────────────────
+export async function GET() {
+  const auth = await requireAdmin()
+  if (!auth) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceRoleKey) {
+    return NextResponse.json(
+      { error: 'Service role key not configured' },
+      { status: 500 }
+    )
+  }
+  const adminSupabase = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    serviceRoleKey
+  )
+
+  const [
+    { data: profiles },
+    { data: usersList },
+    { data: memberships },
+  ] = await Promise.all([
+    adminSupabase
+      .from('profiles')
+      .select('id, full_name, company, role, is_active, created_at')
+      .order('created_at', { ascending: false }),
+    adminSupabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+    adminSupabase
+      .from('client_members')
+      .select('user_id, role'),
+  ])
+
+  const emailById = Object.fromEntries(
+    (usersList?.users ?? []).map(u => [u.id, u.email ?? null])
+  )
+
+  const ownerCounts: Record<string, number> = {}
+  const sharedCounts: Record<string, number> = {}
+  for (const m of memberships ?? []) {
+    if (m.role === 'owner') {
+      ownerCounts[m.user_id] = (ownerCounts[m.user_id] ?? 0) + 1
+    } else {
+      sharedCounts[m.user_id] = (sharedCounts[m.user_id] ?? 0) + 1
+    }
+  }
+
+  const enriched = (profiles ?? []).map(p => ({
+    ...p,
+    email: emailById[p.id] ?? null,
+    owned_clients_count: ownerCounts[p.id] ?? 0,
+    shared_clients_count: sharedCounts[p.id] ?? 0,
+  }))
+
+  return NextResponse.json({ users: enriched })
+}
+
 // POST — create a new user (admin only)
 export async function POST(request: Request) {
   // 1. Verify the caller is admin

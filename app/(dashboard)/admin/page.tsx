@@ -13,6 +13,9 @@ interface UserProfile {
   role: string
   is_active: boolean
   created_at: string
+  email: string | null
+  owned_clients_count: number
+  shared_clients_count: number
 }
 
 interface ConfigKey {
@@ -94,6 +97,18 @@ const inputStyle: React.CSSProperties = {
   fontSize: '14px',
   outline: 'none',
 }
+
+// Compact action button used by the Users table actions column.
+const actionButtonStyle = (color: string): React.CSSProperties => ({
+  padding: '4px 10px',
+  background: '#1e2028',
+  border: `1px solid ${color}40`,
+  borderRadius: '4px',
+  color,
+  fontSize: '11px',
+  fontWeight: 600,
+  cursor: 'pointer',
+})
 
 const labelStyle: React.CSSProperties = {
   fontSize: '12px',
@@ -203,16 +218,25 @@ export default function AdminPage() {
       }
       setIsAdmin(true)
 
-      // Load users
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false })
-      setUsers(data ?? [])
+      // Load users via the admin API so we get email + counts (Phase 4D).
+      await refreshUsers()
       setLoadingUsers(false)
     }
     load()
   }, [])
+
+  // Re-loads the users table from /api/admin/users.
+  async function refreshUsers() {
+    try {
+      const res = await fetch('/api/admin/users')
+      const data = await res.json()
+      if (Array.isArray(data.users)) {
+        setUsers(data.users)
+      }
+    } catch (err) {
+      console.error('Failed to load users:', err)
+    }
+  }
 
   // Load config keys when switching to apikeys tab
   useEffect(() => {
@@ -277,15 +301,80 @@ export default function AdminPage() {
   }
 
   // ─── Users Actions ────────────────────────────────────
+  // All mutations now go through /api/admin/users/[id] so the server-side
+  // last-admin guard runs (it will reject demoting/deactivating the only
+  // remaining active admin).
+  async function patchUser(userId: string, patch: Record<string, unknown>) {
+    const res = await fetch(`/api/admin/users/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      alert(data.error || 'Update failed')
+      return false
+    }
+    await refreshUsers()
+    return true
+  }
+
   async function toggleActive(userId: string, currentActive: boolean) {
-    await supabase.from('profiles').update({ is_active: !currentActive }).eq('id', userId)
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_active: !currentActive } : u))
+    await patchUser(userId, { is_active: !currentActive })
   }
 
   async function toggleRole(userId: string, currentRole: string) {
     const newRole = currentRole === 'admin' ? 'user' : 'admin'
-    await supabase.from('profiles').update({ role: newRole }).eq('id', userId)
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u))
+    await patchUser(userId, { role: newRole })
+  }
+
+  async function resetPassword(userId: string, email: string | null) {
+    if (!confirm(`Send a password recovery email to ${email || userId}?`)) return
+    const res = await fetch(`/api/admin/users/${userId}/reset-password`, {
+      method: 'POST',
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      alert(data.error || 'Reset failed')
+      return
+    }
+    alert('Recovery email sent.')
+  }
+
+  async function softDeleteUser(userId: string, email: string | null) {
+    if (!confirm(`Soft-delete ${email || userId}? They will be deactivated and signed out, but their data and audit trail are kept.`)) return
+    const res = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      alert(data.error || 'Delete failed')
+      return
+    }
+    await refreshUsers()
+  }
+
+  async function purgeUser(userId: string, email: string | null) {
+    if (!email) {
+      alert('Cannot purge a user with no email on record.')
+      return
+    }
+    const typed = window.prompt(
+      `PERMANENT delete. Type the email to confirm:\n\n${email}`
+    )
+    if (!typed || typed.trim().toLowerCase() !== email.toLowerCase()) {
+      alert('Confirmation mismatch — purge aborted.')
+      return
+    }
+    const res = await fetch(`/api/admin/users/${userId}/purge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirm: email }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      alert(data.error || 'Purge failed')
+      return
+    }
+    await refreshUsers()
   }
 
   // ─── API Keys Actions ────────────────────────────────
@@ -463,7 +552,7 @@ export default function AdminPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid #2a2d35' }}>
-                    {['Name', 'Company', 'Role', 'Status', 'Joined', 'Actions'].map(h => (
+                    {['Name', 'Email', 'Company', 'Role', 'Clients', 'Status', 'Joined', 'Actions'].map(h => (
                       <th key={h} style={thStyle}>{h}</th>
                     ))}
                   </tr>
@@ -473,6 +562,9 @@ export default function AdminPage() {
                     <tr key={user.id} style={{ borderBottom: '1px solid #2a2d3520' }}>
                       <td style={{ padding: '12px 16px', color: '#ffffff', fontSize: '13px' }}>
                         {user.full_name || '\u2014'}
+                      </td>
+                      <td style={{ padding: '12px 16px', color: '#a0a0a0', fontSize: '12px', fontFamily: 'monospace' }}>
+                        {user.email || '\u2014'}
                       </td>
                       <td style={{ padding: '12px 16px', color: '#a0a0a0', fontSize: '13px' }}>
                         {user.company || '\u2014'}
@@ -485,6 +577,14 @@ export default function AdminPage() {
                           color: user.role === 'admin' ? '#c8e64a' : '#6b7280',
                         }}>
                           {user.role}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 16px', color: '#a0a0a0', fontSize: '12px' }}>
+                        <span title="Owned / Shared">
+                          {user.owned_clients_count}
+                          {user.shared_clients_count > 0 && (
+                            <span style={{ color: '#6b7280' }}> + {user.shared_clients_count}</span>
+                          )}
                         </span>
                       </td>
                       <td style={{ padding: '12px 16px' }}>
@@ -502,27 +602,39 @@ export default function AdminPage() {
                           day: '2-digit', month: 'short', year: 'numeric',
                         })}
                       </td>
-                      <td style={{ padding: '12px 16px', display: 'flex', gap: '8px' }}>
-                        <button
-                          onClick={() => toggleActive(user.id, user.is_active)}
-                          style={{
-                            padding: '4px 10px', background: '#1e2028',
-                            border: '1px solid #2a2d35', borderRadius: '4px',
-                            color: '#a0a0a0', fontSize: '11px', cursor: 'pointer',
-                          }}
-                        >
-                          {user.is_active ? 'Deactivate' : 'Activate'}
-                        </button>
-                        <button
-                          onClick={() => toggleRole(user.id, user.role)}
-                          style={{
-                            padding: '4px 10px', background: '#1e2028',
-                            border: '1px solid #2a2d35', borderRadius: '4px',
-                            color: '#a0a0a0', fontSize: '11px', cursor: 'pointer',
-                          }}
-                        >
-                          {user.role === 'admin' ? 'Remove Admin' : 'Make Admin'}
-                        </button>
+                      <td style={{ padding: '12px 16px' }}>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                          <button
+                            onClick={() => toggleActive(user.id, user.is_active)}
+                            style={actionButtonStyle('#a0a0a0')}
+                          >
+                            {user.is_active ? 'Deactivate' : 'Activate'}
+                          </button>
+                          <button
+                            onClick={() => toggleRole(user.id, user.role)}
+                            style={actionButtonStyle('#a0a0a0')}
+                          >
+                            {user.role === 'admin' ? 'Unmake Admin' : 'Make Admin'}
+                          </button>
+                          <button
+                            onClick={() => resetPassword(user.id, user.email)}
+                            style={actionButtonStyle('#3b82f6')}
+                          >
+                            Reset PW
+                          </button>
+                          <button
+                            onClick={() => softDeleteUser(user.id, user.email)}
+                            style={actionButtonStyle('#f59e0b')}
+                          >
+                            Delete
+                          </button>
+                          <button
+                            onClick={() => purgeUser(user.id, user.email)}
+                            style={actionButtonStyle('#ef4444')}
+                          >
+                            Purge
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
