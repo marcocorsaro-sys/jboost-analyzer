@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
-import { Bell, LogOut, Search, Settings, Shield } from 'lucide-react'
+import { Bell, Globe, LogOut, Search, Settings, Shield } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -21,11 +21,14 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { PRIMARY_NAV } from '@/components/layout/nav-items'
 import { useCommandPalette } from '@/components/layout/command-palette'
-import { useLocale } from '@/lib/i18n'
+import { useLocale, LOCALE_LABELS, type Locale } from '@/lib/i18n'
 import { createClient } from '@/lib/supabase/client'
 
 interface IconRailProps {
@@ -41,7 +44,8 @@ export function IconRail({
 }: IconRailProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const { t } = useLocale()
+  const { locale, setLocale, t } = useLocale()
+  const LOCALES: Locale[] = ['en', 'it', 'es', 'fr']
   const { setOpen } = useCommandPalette()
 
   const isActive = (href: string) =>
@@ -186,6 +190,24 @@ export function IconRail({
                   <span>{t('nav.admin')}</span>
                 </DropdownMenuItem>
               )}
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Globe />
+                  <span>{locale.toUpperCase()}</span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {LOCALES.map((l) => (
+                    <DropdownMenuItem
+                      key={l}
+                      onClick={() => setLocale(l)}
+                      className={locale === l ? 'text-primary font-semibold' : ''}
+                    >
+                      <span className="w-6 font-mono text-xs font-bold uppercase">{l}</span>
+                      <span>{LOCALE_LABELS[l]}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout}>
                 <LogOut />

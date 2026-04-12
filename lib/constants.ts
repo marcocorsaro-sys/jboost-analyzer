@@ -15,10 +15,10 @@ export type DriverKey = typeof DRIVERS[number]['key']
 
 // Score bands for interpretation
 export const SCORE_BANDS = [
-  { min: 0, max: 40, label: 'Critico', color: 'red', cssClass: 'score-critical' },
-  { min: 41, max: 60, label: 'Da migliorare', color: 'amber', cssClass: 'score-improve' },
-  { min: 61, max: 80, label: 'Buono', color: 'teal', cssClass: 'score-good' },
-  { min: 81, max: 100, label: 'Eccellente', color: 'green', cssClass: 'score-excellent' },
+  { min: 0, max: 40, label: 'score.critical', color: 'red', cssClass: 'score-critical' },
+  { min: 41, max: 60, label: 'score.improve', color: 'amber', cssClass: 'score-improve' },
+  { min: 61, max: 80, label: 'score.good', color: 'teal', cssClass: 'score-good' },
+  { min: 81, max: 100, label: 'score.excellent', color: 'green', cssClass: 'score-excellent' },
 ] as const
 
 export function getScoreBand(score: number | null) {

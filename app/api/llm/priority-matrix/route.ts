@@ -31,11 +31,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { analysisId, clientId } = await req.json()
+    const { analysisId, clientId, locale } = await req.json()
 
     if (!analysisId) {
       return NextResponse.json({ error: 'Missing analysisId' }, { status: 400 })
     }
+
+    // Map locale to full language name for LLM
+    const LANG_MAP: Record<string, string> = {
+      it: 'Italian', es: 'Spanish', fr: 'French', en: 'English',
+    }
+    const outputLanguage = LANG_MAP[locale || 'en'] || 'English'
 
     // Fetch all driver results with solutions
     const { data: driverResults } = await supabase
@@ -57,6 +63,8 @@ export async function POST(req: NextRequest) {
 
     const prompt = `You are a strategic SEO consultant creating a priority matrix for website optimization.
 
+IMPORTANT: You MUST write ALL titles, descriptions, and text content in ${outputLanguage}. Every field must be in ${outputLanguage}.
+
 Analysis results:
 ${JSON.stringify(driverSummary, null, 2)}
 
@@ -67,13 +75,14 @@ Classify ALL solutions and issues across all drivers into 4 quadrants:
 4. **Suggestions** (Nice to Have): Lower priority but good for long-term
 
 For each item provide:
-- A clear title
+- A clear title (in ${outputLanguage})
 - Which driver it relates to
-- Brief description
+- Brief description (in ${outputLanguage})
 - Impact score (1-10)
 - Effort score (1-10)
 
-Aim for 2-4 items per quadrant. Focus on the most actionable items.`
+Aim for 2-4 items per quadrant. Focus on the most actionable items.
+ALL output text MUST be in ${outputLanguage}.`
 
     const result = await generateObject({
       model: openai('gpt-4-turbo'),

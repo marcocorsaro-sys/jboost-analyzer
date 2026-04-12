@@ -28,13 +28,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { analysisId, driverName, score, issues, domain, companyContext, clientId } = await req.json()
+    const { analysisId, driverName, score, issues, domain, companyContext, clientId, locale } = await req.json()
 
     if (!analysisId || !driverName) {
       return NextResponse.json({ error: 'Missing analysisId or driverName' }, { status: 400 })
     }
 
+    // Map locale to full language name for LLM
+    const LANG_MAP: Record<string, string> = {
+      it: 'Italian', es: 'Spanish', fr: 'French', en: 'English',
+    }
+    const outputLanguage = LANG_MAP[locale || 'en'] || 'English'
+
     const prompt = `You are an expert SEO and digital marketing consultant analyzing a website's performance.
+
+IMPORTANT: You MUST write ALL titles, descriptions, timeframes, and text content in ${outputLanguage}. Every field must be in ${outputLanguage}.
 
 Domain: ${domain || 'Unknown'}
 Driver: ${driverName}
@@ -51,7 +59,8 @@ Focus on:
 - Strategic improvements that have high impact
 - Best practices for this specific driver
 
-Provide solutions in order of priority (highest impact first).`
+Provide solutions in order of priority (highest impact first).
+ALL output text MUST be in ${outputLanguage}.`
 
     const result = await generateObject({
       model: openai('gpt-4-turbo'),

@@ -72,163 +72,99 @@ export default async function DashboardPage() {
       )
     : null
 
+  const avgScoreColor = avgScore !== null
+    ? (avgScore >= 80 ? '#22c55e' : avgScore >= 60 ? '#14b8a6' : avgScore >= 40 ? '#f59e0b' : '#ef4444')
+    : undefined
+
   return (
     <div>
-      <h2 style={{
-        fontFamily: "'JetBrains Mono', monospace",
-        fontSize: '20px',
-        fontWeight: 700,
-        color: '#ffffff',
-        marginBottom: '24px',
-      }}>
+      <h2 className="font-mono text-xl font-bold text-foreground mb-6">
         <T k="nav.dashboard" />
       </h2>
 
       {/* KPI Cards */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: '16px',
-        marginBottom: '32px',
-      }}>
-        <div style={{
-          background: '#1a1c24',
-          borderRadius: '12px',
-          border: '1px solid #2a2d35',
-          padding: '20px',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', fontFamily: "'JetBrains Mono', monospace" }}>
+      <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="bg-card rounded-xl border border-border p-5 text-center">
+          <div className="text-[11px] text-gray-500 uppercase tracking-wide mb-2 font-mono">
             <T k="dashboard.activeClients" />
           </div>
-          <div style={{ fontSize: '36px', fontWeight: 700, color: '#c8e64a', fontFamily: "'JetBrains Mono', monospace" }}>
+          <div className="text-4xl font-bold text-primary font-mono">
             {totalClients ?? 0}
           </div>
         </div>
 
-        <div style={{
-          background: '#1a1c24',
-          borderRadius: '12px',
-          border: '1px solid #2a2d35',
-          padding: '20px',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', fontFamily: "'JetBrains Mono', monospace" }}>
+        <div className="bg-card rounded-xl border border-border p-5 text-center">
+          <div className="text-[11px] text-gray-500 uppercase tracking-wide mb-2 font-mono">
             <T k="dashboard.completedAnalyses" />
           </div>
-          <div style={{ fontSize: '36px', fontWeight: 700, color: '#ffffff', fontFamily: "'JetBrains Mono', monospace" }}>
+          <div className="text-4xl font-bold text-white font-mono">
             {totalAnalyses ?? 0}
           </div>
         </div>
 
-        <div style={{
-          background: '#1a1c24',
-          borderRadius: '12px',
-          border: '1px solid #2a2d35',
-          padding: '20px',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', fontFamily: "'JetBrains Mono', monospace" }}>
+        <div className="bg-card rounded-xl border border-border p-5 text-center">
+          <div className="text-[11px] text-gray-500 uppercase tracking-wide mb-2 font-mono">
             <T k="dashboard.averageScore" />
           </div>
-          <div style={{
-            fontSize: '36px',
-            fontWeight: 700,
-            color: avgScore !== null ? (avgScore >= 80 ? '#22c55e' : avgScore >= 60 ? '#14b8a6' : avgScore >= 40 ? '#f59e0b' : '#ef4444') : '#6b7280',
-            fontFamily: "'JetBrains Mono', monospace",
-          }}>
-            {avgScore ?? '—'}
+          <div
+            className="text-4xl font-bold font-mono"
+            style={avgScoreColor ? { color: avgScoreColor } : undefined}
+          >
+            <span className={avgScoreColor ? undefined : 'text-gray-500'}>
+              {avgScore ?? '—'}
+            </span>
           </div>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
+      <div className="grid grid-cols-[2fr_1fr] gap-6">
         {/* Top Clients */}
-        <div style={{
-          background: '#1a1c24',
-          borderRadius: '12px',
-          border: '1px solid #2a2d35',
-          padding: '20px',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h3 style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: '13px',
-              fontWeight: 600,
-              color: '#c8e64a',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-            }}>
+        <div className="bg-card rounded-xl border border-border p-5">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-mono text-[13px] font-semibold text-primary uppercase tracking-wide">
               <T k="dashboard.recentClients" />
             </h3>
-            <Link href="/clients" style={{ fontSize: '12px', color: '#6b7280', textDecoration: 'none' }}>
+            <Link href="/clients" className="text-xs text-gray-500 no-underline">
               <T k="dashboard.viewAll" />
             </Link>
           </div>
 
           {topClients.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '32px 0' }}>
-              <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '12px' }}>
+            <div className="text-center py-8">
+              <div className="text-sm text-gray-500 mb-3">
                 <T k="dashboard.noClientsYet" />
               </div>
               <Link
                 href="/clients/new"
-                style={{
-                  padding: '8px 16px',
-                  background: '#c8e64a',
-                  color: '#111318',
-                  borderRadius: '8px',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  textDecoration: 'none',
-                  fontFamily: "'JetBrains Mono', monospace",
-                }}
+                className="inline-block px-4 py-2 bg-primary text-background rounded-lg text-[13px] font-bold no-underline font-mono"
               >
                 <T k="dashboard.addClient" />
               </Link>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div className="flex flex-col gap-2">
               {topClients.map((c) => {
                 const band = c.latest_score !== null ? getScoreBand(c.latest_score) : null
                 const color = band ? BAND_COLORS[band.color] ?? '#6b7280' : '#6b7280'
                 return (
-                  <Link key={c.id} href={`/clients/${c.id}`} style={{ textDecoration: 'none' }}>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      padding: '10px 14px',
-                      background: '#111318',
-                      borderRadius: '8px',
-                      transition: 'background 0.2s',
-                    }}>
-                      <div style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: '6px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: '14px',
-                        fontWeight: 700,
-                        background: `${color}15`,
-                        color: color,
-                        flexShrink: 0,
-                      }}>
+                  <Link key={c.id} href={`/clients/${c.id}`} className="no-underline">
+                    <div className="flex items-center gap-3 px-3.5 py-2.5 bg-background rounded-lg transition-colors">
+                      <div
+                        className="w-9 h-9 rounded-md flex items-center justify-center font-mono text-sm font-bold shrink-0"
+                        style={{ background: `${color}15`, color }}
+                      >
                         {c.latest_score ?? '—'}
                       </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-white whitespace-nowrap overflow-hidden text-ellipsis">
                           {c.name}
                         </div>
-                        <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                        <div className="text-[11px] text-gray-500">
                           {c.domain || <T k="dashboard.noDomain" />}
                         </div>
                       </div>
                       {c.latest_analysis_at && (
-                        <div style={{ fontSize: '11px', color: '#6b7280', flexShrink: 0 }}>
+                        <div className="text-[11px] text-gray-500 shrink-0">
                           {new Date(c.latest_analysis_at).toLocaleDateString('en-US', { day: '2-digit', month: 'short' })}
                         </div>
                       )}
@@ -241,67 +177,26 @@ export default async function DashboardPage() {
         </div>
 
         {/* Quick Actions */}
-        <div style={{
-          background: '#1a1c24',
-          borderRadius: '12px',
-          border: '1px solid #2a2d35',
-          padding: '20px',
-        }}>
-          <h3 style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '13px',
-            fontWeight: 600,
-            color: '#c8e64a',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-            marginBottom: '16px',
-          }}>
+        <div className="bg-card rounded-xl border border-border p-5">
+          <h3 className="font-mono text-[13px] font-semibold text-primary uppercase tracking-wide mb-4">
             <T k="dashboard.quickActions" />
           </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div className="flex flex-col gap-2">
             <Link
               href="/clients/new"
-              style={{
-                padding: '10px 16px',
-                background: '#c8e64a',
-                color: '#111318',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: 700,
-                textDecoration: 'none',
-                fontFamily: "'JetBrains Mono', monospace",
-                textAlign: 'center',
-              }}
+              className="block px-4 py-2.5 bg-primary text-background rounded-lg text-[13px] font-bold no-underline font-mono text-center"
             >
               <T k="dashboard.newClient" />
             </Link>
             <Link
               href="/analyzer"
-              style={{
-                padding: '10px 16px',
-                background: '#2a2d35',
-                color: '#ffffff',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: 600,
-                textDecoration: 'none',
-                textAlign: 'center',
-              }}
+              className="block px-4 py-2.5 bg-border text-white rounded-lg text-[13px] font-semibold no-underline text-center"
             >
               <T k="dashboard.analyzeDomain" />
             </Link>
             <Link
               href="/ask-j"
-              style={{
-                padding: '10px 16px',
-                background: '#2a2d35',
-                color: '#ffffff',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: 600,
-                textDecoration: 'none',
-                textAlign: 'center',
-              }}
+              className="block px-4 py-2.5 bg-border text-white rounded-lg text-[13px] font-semibold no-underline text-center"
             >
               <T k="common.askJ" />
             </Link>

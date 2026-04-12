@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { getScoreBand } from '@/lib/constants'
 import type { ClientLifecycleStage } from '@/lib/types/client'
-import { useLocale } from '@/lib/i18n'
+import { useLocale, formatLocalDate } from '@/lib/i18n'
 import type { TranslationKey } from '@/lib/i18n'
 
 interface ClientCardProps {
@@ -43,7 +43,7 @@ const STAGE_LABEL_KEYS: Record<ClientLifecycleStage, TranslationKey> = {
 export default function ClientCard({
   id, name, domain, industry, status, lifecycle_stage, analyses_count, latest_score, latest_analysis_at,
 }: ClientCardProps) {
-  const { t } = useLocale()
+  const { t, locale } = useLocale()
   const band = latest_score !== null ? getScoreBand(latest_score) : null
   const color = band ? BAND_COLORS[band.color] ?? '#6b7280' : '#6b7280'
 
@@ -54,17 +54,12 @@ export default function ClientCard({
   return (
     <Link href={`/clients/${id}`}>
       <div
-        className="group relative overflow-hidden rounded-xl border transition-all duration-200 hover:border-[var(--lime)]/30 hover:shadow-lg hover:shadow-[var(--lime)]/5"
-        style={{
-          background: 'hsl(var(--card))',
-          borderColor: 'hsl(var(--border))',
-        }}
+        className="group relative overflow-hidden rounded-xl border bg-card border-border transition-all duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
       >
         {/* Top-right badges: lifecycle + (optional) archived marker */}
         <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10">
           <span
-            className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold ${stageClass}`}
-            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+            className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold font-mono ${stageClass}`}
           >
             {stageLabel}
           </span>
@@ -80,8 +75,7 @@ export default function ClientCard({
           <div className="flex items-start justify-between gap-3 mb-3 pr-20">
             <div className="min-w-0 flex-1">
               <h3
-                className="font-semibold text-white text-[15px] truncate group-hover:text-[var(--lime)] transition-colors"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                className="font-semibold text-white text-[15px] truncate group-hover:text-[var(--lime)] transition-colors font-mono"
               >
                 {name}
               </h3>
@@ -94,9 +88,8 @@ export default function ClientCard({
           {/* Score badge row */}
           <div className="flex items-center gap-3 mb-3">
             <div
-              className="flex-shrink-0 w-11 h-11 rounded-lg flex items-center justify-center text-sm font-bold"
+              className="flex-shrink-0 w-11 h-11 rounded-lg flex items-center justify-center text-sm font-bold font-mono"
               style={{
-                fontFamily: "'JetBrains Mono', monospace",
                 background: `${color}15`,
                 color: color,
               }}
@@ -112,14 +105,14 @@ export default function ClientCard({
 
           {/* Stats row */}
           <div className="flex items-center gap-4 text-[11px] text-gray-500 pt-3 border-t border-white/5">
-            <span>{analyses_count} {analyses_count === 1 ? 'analisi' : 'analisi'}</span>
+            <span>{analyses_count} {t('clients.analysisCount')}</span>
             {latest_analysis_at && (
               <span>
-                Ultima: {new Date(latest_analysis_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
+                {t('clients.lastAnalysis')}: {formatLocalDate(latest_analysis_at, locale, { day: '2-digit', month: 'short' })}
               </span>
             )}
             {band && (
-              <span style={{ color }}>{band.label}</span>
+              <span style={{ color }}>{t(band.label as TranslationKey)}</span>
             )}
           </div>
         </div>

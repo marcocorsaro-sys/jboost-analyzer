@@ -3,6 +3,13 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { useLocale, formatLocalDate } from '@/lib/i18n'
+import { cn } from '@/lib/utils'
+import MemoryStatusCard from '@/components/memory/MemoryStatusCard'
+import MemoryGapsList from '@/components/memory/MemoryGapsList'
+import MemoryAnswerDialog from '@/components/memory/MemoryAnswerDialog'
+import MemoryViewer from '@/components/memory/MemoryViewer'
+import type { ClientMemory, MemoryGap } from '@/lib/types/client'
 
 interface ClientFile {
   id: string
@@ -32,12 +39,19 @@ export default function ClientKnowledgePage() {
   const clientId = params.id as string
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { t, locale } = useLocale()
 
   const [files, setFiles] = useState<ClientFile[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Memory state
+  const [memory, setMemory] = useState<ClientMemory | null>(null)
+  const [memoryLoading, setMemoryLoading] = useState(true)
+  const [activeGap, setActiveGap] = useState<MemoryGap | null>(null)
+  const [showViewer, setShowViewer] = useState(false)
 
   const loadFiles = useCallback(async () => {
     setLoading(true)
@@ -52,14 +66,57 @@ export default function ClientKnowledgePage() {
       if (err) throw new Error(err.message)
       setFiles(data || [])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Errore nel caricamento')
+      setError(err instanceof Error ? err.message : t('knowledge.errorLoading'))
     }
     setLoading(false)
   }, [clientId, supabase])
 
+  // Load memory
+  const loadMemory = useCallback(async () => {
+    setMemoryLoading(true)
+    try {
+      const res = await fetch(`/api/clients/${clientId}/memory`)
+      if (res.ok) {
+        const data = await res.json()
+        setMemory(data.memory)
+      }
+    } catch (err) {
+      console.error('Failed to load memory:', err)
+    }
+    setMemoryLoading(false)
+  }, [clientId])
+
+  const handleMemoryRefresh = async () => {
+    try {
+      // Optimistic update
+      setMemory(prev => prev ? { ...prev, status: prev.status === 'empty' ? 'building' : 'refreshing' } as ClientMemory : null)
+
+      const res = await fetch(`/api/clients/${clientId}/memory/refresh`, {
+        method: 'POST',
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || t('knowledge.refreshFailed'))
+      }
+
+      // Reload memory after refresh
+      await loadMemory()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('knowledge.memoryRefreshError'))
+      await loadMemory()
+    }
+  }
+
+  const handleGapAnswered = async () => {
+    setActiveGap(null)
+    await loadMemory()
+  }
+
   useEffect(() => {
     loadFiles()
-  }, [loadFiles])
+    loadMemory()
+  }, [loadFiles, loadMemory])
 
   async function handleUpload(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return
@@ -68,7 +125,7 @@ export default function ClientKnowledgePage() {
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Non autenticato')
+      if (!user) throw new Error(t('knowledge.notAuthenticated'))
 
       for (const file of Array.from(fileList)) {
         const timestamp = Date.now()
@@ -80,7 +137,7 @@ export default function ClientKnowledgePage() {
           .from('client-files')
           .upload(storagePath, file)
 
-        if (uploadErr) throw new Error(`Upload fallito per ${file.name}: ${uploadErr.message}`)
+        if (uploadErr) throw new Error(t('knowledge.uploadFailed') + ' ' + file.name + ': ' + uploadErr.message)
 
         // Insert metadata in DB
         const { data: insertedFile, error: insertErr } = await supabase
@@ -98,7 +155,7 @@ export default function ClientKnowledgePage() {
           .select('id')
           .single()
 
-        if (insertErr) throw new Error(`DB insert fallito: ${insertErr.message}`)
+        if (insertErr) throw new Error(t('knowledge.dbInsertFailed') + ': ' + insertErr.message)
 
         // Trigger text extraction (fire-and-forget)
         if (insertedFile) {
@@ -123,7 +180,7 @@ export default function ClientKnowledgePage() {
 
       await loadFiles()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Errore durante l\'upload')
+      setError(err instanceof Error ? err.message : t('knowledge.uploadError'))
     }
     setUploading(false)
     // Reset file input
@@ -136,16 +193,16 @@ export default function ClientKnowledgePage() {
         .from('client-files')
         .createSignedUrl(file.storage_path, 60)
 
-      if (err || !data?.signedUrl) throw new Error('Impossibile creare URL di download')
+      if (err || !data?.signedUrl) throw new Error(t('knowledge.downloadError'))
 
       window.open(data.signedUrl, '_blank')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Errore download')
+      setError(err instanceof Error ? err.message : t('knowledge.downloadError'))
     }
   }
 
   async function handleDelete(file: ClientFile) {
-    if (!window.confirm(`Eliminare "${file.file_name}"?`)) return
+    if (!window.confirm(t('knowledge.confirmDelete').replace('{name}', file.file_name))) return
 
     try {
       // Delete from storage
@@ -153,7 +210,7 @@ export default function ClientKnowledgePage() {
         .from('client-files')
         .remove([file.storage_path])
 
-      if (storageErr) throw new Error(`Errore rimozione storage: ${storageErr.message}`)
+      if (storageErr) throw new Error(t('knowledge.storageError') + ': ' + storageErr.message)
 
       // Delete from DB
       const { error: dbErr } = await supabase
@@ -161,7 +218,7 @@ export default function ClientKnowledgePage() {
         .delete()
         .eq('id', file.id)
 
-      if (dbErr) throw new Error(`Errore rimozione DB: ${dbErr.message}`)
+      if (dbErr) throw new Error(t('knowledge.dbError') + ': ' + dbErr.message)
 
       // Log activity
       fetch('/api/activity', {
@@ -177,7 +234,7 @@ export default function ClientKnowledgePage() {
 
       await loadFiles()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Errore eliminazione')
+      setError(err instanceof Error ? err.message : t('knowledge.deleteError'))
     }
   }
 
@@ -189,48 +246,77 @@ export default function ClientKnowledgePage() {
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+      {/* Memory Section */}
+      {!memoryLoading && (
+        <div className="flex flex-col gap-3 mb-6">
+          <MemoryStatusCard
+            status={memory?.status || 'empty'}
+            completeness={memory?.completeness || 0}
+            lastRefreshedAt={memory?.last_refreshed_at || null}
+            errorMessage={memory?.error_message || null}
+            factsCount={memory?.facts?.length || 0}
+            gapsCount={memory?.gaps?.length || 0}
+            onRefresh={handleMemoryRefresh}
+            onViewMemory={() => setShowViewer(true)}
+          />
+
+          {memory?.status === 'ready' && memory.gaps.length > 0 && (
+            <MemoryGapsList
+              gaps={memory.gaps}
+              onAnswerGap={(gap) => setActiveGap(gap)}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Answer Dialog */}
+      {activeGap && (
+        <MemoryAnswerDialog
+          gap={activeGap}
+          clientId={clientId}
+          onClose={() => setActiveGap(null)}
+          onAnswered={handleGapAnswered}
+        />
+      )}
+
+      {/* Memory Viewer */}
+      {showViewer && memory && memory.status === 'ready' && (
+        <MemoryViewer
+          memory={memory}
+          onClose={() => setShowViewer(false)}
+        />
+      )}
+
+      {/* Knowledge Base Header */}
+      <div className="flex justify-between items-start mb-5">
         <div>
-          <h3 style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '16px',
-            fontWeight: 700,
-            color: '#ffffff',
-            marginBottom: '4px',
-          }}>
-            Knowledge Base
+          <h3 className="font-mono text-base font-bold text-foreground mb-1">
+            {t('knowledge.title')}
           </h3>
-          <p style={{ fontSize: '13px', color: '#6b7280' }}>
+          <p className="text-[13px] text-gray-500">
             {files.length > 0
-              ? <><span style={{ color: '#c8e64a', fontWeight: 600 }}>{files.length}</span> documenti caricati</>
-              : 'Carica documenti per costruire la knowledge base del cliente'
+              ? <><span className="text-primary font-semibold">{files.length}</span> {t('knowledge.documentsUploaded')}</>
+              : t('knowledge.uploadPrompt')
             }
           </p>
         </div>
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
-          style={{
-            padding: '8px 16px',
-            background: uploading ? '#2a2d35' : '#c8e64a',
-            color: uploading ? '#6b7280' : '#111318',
-            borderRadius: '8px',
-            border: 'none',
-            fontSize: '13px',
-            fontWeight: 700,
-            fontFamily: "'JetBrains Mono', monospace",
-            cursor: uploading ? 'not-allowed' : 'pointer',
-            whiteSpace: 'nowrap',
-          }}
+          className={cn(
+            'px-4 py-2 rounded-lg border-none text-[13px] font-bold font-mono whitespace-nowrap',
+            uploading
+              ? 'bg-border text-gray-500 cursor-not-allowed'
+              : 'bg-primary text-background cursor-pointer'
+          )}
         >
-          {uploading ? 'Caricando...' : 'Carica File'}
+          {uploading ? t('knowledge.uploading') : t('knowledge.uploadButton')}
         </button>
         <input
           ref={fileInputRef}
           type="file"
           multiple
-          style={{ display: 'none' }}
+          className="hidden"
           onChange={(e) => handleUpload(e.target.files)}
         />
       </div>
@@ -241,99 +327,54 @@ export default function ClientKnowledgePage() {
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
-        style={{
-          border: `2px dashed ${dragOver ? '#c8e64a' : '#2a2d35'}`,
-          borderRadius: '12px',
-          padding: '32px',
-          textAlign: 'center',
-          marginBottom: '20px',
-          cursor: 'pointer',
-          transition: 'all 0.2s',
-          background: dragOver ? 'rgba(200, 230, 74, 0.04)' : 'transparent',
-        }}
+        className={cn(
+          'rounded-xl border-2 border-dashed p-8 text-center cursor-pointer transition-all mb-5',
+          dragOver ? 'border-primary bg-primary/[0.04]' : 'border-border'
+        )}
       >
-        <div style={{ fontSize: '32px', marginBottom: '8px' }}>
-          {uploading ? '...' : '◫'}
+        <div className="text-[32px] mb-2">
+          {uploading ? '...' : '\u25EB'}
         </div>
-        <p style={{ fontSize: '13px', color: dragOver ? '#c8e64a' : '#6b7280' }}>
+        <p className={cn('text-[13px]', dragOver ? 'text-primary' : 'text-gray-500')}>
           {uploading
-            ? 'Upload in corso...'
-            : 'Trascina i file qui o clicca per selezionare'
+            ? t('knowledge.uploadInProgress')
+            : t('knowledge.dragDropText')
           }
         </p>
-        <p style={{ fontSize: '11px', color: '#4b5563', marginTop: '4px' }}>
-          Qualsiasi tipo di file, max 50MB per file
+        <p className="text-[11px] text-gray-600 mt-1">
+          {t('knowledge.anyFileMaxSize')}
         </p>
       </div>
 
       {/* Error */}
       {error && (
-        <div style={{
-          padding: '12px 16px',
-          background: 'rgba(239, 68, 68, 0.08)',
-          border: '1px solid rgba(239, 68, 68, 0.2)',
-          borderRadius: '8px',
-          color: '#ef4444',
-          fontSize: '13px',
-          marginBottom: '20px',
-        }}>
+        <div className="px-4 py-3 bg-destructive/[0.08] border border-destructive/20 rounded-lg text-destructive text-[13px] mb-5">
           {error}
         </div>
       )}
 
       {/* File List */}
       {loading ? (
-        <div style={{ color: '#6b7280', textAlign: 'center', padding: '60px 0' }}>
-          Caricamento...
+        <div className="text-gray-500 text-center py-[60px]">
+          {t('common.loading')}
         </div>
       ) : files.length === 0 ? (
-        <div style={{
-          background: '#1a1c24',
-          borderRadius: '12px',
-          border: '1px solid #2a2d35',
-          padding: '48px',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>◫</div>
-          <h4 style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '16px',
-            fontWeight: 600,
-            color: '#c8e64a',
-            marginBottom: '8px',
-          }}>
-            Nessun Documento
+        <div className="bg-card rounded-xl border border-border p-12 text-center">
+          <div className="text-[48px] mb-4">{'\u25EB'}</div>
+          <h4 className="font-mono text-base font-semibold text-primary mb-2">
+            {t('knowledge.noDocuments')}
           </h4>
-          <p style={{
-            fontSize: '13px',
-            color: '#6b7280',
-            maxWidth: '500px',
-            margin: '0 auto',
-          }}>
-            Carica report, documenti, presentazioni o qualsiasi file per costruire la knowledge base di questo cliente. Questi file verranno utilizzati come contesto per le analisi AI.
+          <p className="text-[13px] text-gray-500 max-w-[500px] mx-auto">
+            {t('knowledge.noDocumentsDesc')}
           </p>
         </div>
       ) : (
-        <div style={{
-          background: '#1a1c24',
-          borderRadius: '12px',
-          border: '1px solid #2a2d35',
-          overflow: 'hidden',
-        }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <table className="w-full border-collapse">
             <thead>
-              <tr style={{ borderBottom: '1px solid #2a2d35' }}>
-                {['Nome', 'Tipo', 'AI', 'Dimensione', 'Caricato il', 'Azioni'].map(h => (
-                  <th key={h} style={{
-                    padding: '12px 16px',
-                    textAlign: 'left',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    color: '#6b7280',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    fontFamily: "'JetBrains Mono', monospace",
-                  }}>
+              <tr className="border-b border-border">
+                {[t('knowledge.headerName'), t('knowledge.headerType'), t('knowledge.headerAI'), t('knowledge.headerSize'), t('knowledge.headerUploaded'), t('knowledge.headerActions')].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-[0.5px] font-mono">
                     {h}
                   </th>
                 ))}
@@ -341,80 +382,53 @@ export default function ClientKnowledgePage() {
             </thead>
             <tbody>
               {files.map((file) => (
-                <tr key={file.id} style={{ borderBottom: '1px solid #1f2129' }}>
-                  <td style={{ padding: '12px 16px', color: '#e0e0e0', fontSize: '13px', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <tr key={file.id} className="border-b border-[#1f2129]">
+                  <td className="px-4 py-3 text-[#e0e0e0] text-[13px] max-w-[300px] overflow-hidden text-ellipsis whitespace-nowrap">
                     {file.file_name}
                   </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={{
-                      display: 'inline-block',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      fontFamily: "'JetBrains Mono', monospace",
-                      background: 'rgba(200, 230, 74, 0.1)',
-                      color: '#c8e64a',
-                    }}>
+                  <td className="px-4 py-3">
+                    <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold font-mono bg-primary/10 text-primary">
                       {getFileExtension(file.file_name)}
                     </span>
                   </td>
-                  <td style={{ padding: '12px 16px', fontSize: '13px' }}>
+                  <td className="px-4 py-3 text-[13px]">
                     {file.extraction_status === 'completed' && (
-                      <span title="Testo estratto per AI" style={{ color: '#22c55e' }}>✓</span>
+                      <span title={t('knowledge.extractCompleted')} className="text-green-500">{'\u2713'}</span>
                     )}
                     {file.extraction_status === 'pending' && (
-                      <span title="Estrazione in corso" style={{ color: '#eab308' }}>⏳</span>
+                      <span title={t('knowledge.extractPending')} className="text-yellow-500">{'\u23F3'}</span>
                     )}
                     {file.extraction_status === 'failed' && (
-                      <span title="Estrazione fallita" style={{ color: '#ef4444' }}>✗</span>
+                      <span title={t('knowledge.extractFailed')} className="text-destructive">{'\u2717'}</span>
                     )}
                     {file.extraction_status === 'unsupported' && (
-                      <span title="Tipo non supportato" style={{ color: '#6b7280' }}>—</span>
+                      <span title={t('knowledge.extractUnsupported')} className="text-gray-500">{'\u2014'}</span>
                     )}
                     {!file.extraction_status && (
-                      <span style={{ color: '#6b7280' }}>—</span>
+                      <span className="text-gray-500">{'\u2014'}</span>
                     )}
                   </td>
-                  <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: '13px' }}>
+                  <td className="px-4 py-3 text-gray-500 text-[13px]">
                     {formatFileSize(file.file_size)}
                   </td>
-                  <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: '13px' }}>
-                    {new Date(file.created_at).toLocaleDateString('it-IT', {
-                      day: '2-digit', month: 'short', year: 'numeric',
-                    })}
+                  <td className="px-4 py-3 text-gray-500 text-[13px]">
+                    {formatLocalDate(new Date(file.created_at), locale)}
                   </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
                       <button
                         onClick={() => handleDownload(file)}
-                        style={{
-                          padding: '4px 10px',
-                          background: 'transparent',
-                          border: '1px solid #2a2d35',
-                          borderRadius: '6px',
-                          color: '#c8e64a',
-                          fontSize: '12px',
-                          cursor: 'pointer',
-                        }}
-                        title="Download"
+                        className="px-2.5 py-1 bg-transparent border border-border rounded-md text-primary text-xs cursor-pointer"
+                        title={t('knowledge.download')}
                       >
-                        Download
+                        {t('knowledge.download')}
                       </button>
                       <button
                         onClick={() => handleDelete(file)}
-                        style={{
-                          padding: '4px 10px',
-                          background: 'transparent',
-                          border: '1px solid rgba(239, 68, 68, 0.3)',
-                          borderRadius: '6px',
-                          color: '#ef4444',
-                          fontSize: '12px',
-                          cursor: 'pointer',
-                        }}
-                        title="Elimina"
+                        className="px-2.5 py-1 bg-transparent border border-destructive/30 rounded-md text-destructive text-xs cursor-pointer"
+                        title={t('knowledge.delete')}
                       >
-                        Elimina
+                        {t('knowledge.delete')}
                       </button>
                     </div>
                   </td>

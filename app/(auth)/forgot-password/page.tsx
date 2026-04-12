@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { LocaleProvider, useLocale } from '@/lib/i18n'
+import { useLocale } from '@/lib/i18n'
 import LocaleSwitcher from '@/components/ui/LocaleSwitcher'
 
 function ForgotPasswordForm() {
@@ -96,9 +96,5 @@ function ForgotPasswordForm() {
 }
 
 export default function ForgotPasswordPage() {
-  return (
-    <LocaleProvider>
-      <ForgotPasswordForm />
-    </LocaleProvider>
-  )
+  return <ForgotPasswordForm />
 }

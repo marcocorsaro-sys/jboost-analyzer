@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { anthropic } from '@ai-sdk/anthropic'
 import { streamText } from 'ai'
 import { CONTEXTUAL_SYSTEM_PROMPT, ASSISTANT_SYSTEM_PROMPT } from '@/lib/chat/system-prompts'
-import { buildClientContext, formatContextForPrompt } from '@/lib/chat/context-builder'
+import { buildClientContextWithMemory } from '@/lib/chat/context-builder'
 import { trackLlmUsage } from '@/lib/tracking/llm-usage'
 
 export const maxDuration = 60
@@ -33,12 +33,11 @@ export async function POST(req: Request) {
     let systemPrompt: string
 
     if (clientId) {
-      // Contextual mode: build client context
+      // Contextual mode: build client context (memory-based when available)
       try {
-        const ctx = await buildClientContext(clientId, user.id)
-        if (ctx) {
-          const contextBlock = formatContextForPrompt(ctx)
-          systemPrompt = `${CONTEXTUAL_SYSTEM_PROMPT}\n\n---\n\n# CONTESTO CLIENTE\n\n${contextBlock}`
+        const { contextBlock } = await buildClientContextWithMemory(clientId, user.id)
+        if (contextBlock) {
+          systemPrompt = `${CONTEXTUAL_SYSTEM_PROMPT}\n\n---\n\n# MEMORIA CLIENTE\n\n${contextBlock}`
         } else {
           systemPrompt = CONTEXTUAL_SYSTEM_PROMPT
         }

@@ -1,23 +1,17 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
+import { useRouter } from 'next/navigation'
 import en, { type TranslationKey } from './translations/en'
 import it from './translations/it'
 import es from './translations/es'
 import fr from './translations/fr'
-
-export type Locale = 'en' | 'it' | 'es' | 'fr'
+import { isValidLocale, type Locale } from './utils'
 
 const translations: Record<Locale, Record<string, string>> = { en, it, es, fr }
 
-export const LOCALE_LABELS: Record<Locale, string> = {
-  en: 'English',
-  it: 'Italiano',
-  es: 'Español',
-  fr: 'Français',
-}
-
 const STORAGE_KEY = 'jboost-locale'
+const COOKIE_KEY = 'jboost-locale'
 const DEFAULT_LOCALE: Locale = 'en'
 
 interface LocaleContextValue {
@@ -28,19 +22,40 @@ interface LocaleContextValue {
 
 const LocaleContext = createContext<LocaleContextValue | null>(null)
 
-export function LocaleProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(DEFAULT_LOCALE)
+interface LocaleProviderProps {
+  children: ReactNode
+  /** Server-read cookie value — avoids flash of wrong language */
+  initialLocale?: Locale
+}
 
-  // Read from localStorage on mount
+export function LocaleProvider({ children, initialLocale }: LocaleProviderProps) {
+  const [locale, setLocaleState] = useState<Locale>(initialLocale || DEFAULT_LOCALE)
+  const router = useRouter()
+
+  // Reconcile cookie ↔ localStorage on mount (only if no initialLocale was provided)
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY) as Locale | null
-      if (stored && translations[stored]) {
-        setLocaleState(stored)
+      if (stored && isValidLocale(stored)) {
+        if (!initialLocale) {
+          setLocaleState(stored)
+        }
+        // Sync cookie with localStorage value if they differ
+        const cookieVal = document.cookie
+          .split('; ')
+          .find((c) => c.startsWith(`${COOKIE_KEY}=`))
+          ?.split('=')[1]
+        if (cookieVal !== stored) {
+          document.cookie = `${COOKIE_KEY}=${stored};path=/;max-age=${60 * 60 * 24 * 365};SameSite=Lax`
+        }
+      } else if (initialLocale) {
+        // Server had a cookie but localStorage is empty — seed it
+        localStorage.setItem(STORAGE_KEY, initialLocale)
       }
     } catch {
       // localStorage unavailable
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const setLocale = useCallback((l: Locale) => {
@@ -50,7 +65,11 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     } catch {
       // localStorage unavailable
     }
-  }, [])
+    // Write cookie so the server can read it on next request
+    document.cookie = `${COOKIE_KEY}=${l};path=/;max-age=${60 * 60 * 24 * 365};SameSite=Lax`
+    // Refresh server components so they pick up the new <html lang>
+    router.refresh()
+  }, [router])
 
   const t = useCallback((key: TranslationKey): string => {
     return translations[locale]?.[key] || translations[DEFAULT_LOCALE][key] || key
