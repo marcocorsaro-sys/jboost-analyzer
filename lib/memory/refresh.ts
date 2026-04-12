@@ -51,6 +51,7 @@ const GapSchema = z.object({
   category: z.enum([
     'business', 'team', 'technical', 'goals',
     'budget', 'timeline', 'competitor', 'content_strategy', 'tools',
+    'conflict_resolution',
   ]),
   question: z.string(),
   importance: z.enum(['high', 'medium', 'low']),

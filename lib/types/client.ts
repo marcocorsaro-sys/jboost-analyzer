@@ -193,6 +193,11 @@ export type MemoryGapCategory =
   | 'competitor'
   | 'content_strategy'
   | 'tools'
+  // Phase 5C: surfaced when two sources contradict each other on the same
+  // topic. The gap question is "We saw X in source A and Y in source B —
+  // which one is correct?", produced by the synthesizer when it detects
+  // a conflict instead of silently picking a side.
+  | 'conflict_resolution'
 
 export interface MemoryGap {
   id: string
