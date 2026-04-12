@@ -1,14 +1,19 @@
 // ============================================================
 // JBoost — Client Memory: data assembler
 // Gathers all client data sources with token budgets
+//
+// Phase 5B: knowledge retrieval now goes through assembleKnowledgeViaRAG
+// (semantic search over knowledge_chunks). The legacy client_files path
+// is kept as a fallback for clients that still have only legacy uploads.
 // ============================================================
 
 import { SupabaseClient } from '@supabase/supabase-js'
 import type { MemoryAnswer } from '@/lib/types/client'
+import { assembleKnowledgeViaRAG } from './knowledge-rag'
 
 // ─── Token budgets (approximate chars, ~4 chars per token) ───
-const BUDGET_KNOWLEDGE_TOTAL = 20_000    // ~5K tokens
-const BUDGET_KNOWLEDGE_PER_FILE = 5_000
+const BUDGET_LEGACY_KNOWLEDGE_TOTAL = 20_000    // ~5K tokens — fallback only
+const BUDGET_LEGACY_KNOWLEDGE_PER_FILE = 5_000
 const BUDGET_EXEC_SUMMARY = 3_000
 const BUDGET_CONVERSATIONS = 8_000
 const BUDGET_COMPANY_CONTEXT = 2_000
@@ -177,49 +182,83 @@ export async function assembleClientData(
     sourceVersions.martech_count = martech.length
   }
 
-  // ── 5. Knowledge Files (with budget) ──────────────────────
-  const { data: files } = await supabase
-    .from('client_files')
-    .select('id, file_name, file_type, extracted_text, created_at')
-    .eq('client_id', clientId)
-    .in('extraction_status', ['completed', 'unsupported'])
-    .order('created_at', { ascending: false })
-
-  const fileIds: string[] = []
-
-  if (files && files.length > 0) {
-    lines.push('# KNOWLEDGE BASE — DOCUMENTI CARICATI')
-    let totalChars = 0
-
-    for (const f of files) {
-      if (totalChars >= BUDGET_KNOWLEDGE_TOTAL) {
-        lines.push(`[... altri ${files.length - files.indexOf(f)} documenti non inclusi per limiti di spazio]`)
-        break
-      }
-
-      fileIds.push(f.id)
-      const date = new Date(f.created_at).toLocaleDateString('it-IT', {
-        day: '2-digit', month: 'short', year: 'numeric',
-      })
-      lines.push(`## Documento: ${f.file_name} (${date})`)
-
-      if (f.extracted_text) {
-        const budgetRemaining = BUDGET_KNOWLEDGE_TOTAL - totalChars
-        const maxForFile = Math.min(BUDGET_KNOWLEDGE_PER_FILE, budgetRemaining)
-        let text = f.extracted_text
-        if (text.length > maxForFile) {
-          text = text.substring(0, maxForFile) + '\n[... contenuto troncato]'
-        }
-        lines.push(text)
-        totalChars += text.length
-      } else {
-        lines.push(`[File ${f.file_type || 'sconosciuto'} — testo non estratto]`)
-      }
+  // ── 5. Knowledge — semantic RAG over knowledge_chunks (Phase 5B) ──
+  // Tries the modern Phase 3 vector index first; falls back to the
+  // legacy client_files.extracted_text path if RAG can't run (no
+  // OpenAI key, knowledge_documents table missing, no chunks
+  // embedded yet, or no documents at all).
+  let ragWorked = false
+  try {
+    const ragResult = await assembleKnowledgeViaRAG(clientId, supabase)
+    if (ragResult.usedRag && ragResult.text.length > 0) {
+      lines.push(ragResult.text)
       lines.push('')
+      sourceVersions.knowledge_rag = {
+        document_ids: ragResult.documentIds,
+        chunk_ids: ragResult.chunkIds,
+        chars: ragResult.totalChars,
+      }
+      ragWorked = true
+    } else if (ragResult.error) {
+      console.log('[memory assembler] RAG skipped:', ragResult.error)
     }
+  } catch (err) {
+    console.warn('[memory assembler] RAG threw, falling back to legacy:', err)
+  }
 
-    sourceVersions.files_ids = fileIds
-    sourceVersions.files_latest_at = files[0].created_at
+  // Legacy fallback: client_files.extracted_text. Only run if RAG produced
+  // nothing — otherwise we'd duplicate context for clients that have both.
+  if (!ragWorked) {
+    const { data: files } = await supabase
+      .from('client_files')
+      .select('id, file_name, file_type, extracted_text, created_at')
+      .eq('client_id', clientId)
+      .in('extraction_status', ['completed', 'unsupported'])
+      .order('created_at', { ascending: false })
+
+    const fileIds: string[] = []
+
+    if (files && files.length > 0) {
+      lines.push('# KNOWLEDGE BASE — DOCUMENTI CARICATI (legacy)')
+      let totalChars = 0
+
+      for (const f of files) {
+        if (totalChars >= BUDGET_LEGACY_KNOWLEDGE_TOTAL) {
+          lines.push(
+            `[... altri ${files.length - files.indexOf(f)} documenti non inclusi per limiti di spazio]`
+          )
+          break
+        }
+
+        fileIds.push(f.id)
+        const date = new Date(f.created_at).toLocaleDateString('it-IT', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        })
+        lines.push(`## Documento: ${f.file_name} (${date})`)
+
+        if (f.extracted_text) {
+          const budgetRemaining = BUDGET_LEGACY_KNOWLEDGE_TOTAL - totalChars
+          const maxForFile = Math.min(
+            BUDGET_LEGACY_KNOWLEDGE_PER_FILE,
+            budgetRemaining
+          )
+          let text = f.extracted_text
+          if (text.length > maxForFile) {
+            text = text.substring(0, maxForFile) + '\n[... contenuto troncato]'
+          }
+          lines.push(text)
+          totalChars += text.length
+        } else {
+          lines.push(`[File ${f.file_type || 'sconosciuto'} — testo non estratto]`)
+        }
+        lines.push('')
+      }
+
+      sourceVersions.legacy_files_ids = fileIds
+      sourceVersions.legacy_files_latest_at = files[0].created_at
+    }
   }
 
   // ── 6. Executive Summary (with budget) ────────────────────
