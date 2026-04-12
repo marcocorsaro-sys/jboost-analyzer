@@ -216,7 +216,17 @@ export interface MemoryAnswer {
   answered_by: string
 }
 
-export type ClientMemoryStatus = 'empty' | 'building' | 'ready' | 'refreshing' | 'failed'
+export type ClientMemoryStatus =
+  | 'empty'
+  | 'building'
+  | 'ready'
+  | 'refreshing'
+  // Phase 5A: a previously-ready memory whose data sources have changed
+  // (new analysis completed, file uploaded/deleted, martech updated, ...).
+  // The DB triggers in phase5a_client_memory.sql automatically transition
+  // 'ready' rows to 'stale' when one of those sources changes.
+  | 'stale'
+  | 'failed'
 
 export interface ClientMemory {
   id: string
