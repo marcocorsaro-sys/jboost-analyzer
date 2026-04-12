@@ -16,11 +16,11 @@ export async function GET(
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
 
+  // Access enforced by RLS on clients (client_members-based).
   const { data: client, error } = await supabase
     .from('clients')
     .select('*')
     .eq('id', params.id)
-    .eq('user_id', user.id)
     .single()
 
   if (error || !client) {
@@ -71,14 +71,14 @@ export async function PUT(
     updates.domain = updates.domain.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '').toLowerCase()
   }
 
-  // If lifecycle_stage is being changed, we need the previous value to log the transition
+  // If lifecycle_stage is being changed, we need the previous value to log the transition.
+  // RLS enforces edit access via user_can_edit_client().
   let previousStage: ClientLifecycleStage | null = null
   if (updates.lifecycle_stage !== undefined) {
     const { data: existing } = await supabase
       .from('clients')
       .select('lifecycle_stage')
       .eq('id', params.id)
-      .eq('user_id', user.id)
       .single()
     previousStage = (existing?.lifecycle_stage as ClientLifecycleStage | undefined) ?? null
   }
@@ -87,7 +87,6 @@ export async function PUT(
     .from('clients')
     .update(updates)
     .eq('id', params.id)
-    .eq('user_id', user.id)
     .select()
     .single()
 
@@ -132,11 +131,11 @@ export async function DELETE(
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
 
+  // RLS enforces that only owner/editor members can archive.
   const { error } = await supabase
     .from('clients')
     .update({ status: 'archived', updated_at: new Date().toISOString() })
     .eq('id', params.id)
-    .eq('user_id', user.id)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })

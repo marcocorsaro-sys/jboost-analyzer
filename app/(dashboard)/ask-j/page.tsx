@@ -7,12 +7,13 @@ export default async function AskJPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Fetch clients for the picker
+  // Fetch clients for the picker — only lifecycle-active clients.
   const { data: clients } = await supabase
     .from('clients')
     .select('id, name, domain')
     .eq('user_id', user.id)
-    .eq('status', 'active')
+    .eq('lifecycle_stage', 'active')
+    .neq('status', 'archived')
     .order('name')
 
   return (

@@ -17,12 +17,11 @@ export async function POST(
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
-    // Verify client ownership
+    // Access enforced by RLS / client_members.
     const { data: client } = await supabase
       .from('clients')
       .select('id')
       .eq('id', clientId)
-      .eq('user_id', user.id)
       .single()
 
     if (!client) {

@@ -19,12 +19,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ clients: [], suggestions: [] })
     }
 
-    // 1. Search client domains matching the query
+    // 1. Search client domains matching the query (any non-archived client,
+    //    including prospects — useful when entering a domain in the analyzer).
     const { data: clientRows } = await supabase
       .from('clients')
       .select('domain')
       .eq('user_id', user.id)
-      .eq('status', 'active')
+      .neq('status', 'archived')
       .not('domain', 'is', null)
       .ilike('domain', `%${q}%`)
       .limit(5)

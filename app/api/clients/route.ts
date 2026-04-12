@@ -17,10 +17,11 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const stageParam = searchParams.get('stage')
 
+  // Access to each client is enforced by RLS via client_members so that
+  // clients the user has been shared on (editor/viewer) also appear here.
   let query = supabase
     .from('clients')
     .select('*')
-    .eq('user_id', user.id)
     .order('updated_at', { ascending: false })
 
   if (stageParam) {

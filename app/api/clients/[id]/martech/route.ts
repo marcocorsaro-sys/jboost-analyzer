@@ -17,12 +17,11 @@ export async function GET(
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
 
-  // Verify client ownership
+  // Access enforced by RLS via client_members.
   const { data: client } = await supabase
     .from('clients')
     .select('id, domain')
     .eq('id', params.id)
-    .eq('user_id', user.id)
     .single()
 
   if (!client) {
@@ -74,12 +73,12 @@ export async function POST(
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
 
-  // Verify client ownership and get domain
+  // Access enforced by RLS; edit permission is enforced implicitly by the
+  // client_members policies on downstream writes (client_martech_reports / client_martech).
   const { data: client } = await supabase
     .from('clients')
     .select('id, domain')
     .eq('id', params.id)
-    .eq('user_id', user.id)
     .single()
 
   if (!client) {

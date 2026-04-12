@@ -14,11 +14,12 @@ export default async function ClientDetailLayout({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  // RLS enforces access via client_members; do NOT filter by user_id here
+  // otherwise editors/viewers shared on the client would be locked out.
   const { data: client } = await supabase
     .from('clients')
     .select('*')
     .eq('id', params.id)
-    .eq('user_id', user.id)
     .single()
 
   if (!client) redirect('/clients')

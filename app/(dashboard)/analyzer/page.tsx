@@ -49,11 +49,13 @@ export default function AnalyzerPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
+      // Only show active (lifecycle) clients in the analyzer picker.
       const { data } = await supabase
         .from('clients')
         .select('id, name, domain')
         .eq('user_id', user.id)
-        .eq('status', 'active')
+        .eq('lifecycle_stage', 'active')
+        .neq('status', 'archived')
         .order('name')
 
       setClients(data || [])
