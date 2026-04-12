@@ -42,7 +42,7 @@ export interface ClientCreateInput {
   contact_phone?: string
   notes?: string
   lifecycle_stage?: ClientLifecycleStage
-  pre_sales_notes?: string
+  pre_sales_notes?: string | null
 }
 
 export interface ClientUpdateInput extends Partial<ClientCreateInput> {
