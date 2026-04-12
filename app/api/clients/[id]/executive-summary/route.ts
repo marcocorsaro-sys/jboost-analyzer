@@ -17,10 +17,10 @@ export const maxDuration = 60
  */
 export async function GET(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id: clientId } = await params
+    const { id: clientId } = params
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -28,12 +28,11 @@ export async function GET(
       return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verify client ownership
+    // Access enforced by RLS / client_members.
     const { data: client } = await supabase
       .from('clients')
       .select('id')
       .eq('id', clientId)
-      .eq('user_id', user.id)
       .single()
 
     if (!client) {
@@ -64,10 +63,10 @@ export async function GET(
  */
 export async function POST(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id: clientId } = await params
+    const { id: clientId } = params
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 

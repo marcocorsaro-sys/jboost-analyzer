@@ -1,29 +1,54 @@
 import type { ParsedDocument, ParsedSegment } from '../types'
 
 export async function parsePdf(buffer: Buffer): Promise<ParsedDocument> {
-  // pdf-parse default export is a function. Dynamic import avoids loading it
-  // at module evaluation time (the lib touches fs at import on some versions).
+  // pdf-parse v2 exports a PDFParse class (not a default callable). Dynamic
+  // import avoids loading it at module evaluation time (the lib touches fs at
+  // import on some versions).
   const mod = await import('pdf-parse')
-  const pdfParse = (mod as { default?: unknown }).default ?? mod
-  if (typeof pdfParse !== 'function') {
-    throw new Error('pdf-parse module did not export a callable parser')
+  const PDFParseCtor = (mod as { PDFParse?: unknown }).PDFParse
+    ?? (mod as { default?: { PDFParse?: unknown } }).default?.PDFParse
+  if (typeof PDFParseCtor !== 'function') {
+    throw new Error('pdf-parse module did not export the PDFParse class')
   }
 
-  const result = (await (pdfParse as (b: Buffer) => Promise<{
-    text: string
-    numpages: number
-    info?: Record<string, unknown>
-    metadata?: Record<string, unknown>
-  }>)(buffer))
+  const parser = new (PDFParseCtor as new (opts: { data: Buffer }) => {
+    getText(): Promise<{ text: string; pages?: Array<{ text: string; pageNumber?: number }> }>
+    getInfo(): Promise<{ numPages?: number; info?: Record<string, unknown> }>
+    destroy(): Promise<void>
+  })({ data: buffer })
 
-  const rawText = normalizeText(result.text || '')
-  const pageCount = result.numpages ?? 0
+  let textResult: { text: string; pages?: Array<{ text: string; pageNumber?: number }> }
+  let infoResult: { numPages?: number; info?: Record<string, unknown> } | null = null
 
-  // Try to split by form feed first, which pdf-parse emits between pages
-  // when available. Otherwise fall back to a heuristic split on blank lines.
-  const pageSplits = rawText.includes('\f')
-    ? rawText.split(/\f+/)
-    : splitByBlankLines(rawText, pageCount)
+  try {
+    textResult = await parser.getText()
+    try {
+      infoResult = await parser.getInfo()
+    } catch {
+      // info is nice-to-have; ignore failures
+      infoResult = null
+    }
+  } finally {
+    try {
+      await parser.destroy()
+    } catch {
+      // best-effort cleanup
+    }
+  }
+
+  const rawText = normalizeText(textResult.text || '')
+  const pageCount = infoResult?.numPages ?? textResult.pages?.length ?? 0
+
+  // Prefer per-page text from pdf-parse v2 when available; else fall back to
+  // form-feed splits, else to a heuristic split on blank lines.
+  let pageSplits: string[]
+  if (Array.isArray(textResult.pages) && textResult.pages.length > 0) {
+    pageSplits = textResult.pages.map((p) => (p.text ?? '').trim())
+  } else if (rawText.includes('\f')) {
+    pageSplits = rawText.split(/\f+/)
+  } else {
+    pageSplits = splitByBlankLines(rawText, pageCount)
+  }
 
   const segments: ParsedSegment[] = pageSplits
     .map((content, i) => ({
@@ -38,7 +63,7 @@ export async function parsePdf(buffer: Buffer): Promise<ParsedDocument> {
     segments,
     metadata: {
       pageCount,
-      info: result.info ?? null,
+      info: infoResult?.info ?? null,
     },
   }
 }

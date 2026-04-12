@@ -16,12 +16,15 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Fetch active clients with latest scores
+  // Fetch active clients with latest scores.
+  // NOTE: filter by lifecycle_stage='active' so prospects (which still have
+  // the legacy status='active') do not pollute the dashboard counters.
+  // Access is enforced by RLS via client_members (no user_id filter needed).
   const { data: clients } = await supabase
     .from('clients')
     .select('id, name, domain, industry')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
+    .eq('lifecycle_stage', 'active')
+    .neq('status', 'archived')
     .order('updated_at', { ascending: false })
     .limit(6)
 
@@ -45,12 +48,13 @@ export default async function DashboardPage() {
     })
   )
 
-  // Counts
+  // Counts — only truly active (lifecycle) clients, not prospects.
+  // Access is enforced by RLS via client_members.
   const { count: totalClients } = await supabase
     .from('clients')
     .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-    .eq('status', 'active')
+    .eq('lifecycle_stage', 'active')
+    .neq('status', 'archived')
 
   const { count: totalAnalyses } = await supabase
     .from('analyses')

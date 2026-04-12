@@ -11,12 +11,11 @@ export default async function ClientChatPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Fetch client name
+  // Fetch client name. Access is enforced by RLS / client_members.
   const { data: client } = await supabase
     .from('clients')
     .select('name')
     .eq('id', params.id)
-    .eq('user_id', user.id)
     .single()
 
   if (!client) redirect('/clients')

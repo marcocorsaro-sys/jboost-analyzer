@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useLocale, type Locale } from '@/lib/i18n'
 
 export default function SettingsPage() {
   const supabase = createClient()
+  const { locale, setLocale } = useLocale()
   const [profile, setProfile] = useState<Record<string, unknown> | null>(null)
   const [fullName, setFullName] = useState('')
   const [company, setCompany] = useState('')
-  const [language, setLanguage] = useState('en')
+  const [language, setLanguage] = useState<Locale>('en')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -28,10 +30,18 @@ export default function SettingsPage() {
         setProfile(data)
         setFullName(data.full_name || '')
         setCompany(data.company || '')
-        setLanguage(data.language || 'en')
+        const rawLang = (data.language || locale || 'en') as string
+        const validLang: Locale = (['en', 'it', 'es', 'fr'] as const).includes(rawLang as Locale)
+          ? (rawLang as Locale)
+          : 'en'
+        setLanguage(validLang)
+      } else {
+        setLanguage(locale)
       }
     }
     load()
+    // locale intentionally not a dep: we only seed on first load
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function handleSaveProfile() {
@@ -44,6 +54,8 @@ export default function SettingsPage() {
       language,
       updated_at: new Date().toISOString(),
     }).eq('id', profile.id)
+    // Apply the selected locale immediately so the UI reflects the choice.
+    setLocale(language)
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 3000)
@@ -134,9 +146,15 @@ export default function SettingsPage() {
           </div>
           <div>
             <label style={labelStyle}>Preferred Language</label>
-            <select value={language} onChange={e => setLanguage(e.target.value)} style={inputStyle}>
+            <select
+              value={language}
+              onChange={e => setLanguage(e.target.value as Locale)}
+              style={inputStyle}
+            >
               <option value="en">English</option>
               <option value="it">Italiano</option>
+              <option value="es">Español</option>
+              <option value="fr">Français</option>
             </select>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

@@ -6,10 +6,10 @@ const MAX_TEXT_LENGTH = 50_000 // 50K chars per file
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id: clientId } = await params
+    const { id: clientId } = params
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -17,12 +17,11 @@ export async function POST(
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
-    // Verify client ownership
+    // Access enforced by RLS / client_members.
     const { data: client } = await supabase
       .from('clients')
       .select('id')
       .eq('id', clientId)
-      .eq('user_id', user.id)
       .single()
 
     if (!client) {
