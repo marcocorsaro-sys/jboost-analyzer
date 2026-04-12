@@ -5,6 +5,7 @@ import { calcDelta } from '@/lib/trends/calculate'
 import Link from 'next/link'
 import ClientOverviewTrend from '@/components/clients/ClientOverviewTrend'
 import PromoteButton from '@/components/clients/PromoteButton'
+import TeamPanel from '@/components/clients/TeamPanel'
 import T from '@/components/ui/T'
 import type { ClientLifecycleStage } from '@/lib/types/client'
 import type { TranslationKey } from '@/lib/i18n'
@@ -415,6 +416,13 @@ export default async function ClientOverviewPage({
           </div>
         </div>
       )}
+
+      {/* Team & Sharing (Phase 4A) */}
+      <TeamPanel
+        clientId={params.id}
+        currentUserId={user.id}
+        isAdmin={isAdmin}
+      />
 
       {/* Quick actions */}
       <div style={{
