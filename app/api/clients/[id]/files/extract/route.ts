@@ -6,10 +6,10 @@ const MAX_TEXT_LENGTH = 50_000 // 50K chars per file
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id: clientId } = await params
+    const { id: clientId } = params
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 

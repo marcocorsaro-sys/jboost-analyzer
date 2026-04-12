@@ -2,6 +2,10 @@ import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { DRIVERS, getScoreBand, SCORING_INFO } from '@/lib/constants'
 
+// This route reads Supabase auth cookies, which forces per-request rendering.
+// Marking it dynamic suppresses the build-time DYNAMIC_SERVER_USAGE warning.
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: NextRequest) {
   try {
     const supabase = await createClient()

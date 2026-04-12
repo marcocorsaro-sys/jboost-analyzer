@@ -17,10 +17,10 @@ export const maxDuration = 60
  */
 export async function GET(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id: clientId } = await params
+    const { id: clientId } = params
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -63,10 +63,10 @@ export async function GET(
  */
 export async function POST(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id: clientId } = await params
+    const { id: clientId } = params
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
