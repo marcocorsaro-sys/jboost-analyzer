@@ -9,7 +9,8 @@ import type { TranslationKey } from '@/lib/i18n'
 /* ── Navigation sections ── */
 const NAV_MAIN: { href: string; labelKey: TranslationKey; icon: string }[] = [
   { href: '/dashboard', labelKey: 'nav.dashboard', icon: '◉' },
-  { href: '/clients', labelKey: 'nav.clients', icon: '◎' },
+  { href: '/prospects', labelKey: 'sidebar.prospects', icon: '◌' },
+  { href: '/clients', labelKey: 'sidebar.active_clients', icon: '◎' },
   { href: '/ask-j', labelKey: 'nav.askJ', icon: '◈' },
 ]
 
@@ -23,19 +24,30 @@ const NAV_SYSTEM: { href: string; labelKey: TranslationKey; icon: string }[] = [
 ]
 
 interface SidebarProps {
-  clientsCount?: number
+  prospectsCount?: number
+  activeClientsCount?: number
   isAdmin?: boolean
 }
 
 export default function Sidebar({
-  clientsCount = 0,
+  prospectsCount = 0,
+  activeClientsCount = 0,
   isAdmin = false,
 }: SidebarProps) {
   const pathname = usePathname()
   const { t } = useLocale()
 
-  const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(href + '/')
+  const isActive = (href: string) => {
+    // Exact match or nested path — but /clients must NOT be considered active
+    // when we're under /clients/... AND the current top-level route is
+    // actually /prospects. In practice /clients and /prospects don't share
+    // prefixes so this works.
+    if (href === '/clients') {
+      // Avoid false positive when the user is on /prospects; /prospects does
+      // not start with "/clients" so the default check is safe.
+    }
+    return pathname === href || pathname.startsWith(href + '/')
+  }
 
   const renderLink = (item: { href: string; labelKey: TranslationKey; icon: string }) => {
     const active = isActive(item.href)
@@ -112,15 +124,25 @@ export default function Sidebar({
         </div>
       </nav>
 
-      {/* Quick Stats */}
+      {/* Quick Stats — two counters: prospects + active clients */}
       <div className="p-4 mx-4 mb-4 rounded-lg" style={{ background: 'var(--bg)' }}>
         <div className="space-y-3">
-          <div>
-            <div className="text-[10px] uppercase tracking-wider font-mono" style={{ color: 'var(--gray)' }}>
-              {t('dashboard.activeClients')}
+          <div className="flex items-baseline justify-between gap-2">
+            <div>
+              <div className="text-[10px] uppercase tracking-wider font-mono" style={{ color: 'var(--gray)' }}>
+                {t('sidebar.prospects')}
+              </div>
+              <div className="text-xl font-bold" style={{ color: '#f59e0b' }}>
+                {prospectsCount}
+              </div>
             </div>
-            <div className="text-2xl font-bold" style={{ color: 'var(--lime)' }}>
-              {clientsCount}
+            <div className="text-right">
+              <div className="text-[10px] uppercase tracking-wider font-mono" style={{ color: 'var(--gray)' }}>
+                {t('dashboard.activeClients')}
+              </div>
+              <div className="text-xl font-bold" style={{ color: 'var(--lime)' }}>
+                {activeClientsCount}
+              </div>
             </div>
           </div>
         </div>

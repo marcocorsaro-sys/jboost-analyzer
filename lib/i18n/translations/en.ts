@@ -1,5 +1,5 @@
 const en = {
-  // Navigation
+  // Navigation (legacy — kept for backwards-compat with old sidebar)
   'nav.dashboard': 'Dashboard',
   'nav.clients': 'Clients',
   'nav.askJ': 'Ask J',
@@ -10,6 +10,38 @@ const en = {
   'nav.tools': 'Tools',
   'nav.system': 'System',
   'nav.adminPanel': 'Admin Panel',
+
+  // Sidebar (Phase 2 — lifecycle split, legacy)
+  'sidebar.prospects': 'Prospects',
+  'sidebar.active_clients': 'Active Clients',
+
+  // Navigation — Horizon 1 shell
+  'nav.home': 'Home',
+  'nav.pre_sales': 'Pre-Sales',
+  'nav.ask_j': 'Ask J',
+  'nav.library': 'Library',
+  'nav.notifications': 'Notifications',
+  'nav.search': 'Search',
+  'nav.account': 'Account',
+  'nav.logout': 'Logout',
+  'nav.admin': 'Admin',
+  'nav.me': 'Me',
+
+  // Command palette
+  'command.placeholder': 'Type a command or search…',
+  'command.empty': 'No results found.',
+  'command.navigation': 'Navigation',
+  'command.quick_actions': 'Quick actions',
+  'command.settings': 'Settings',
+  'command.toggle_theme': 'Toggle theme',
+  'command.new_prospect': 'New prospect',
+  'command.new_analysis': 'New analysis',
+  'command.invite_member': 'Invite member',
+
+  // Theme
+  'theme.light': 'Light',
+  'theme.dark': 'Dark',
+  'theme.system': 'System',
 
   // Dashboard
   'dashboard.activeClients': 'Active Clients',
@@ -40,6 +72,34 @@ const en = {
   'clients.contact': 'Contact',
   'clients.quickActions': 'Quick Actions',
   'clients.last': 'Last',
+
+  // Clients — Phase 2 (lifecycle)
+  'clients.prospect_label': 'Prospect',
+  'clients.active_label': 'Active',
+  'clients.churned_label': 'Churned',
+  'clients.archived_label': 'Archived',
+  'clients.prospects_page_title': 'Prospects',
+  'clients.prospects_page_subtitle': 'Pre-sales pipeline — clients not yet active',
+  'clients.active_clients_title': 'Active Clients',
+  'clients.active_clients_subtitle': 'Engaged and monitored clients',
+  'clients.new_prospect_button': '+ New Prospect',
+  'clients.new_prospect_title': 'New Prospect',
+  'clients.new_prospect_subtitle': 'Add a new prospect to your pre-sales pipeline',
+  'clients.new_prospect_notice': 'The new client will be created as a prospect. An admin can promote it to active later.',
+  'clients.promote_to_active': 'Promote to Active',
+  'clients.promote_confirm': 'Promote this prospect to an active client? This will stamp the engagement start date and seed an update subscription.',
+  'clients.promoted_success': 'Client successfully promoted to active.',
+  'clients.engaged_since': 'Engaged since',
+  'clients.churned_on': 'Churned on',
+  'clients.search_placeholder': 'Search clients...',
+  'clients.filter_all': 'All',
+  'clients.filter_active': 'Active',
+  'clients.filter_archived': 'Archived',
+  'clients.empty_search': 'No clients match your search',
+  'clients.empty_active': 'No active clients yet',
+  'clients.empty_prospects': 'No prospects yet',
+  'clients.see_prospects_link': 'Go to prospects pipeline →',
+  'clients.create_first_prospect': 'Create your first prospect',
 
   // Client Form
   'clientForm.clientName': 'Client Name *',

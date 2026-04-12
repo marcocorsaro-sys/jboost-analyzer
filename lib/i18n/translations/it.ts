@@ -1,5 +1,5 @@
 const it = {
-  // Navigation
+  // Navigation (legacy — mantenute per la vecchia sidebar)
   'nav.dashboard': 'Dashboard',
   'nav.clients': 'Clienti',
   'nav.askJ': 'Ask J',
@@ -10,6 +10,38 @@ const it = {
   'nav.tools': 'Tools',
   'nav.system': 'Sistema',
   'nav.adminPanel': 'Admin Panel',
+
+  // Sidebar (Fase 2 — split lifecycle, legacy)
+  'sidebar.prospects': 'Prospect',
+  'sidebar.active_clients': 'Clienti Attivi',
+
+  // Navigation — shell Horizon 1
+  'nav.home': 'Home',
+  'nav.pre_sales': 'Pre-Sales',
+  'nav.ask_j': 'Ask J',
+  'nav.library': 'Libreria',
+  'nav.notifications': 'Notifiche',
+  'nav.search': 'Cerca',
+  'nav.account': 'Account',
+  'nav.logout': 'Esci',
+  'nav.admin': 'Admin',
+  'nav.me': 'Io',
+
+  // Command palette
+  'command.placeholder': 'Scrivi un comando o cerca…',
+  'command.empty': 'Nessun risultato.',
+  'command.navigation': 'Navigazione',
+  'command.quick_actions': 'Azioni rapide',
+  'command.settings': 'Impostazioni',
+  'command.toggle_theme': 'Cambia tema',
+  'command.new_prospect': 'Nuovo prospect',
+  'command.new_analysis': 'Nuova analisi',
+  'command.invite_member': 'Invita membro',
+
+  // Tema
+  'theme.light': 'Chiaro',
+  'theme.dark': 'Scuro',
+  'theme.system': 'Sistema',
 
   // Dashboard
   'dashboard.activeClients': 'Clienti Attivi',
@@ -40,6 +72,34 @@ const it = {
   'clients.contact': 'Contatto',
   'clients.quickActions': 'Azioni Rapide',
   'clients.last': 'Ultima',
+
+  // Clients — Fase 2 (lifecycle)
+  'clients.prospect_label': 'Prospect',
+  'clients.active_label': 'Attivo',
+  'clients.churned_label': 'Perso',
+  'clients.archived_label': 'Archiviato',
+  'clients.prospects_page_title': 'Prospect',
+  'clients.prospects_page_subtitle': 'Pipeline pre-sales — clienti non ancora attivi',
+  'clients.active_clients_title': 'Clienti Attivi',
+  'clients.active_clients_subtitle': 'Clienti in engagement e monitorati',
+  'clients.new_prospect_button': '+ Nuovo Prospect',
+  'clients.new_prospect_title': 'Nuovo Prospect',
+  'clients.new_prospect_subtitle': 'Aggiungi un nuovo prospect alla pipeline pre-sales',
+  'clients.new_prospect_notice': 'Il nuovo cliente verrà creato come prospect. Un amministratore potrà promuoverlo ad attivo in seguito.',
+  'clients.promote_to_active': 'Promuovi ad Attivo',
+  'clients.promote_confirm': 'Promuovere questo prospect a cliente attivo? Verrà registrata la data di inizio engagement e creato un abbonamento agli aggiornamenti.',
+  'clients.promoted_success': 'Cliente promosso ad attivo con successo.',
+  'clients.engaged_since': 'In engagement dal',
+  'clients.churned_on': 'Perso il',
+  'clients.search_placeholder': 'Cerca clienti...',
+  'clients.filter_all': 'Tutti',
+  'clients.filter_active': 'Attivi',
+  'clients.filter_archived': 'Archiviati',
+  'clients.empty_search': 'Nessun cliente trovato',
+  'clients.empty_active': 'Nessun cliente attivo',
+  'clients.empty_prospects': 'Nessun prospect ancora',
+  'clients.see_prospects_link': 'Vai alla pipeline prospect →',
+  'clients.create_first_prospect': 'Crea il tuo primo prospect',
 
   // Client Form
   'clientForm.clientName': 'Nome Cliente *',

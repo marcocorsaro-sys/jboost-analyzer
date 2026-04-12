@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import ClientCard from '@/components/clients/ClientCard'
+import { useLocale } from '@/lib/i18n'
+import type { ClientLifecycleStage } from '@/lib/types/client'
 
 interface ClientData {
   id: string
@@ -10,12 +12,17 @@ interface ClientData {
   domain: string | null
   industry: string | null
   status: 'active' | 'archived'
+  lifecycle_stage: ClientLifecycleStage
   analyses_count: number
   latest_score: number | null
   latest_analysis_at: string | null
 }
 
+// Stages shown on the "Active Clients" page: everything except prospects.
+const NON_PROSPECT_STAGES: ClientLifecycleStage[] = ['active', 'churned', 'archived']
+
 export default function ClientsPage() {
+  const { t } = useLocale()
   const [clients, setClients] = useState<ClientData[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -27,9 +34,20 @@ export default function ClientsPage() {
 
   const fetchClients = async () => {
     try {
-      const res = await fetch('/api/clients')
-      const data = await res.json()
-      setClients(data.clients || [])
+      // Fetch all client stages except prospect in parallel
+      const results = await Promise.all(
+        NON_PROSPECT_STAGES.map((stage) =>
+          fetch(`/api/clients?stage=${stage}`).then((r) => r.json())
+        )
+      )
+      const merged: ClientData[] = results.flatMap((r) => r.clients || [])
+      // Preserve most-recently-updated ordering across the merged set
+      merged.sort((a, b) => {
+        const aTs = (a as unknown as { updated_at?: string }).updated_at || ''
+        const bTs = (b as unknown as { updated_at?: string }).updated_at || ''
+        return bTs.localeCompare(aTs)
+      })
+      setClients(merged)
     } catch (err) {
       console.error('Failed to fetch clients:', err)
     } finally {
@@ -51,6 +69,10 @@ export default function ClientsPage() {
     return true
   })
 
+  const activeCount = clients.filter(
+    (c) => c.status === 'active' && c.lifecycle_stage === 'active'
+  ).length
+
   return (
     <div>
       {/* Header */}
@@ -62,14 +84,14 @@ export default function ClientsPage() {
             fontWeight: 700,
             color: '#ffffff',
           }}>
-            Clienti
+            {t('clients.active_clients_title')}
           </h1>
           <p style={{ fontSize: '14px', color: '#6b7280', marginTop: '4px' }}>
-            {clients.filter(c => c.status === 'active').length} clienti attivi
+            {t('clients.active_clients_subtitle')} · {activeCount}
           </p>
         </div>
         <Link
-          href="/clients/new"
+          href="/prospects/new"
           style={{
             padding: '10px 20px',
             background: '#c8e64a',
@@ -81,7 +103,7 @@ export default function ClientsPage() {
             fontFamily: "'JetBrains Mono', monospace",
           }}
         >
-          + Nuovo Cliente
+          {t('clients.new_prospect_button')}
         </Link>
       </div>
 
@@ -89,7 +111,7 @@ export default function ClientsPage() {
       <div style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>
         <input
           type="text"
-          placeholder="Cerca clienti..."
+          placeholder={t('clients.search_placeholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={{
@@ -120,7 +142,11 @@ export default function ClientsPage() {
                 textTransform: 'capitalize',
               }}
             >
-              {f === 'all' ? 'Tutti' : f === 'active' ? 'Attivi' : 'Archiviati'}
+              {f === 'all'
+                ? t('clients.filter_all')
+                : f === 'active'
+                  ? t('clients.filter_active')
+                  : t('clients.filter_archived')}
             </button>
           ))}
         </div>
@@ -129,7 +155,7 @@ export default function ClientsPage() {
       {/* Grid */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: '60px 0', color: '#6b7280' }}>
-          Caricamento clienti...
+          {t('common.loading')}
         </div>
       ) : filtered.length === 0 ? (
         <div style={{
@@ -138,14 +164,14 @@ export default function ClientsPage() {
           color: '#6b7280',
         }}>
           <p style={{ fontSize: '16px', marginBottom: '12px' }}>
-            {search ? 'Nessun cliente trovato' : 'Nessun cliente ancora'}
+            {search ? t('clients.empty_search') : t('clients.empty_active')}
           </p>
           {!search && (
             <Link
-              href="/clients/new"
+              href="/prospects"
               style={{ color: '#c8e64a', textDecoration: 'underline', fontSize: '14px' }}
             >
-              Crea il tuo primo cliente
+              {t('clients.see_prospects_link')}
             </Link>
           )}
         </div>

@@ -1,5 +1,9 @@
 import ClientForm from '@/components/clients/ClientForm'
+import T from '@/components/ui/T'
 
+// Note: all new clients are created with lifecycle_stage='prospect' (API default).
+// The user-facing "+ New Prospect" CTA now points to /prospects/new, but this
+// route is kept for backwards compatibility with deep links / bookmarks.
 export default function NewClientPage() {
   return (
     <div style={{ maxWidth: '800px' }}>
@@ -10,11 +14,24 @@ export default function NewClientPage() {
         color: '#ffffff',
         marginBottom: '8px',
       }}>
-        Nuovo Cliente
+        <T k="clients.new_prospect_title" />
       </h1>
-      <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '32px' }}>
-        Aggiungi un nuovo cliente al tuo portfolio
+      <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
+        <T k="clients.new_prospect_subtitle" />
       </p>
+
+      {/* Warning banner: all new clients are created as prospects */}
+      <div style={{
+        padding: '12px 16px',
+        background: '#f59e0b15',
+        border: '1px solid #f59e0b40',
+        borderRadius: '8px',
+        color: '#f59e0b',
+        fontSize: '13px',
+        marginBottom: '24px',
+      }}>
+        <T k="clients.new_prospect_notice" />
+      </div>
 
       <div style={{
         background: '#1a1c24',

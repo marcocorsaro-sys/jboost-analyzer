@@ -13,7 +13,6 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
   const { t } = useLocale()
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -21,6 +20,7 @@ function LoginForm() {
     setError(null)
     setLoading(true)
 
+    const supabase = createClient()
     const { error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
