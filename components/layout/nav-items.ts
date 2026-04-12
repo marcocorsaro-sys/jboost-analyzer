@@ -22,11 +22,11 @@ export interface NavItem {
  * (with "Library" swapped for "Me").
  */
 export const PRIMARY_NAV: NavItem[] = [
-  { href: '/dashboard', labelKey: 'nav.home', icon: Home },
+  { href: '/home', labelKey: 'nav.home', icon: Home },
   { href: '/pre-sales', labelKey: 'nav.pre_sales', icon: Zap },
   { href: '/clients', labelKey: 'nav.clients', icon: Building2 },
   { href: '/ask-j', labelKey: 'nav.ask_j', icon: MessageSquare },
-  { href: '/knowledge', labelKey: 'nav.library', icon: BookOpen },
+  { href: '/library', labelKey: 'nav.library', icon: BookOpen },
 ]
 
 /**
@@ -34,7 +34,7 @@ export const PRIMARY_NAV: NavItem[] = [
  * fifth slot reserved for the user's profile menu.
  */
 export const MOBILE_NAV: NavItem[] = [
-  { href: '/dashboard', labelKey: 'nav.home', icon: Home },
+  { href: '/home', labelKey: 'nav.home', icon: Home },
   { href: '/pre-sales', labelKey: 'nav.pre_sales', icon: Zap },
   { href: '/clients', labelKey: 'nav.clients', icon: Building2 },
   { href: '/ask-j', labelKey: 'nav.ask_j', icon: MessageSquare },
