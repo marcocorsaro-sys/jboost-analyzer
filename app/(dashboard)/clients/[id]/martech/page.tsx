@@ -38,11 +38,38 @@ interface CompletenessReport {
   }
 }
 
+interface GapItem {
+  category: string
+  label: string
+  severity: 'high' | 'medium' | 'low'
+  description: string
+}
+
+interface Recommendation {
+  priority: number
+  title: string
+  description: string
+  category: string
+}
+
 const LEVEL_COLORS: Record<string, { bg: string; text: string; border: string; label: string }> = {
   complete: { bg: '#22c55e10', text: '#22c55e', border: '#22c55e30', label: 'Complete' },
   good: { bg: '#38bdf810', text: '#38bdf8', border: '#38bdf830', label: 'Good' },
   partial: { bg: '#f59e0b10', text: '#f59e0b', border: '#f59e0b30', label: 'Partial' },
   incomplete: { bg: '#ef444410', text: '#ef4444', border: '#ef444430', label: 'Incomplete' },
+}
+
+const TIER_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  'Basic': { bg: '#ef444415', text: '#ef4444', border: '#ef444440' },
+  'Developing': { bg: '#f59e0b15', text: '#f59e0b', border: '#f59e0b40' },
+  'Advanced': { bg: '#38bdf815', text: '#38bdf8', border: '#38bdf840' },
+  'Best-in-Class': { bg: '#22c55e15', text: '#22c55e', border: '#22c55e40' },
+}
+
+const SEVERITY_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
+  high: { bg: '#ef444412', text: '#fca5a5', dot: '#ef4444' },
+  medium: { bg: '#f59e0b12', text: '#fcd34d', dot: '#f59e0b' },
+  low: { bg: '#6b728012', text: '#9ca3af', dot: '#6b7280' },
 }
 
 const DIAG_ICONS: Record<string, string> = {
@@ -67,6 +94,10 @@ export default function ClientMartechPage() {
   const [tools, setTools] = useState<MartechTool[]>([])
   const [domain, setDomain] = useState<string | null>(null)
   const [completeness, setCompleteness] = useState<CompletenessReport | null>(null)
+  const [maturityScore, setMaturityScore] = useState<number | null>(null)
+  const [maturityTier, setMaturityTier] = useState<string | null>(null)
+  const [gapAnalysis, setGapAnalysis] = useState<GapItem[]>([])
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([])
   const [loading, setLoading] = useState(true)
   const [detecting, setDetecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -86,6 +117,10 @@ export default function ClientMartechPage() {
       setTools(data.martech || [])
       setDomain(data.domain || null)
       setCompleteness(data.completeness || null)
+      setMaturityScore(data.maturityScore ?? null)
+      setMaturityTier(data.maturityTier ?? null)
+      setGapAnalysis(data.gapAnalysis || [])
+      setRecommendations(data.recommendations || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error loading data')
     }
@@ -102,6 +137,10 @@ export default function ClientMartechPage() {
       setTools(data.martech || [])
       setDomain(data.domain || null)
       setCompleteness(data.completeness || null)
+      setMaturityScore(data.maturityScore ?? null)
+      setMaturityTier(data.maturityTier ?? null)
+      setGapAnalysis(data.gapAnalysis || [])
+      setRecommendations(data.recommendations || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Detection error')
     }
@@ -112,7 +151,6 @@ export default function ClientMartechPage() {
     ? new Date(Math.max(...tools.map(t => new Date(t.detected_at).getTime())))
     : null
 
-  // Count categories with tools
   const uniqueCategories = new Set(tools.map(t => t.category))
   const uniqueAreas = new Set(
     MARTECH_CATEGORIES
@@ -120,10 +158,11 @@ export default function ClientMartechPage() {
       .map(c => c.area)
   )
 
-  // Average confidence
   const avgConfidence = tools.length > 0
     ? tools.reduce((sum, t) => sum + t.confidence, 0) / tools.length
     : 0
+
+  const tierStyle = maturityTier ? TIER_COLORS[maturityTier] || TIER_COLORS['Developing'] : null
 
   return (
     <div>
@@ -185,109 +224,309 @@ export default function ClientMartechPage() {
         </button>
       </div>
 
-      {/* Completeness Report */}
-      {completeness && !detecting && (
+      {/* Maturity Score + Completeness Row */}
+      {maturityScore !== null && !detecting && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '16px',
+          marginBottom: '20px',
+        }}>
+          {/* Maturity Score Card */}
+          <div style={{
+            background: '#1a1c24',
+            borderRadius: '12px',
+            border: `1px solid ${tierStyle?.border || '#2a2d35'}`,
+            padding: '20px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              {/* Score circle */}
+              <div style={{
+                width: 64,
+                height: 64,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: '20px',
+                fontWeight: 700,
+                background: tierStyle?.bg || '#2a2d35',
+                color: tierStyle?.text || '#6b7280',
+                border: `3px solid ${tierStyle?.border || '#2a2d35'}`,
+                flexShrink: 0,
+              }}>
+                {maturityScore}
+              </div>
+              <div>
+                <div style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: '#ffffff',
+                  marginBottom: '4px',
+                }}>
+                  {t('martech.maturityScore')}
+                </div>
+                <div style={{
+                  display: 'inline-block',
+                  padding: '2px 10px',
+                  borderRadius: '12px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  background: tierStyle?.bg || '#2a2d35',
+                  color: tierStyle?.text || '#6b7280',
+                  border: `1px solid ${tierStyle?.border || '#2a2d35'}`,
+                }}>
+                  {maturityTier}
+                </div>
+                <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                  {maturityScore <= 25 && t('martech.tierBasicDesc')}
+                  {maturityScore > 25 && maturityScore <= 50 && t('martech.tierDevelopingDesc')}
+                  {maturityScore > 50 && maturityScore <= 75 && t('martech.tierAdvancedDesc')}
+                  {maturityScore > 75 && t('martech.tierBestDesc')}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Completeness Card */}
+          {completeness && (
+            <div style={{
+              background: '#1a1c24',
+              borderRadius: '12px',
+              border: `1px solid ${LEVEL_COLORS[completeness.level]?.border || '#2a2d35'}`,
+              padding: '20px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: '20px',
+                  fontWeight: 700,
+                  background: LEVEL_COLORS[completeness.level]?.bg || '#2a2d35',
+                  color: LEVEL_COLORS[completeness.level]?.text || '#6b7280',
+                  border: `3px solid ${LEVEL_COLORS[completeness.level]?.border || '#2a2d35'}`,
+                  flexShrink: 0,
+                }}>
+                  {completeness.score}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    color: '#ffffff',
+                    marginBottom: '4px',
+                  }}>
+                    {t('martech.completeness')}
+                  </div>
+                  <div style={{
+                    display: 'inline-block',
+                    padding: '2px 10px',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    fontFamily: "'JetBrains Mono', monospace",
+                    background: LEVEL_COLORS[completeness.level]?.bg || '#2a2d35',
+                    color: LEVEL_COLORS[completeness.level]?.text || '#6b7280',
+                    border: `1px solid ${LEVEL_COLORS[completeness.level]?.border || '#2a2d35'}`,
+                  }}>
+                    {LEVEL_COLORS[completeness.level]?.label || completeness.level}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                    {completeness.pagesScanned} pages · {completeness.totalSignals} signals · {Math.round(completeness.signalQuality.htmlSize / 1024)}KB HTML
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowDiagnostics(!showDiagnostics)}
+                  style={{
+                    padding: '6px 10px',
+                    background: 'transparent',
+                    border: '1px solid #2a2d35',
+                    borderRadius: '6px',
+                    color: '#9ca3af',
+                    fontSize: '10px',
+                    fontFamily: "'JetBrains Mono', monospace",
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {showDiagnostics ? '▲' : '▼'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Diagnostics (collapsible) */}
+      {showDiagnostics && completeness && completeness.diagnostics.length > 0 && !detecting && (
+        <div style={{
+          background: '#111318',
+          borderRadius: '8px',
+          border: '1px solid #2a2d35',
+          padding: '12px 16px',
+          marginBottom: '20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '6px',
+        }}>
+          <div style={{ fontSize: '11px', color: '#6b7280', fontFamily: "'JetBrains Mono', monospace", marginBottom: '4px', fontWeight: 600 }}>
+            {t('martech.showDiagnostics')}
+          </div>
+          {completeness.diagnostics.map((d, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '12px' }}>
+              <span style={{
+                color: DIAG_COLORS[d.type] || '#6b7280',
+                fontWeight: 700,
+                flexShrink: 0,
+                width: '14px',
+                textAlign: 'center',
+              }}>
+                {DIAG_ICONS[d.type] || '·'}
+              </span>
+              <span style={{ color: '#d1d5db', lineHeight: '1.4' }}>{d.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Gap Analysis */}
+      {gapAnalysis.length > 0 && !detecting && (
         <div style={{
           background: '#1a1c24',
           borderRadius: '12px',
-          border: `1px solid ${LEVEL_COLORS[completeness.level]?.border || '#2a2d35'}`,
-          padding: '16px 20px',
+          border: '1px solid #2a2d35',
+          padding: '20px',
           marginBottom: '20px',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: showDiagnostics ? '12px' : '0' }}>
-            {/* Score circle */}
-            <div style={{
-              width: 52,
-              height: 52,
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: '16px',
-              fontWeight: 700,
-              background: LEVEL_COLORS[completeness.level]?.bg || '#2a2d35',
-              color: LEVEL_COLORS[completeness.level]?.text || '#6b7280',
-              border: `2px solid ${LEVEL_COLORS[completeness.level]?.border || '#2a2d35'}`,
-              flexShrink: 0,
-            }}>
-              {completeness.score}
-            </div>
-
-            {/* Info */}
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-                <span style={{
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  color: LEVEL_COLORS[completeness.level]?.text || '#6b7280',
+          <h4 style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: '14px',
+            fontWeight: 700,
+            color: '#ffffff',
+            marginBottom: '14px',
+          }}>
+            {t('martech.gapAnalysis')}
+          </h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {gapAnalysis.map((gap, i) => {
+              const sev = SEVERITY_COLORS[gap.severity] || SEVERITY_COLORS.low
+              return (
+                <div key={i} style={{
+                  background: sev.bg,
+                  borderRadius: '8px',
+                  padding: '12px 16px',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px',
                 }}>
-                  {t('martech.completeness')}: {LEVEL_COLORS[completeness.level]?.label || completeness.level}
-                </span>
-                <span style={{
-                  fontSize: '11px',
-                  color: '#4b5563',
-                  fontFamily: "'JetBrains Mono', monospace",
-                }}>
-                  {completeness.pagesScanned} {completeness.pagesScanned === 1 ? 'page' : 'pages'} scanned · {completeness.totalSignals} signals
-                </span>
-              </div>
-              <div style={{ display: 'flex', gap: '12px', fontSize: '11px', color: '#6b7280' }}>
-                <span>{completeness.signalQuality.scripts} scripts</span>
-                <span>{completeness.signalQuality.links} links</span>
-                <span>{completeness.signalQuality.metas} metas</span>
-                <span>{completeness.signalQuality.jsonLd} JSON-LD</span>
-                <span>{completeness.signalQuality.iframes} iframes</span>
-                <span>{Math.round(completeness.signalQuality.htmlSize / 1024)}KB HTML</span>
-              </div>
-            </div>
-
-            {/* Toggle diagnostics */}
-            <button
-              onClick={() => setShowDiagnostics(!showDiagnostics)}
-              style={{
-                padding: '6px 12px',
-                background: 'transparent',
-                border: '1px solid #2a2d35',
-                borderRadius: '6px',
-                color: '#9ca3af',
-                fontSize: '11px',
-                fontFamily: "'JetBrains Mono', monospace",
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {showDiagnostics ? t('martech.hideDiagnostics') : t('martech.showDiagnostics')}
-            </button>
-          </div>
-
-          {/* Diagnostics list */}
-          {showDiagnostics && completeness.diagnostics.length > 0 && (
-            <div style={{
-              background: '#111318',
-              borderRadius: '8px',
-              padding: '12px 16px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px',
-            }}>
-              {completeness.diagnostics.map((d, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '12px' }}>
-                  <span style={{
-                    color: DIAG_COLORS[d.type] || '#6b7280',
-                    fontWeight: 700,
+                  <div style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: sev.dot,
                     flexShrink: 0,
-                    width: '14px',
-                    textAlign: 'center',
-                  }}>
-                    {DIAG_ICONS[d.type] || '·'}
-                  </span>
-                  <span style={{ color: '#d1d5db', lineHeight: '1.4' }}>{d.message}</span>
+                    marginTop: '5px',
+                  }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                      <span style={{
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        color: sev.text,
+                      }}>
+                        {gap.label}
+                      </span>
+                      <span style={{
+                        fontSize: '10px',
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        background: '#111318',
+                        color: '#6b7280',
+                        fontFamily: "'JetBrains Mono', monospace",
+                        textTransform: 'uppercase',
+                      }}>
+                        {gap.severity}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '12px', color: '#9ca3af', lineHeight: '1.5', margin: 0 }}>
+                      {gap.description}
+                    </p>
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Recommendations */}
+      {recommendations.length > 0 && !detecting && (
+        <div style={{
+          background: '#1a1c24',
+          borderRadius: '12px',
+          border: '1px solid #2a2d35',
+          padding: '20px',
+          marginBottom: '20px',
+        }}>
+          <h4 style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: '14px',
+            fontWeight: 700,
+            color: '#ffffff',
+            marginBottom: '14px',
+          }}>
+            {t('martech.recommendations')}
+          </h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {recommendations.map((rec, i) => (
+              <div key={i} style={{
+                background: '#111318',
+                borderRadius: '8px',
+                padding: '14px 16px',
+                borderLeft: `3px solid ${rec.priority <= 2 ? '#c8e64a' : rec.priority <= 3 ? '#38bdf8' : '#6b7280'}`,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                  <span style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: '50%',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: rec.priority <= 2 ? '#c8e64a20' : rec.priority <= 3 ? '#38bdf820' : '#6b728020',
+                    color: rec.priority <= 2 ? '#c8e64a' : rec.priority <= 3 ? '#38bdf8' : '#6b7280',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    fontFamily: "'JetBrains Mono', monospace",
+                    flexShrink: 0,
+                  }}>
+                    {rec.priority}
+                  </span>
+                  <span style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: '#ffffff',
+                  }}>
+                    {rec.title}
+                  </span>
+                </div>
+                <p style={{ fontSize: '12px', color: '#9ca3af', lineHeight: '1.5', margin: 0, paddingLeft: '32px' }}>
+                  {rec.description}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -317,8 +556,15 @@ export default function ClientMartechPage() {
             display: 'flex',
             justifyContent: 'center',
             gap: '8px',
+            flexWrap: 'wrap',
           }}>
-            {['Fetching pages...', 'Extracting signals...', 'AI classification...', 'Validating completeness...'].map((step, i) => (
+            {[
+              t('martech.stepFetching'),
+              t('martech.stepPatterns'),
+              t('martech.stepWebSearch'),
+              t('martech.stepAI'),
+              t('martech.stepMaturity'),
+            ].map((step, i) => (
               <span key={i} style={{
                 padding: '4px 10px',
                 background: '#111318',

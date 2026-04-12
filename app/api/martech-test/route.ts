@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server'
 import { detectMartechStack } from '@/lib/martech/detect'
 
-export const maxDuration = 120
+export const maxDuration = 180
 
 /**
  * GET /api/martech-test?domain=benetton.com
  *
- * Diagnostic endpoint to test enhanced martech detection pipeline.
- * Returns full results including completeness report for debugging.
+ * Diagnostic endpoint to test V3 martech detection pipeline.
+ * Returns full results including completeness, maturity, gaps, and recommendations.
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -31,19 +31,23 @@ export async function GET(request: Request) {
   }
 
   try {
-    console.log(`[MarTech-Test] Starting enhanced detection for ${domain}...`)
+    console.log(`[MarTech-Test] Starting V3 detection for ${domain}...`)
     const startTime = Date.now()
 
-    const { tools, usage, completeness } = await detectMartechStack(domain)
+    const result = await detectMartechStack(domain)
 
     const duration = Date.now() - startTime
 
     diagnostics.success = true
     diagnostics.duration_ms = duration
-    diagnostics.toolCount = tools.length
-    diagnostics.usage = usage
-    diagnostics.completeness = completeness
-    diagnostics.tools = tools.map(t => ({
+    diagnostics.toolCount = result.tools.length
+    diagnostics.usage = result.usage
+    diagnostics.completeness = result.completeness
+    diagnostics.maturityScore = result.maturityScore
+    diagnostics.maturityTier = result.maturityTier
+    diagnostics.gapAnalysis = result.gapAnalysis
+    diagnostics.recommendations = result.recommendations
+    diagnostics.tools = result.tools.map(t => ({
       name: t.tool_name,
       category: t.category,
       confidence: t.confidence,

@@ -4,7 +4,7 @@ import { detectMartechStack } from '@/lib/martech/detect'
 import { trackLlmUsage } from '@/lib/tracking/llm-usage'
 import { logActivity } from '@/lib/tracking/activity'
 
-export const maxDuration = 120 // increased for multi-page crawl + deep scan
+export const maxDuration = 180 // increased for web_search + multi-page crawl
 
 // GET /api/clients/[id]/martech — get cached martech stack
 export async function GET(
@@ -41,7 +41,7 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Fetch cached completeness report if available
+  // Fetch cached report (completeness + maturity + gaps + recommendations)
   const { data: reportRow } = await supabase
     .from('client_martech_reports')
     .select('completeness')
@@ -50,10 +50,16 @@ export async function GET(
     .limit(1)
     .maybeSingle()
 
+  const report = reportRow?.completeness || null
+
   return NextResponse.json({
     martech: martech || [],
     domain: client.domain,
-    completeness: reportRow?.completeness || null,
+    completeness: report?.completeness || report, // backwards compat
+    maturityScore: report?.maturityScore || null,
+    maturityTier: report?.maturityTier || null,
+    gapAnalysis: report?.gapAnalysis || [],
+    recommendations: report?.recommendations || [],
   })
 }
 
@@ -85,8 +91,9 @@ export async function POST(
   }
 
   try {
-    // Run enhanced detection (multi-page + completeness + optional deep scan)
-    const { tools, usage, completeness } = await detectMartechStack(client.domain)
+    // Run V3 detection (pattern matching + web search + AI analysis)
+    const result = await detectMartechStack(client.domain)
+    const { tools, usage, completeness, maturityScore, maturityTier, gapAnalysis, recommendations } = result
 
     // Track LLM cost (non-blocking)
     trackLlmUsage({
@@ -94,7 +101,7 @@ export async function POST(
       clientId: params.id,
       provider: 'anthropic',
       model: 'claude-sonnet-4-20250514',
-      operation: 'martech_detect',
+      operation: 'martech_detect_v3',
       inputTokens: usage.input_tokens,
       outputTokens: usage.output_tokens,
       metadata: {
@@ -102,8 +109,11 @@ export async function POST(
         tools_detected: tools.length,
         completeness_score: completeness.score,
         completeness_level: completeness.level,
+        maturity_score: maturityScore,
+        maturity_tier: maturityTier,
+        gaps: gapAnalysis.length,
+        recommendations: recommendations.length,
         pages_scanned: completeness.pagesScanned,
-        deep_scan: completeness.level === 'incomplete' || completeness.level === 'partial',
       },
     }).catch(() => {})
 
@@ -117,6 +127,7 @@ export async function POST(
         domain: client.domain,
         tools_detected: tools.length,
         completeness: completeness.level,
+        maturity: `${maturityScore}/100 (${maturityTier})`,
       },
     }).catch(() => {})
 
@@ -148,18 +159,25 @@ export async function POST(
       }
     }
 
-    // Save completeness report (upsert: replace old report for this client)
+    // Save full report (completeness + maturity + gaps + recommendations)
+    const fullReport = {
+      completeness,
+      maturityScore,
+      maturityTier,
+      gapAnalysis,
+      recommendations,
+    }
+
     try {
       await supabase
         .from('client_martech_reports')
         .upsert({
           client_id: params.id,
-          completeness,
+          completeness: fullReport,
           created_at: new Date().toISOString(),
         }, { onConflict: 'client_id' })
     } catch (reportErr) {
-      // If table doesn't exist yet, silently fail — report will just not be cached
-      console.warn('[MarTech] Could not save completeness report:', reportErr)
+      console.warn('[MarTech] Could not save report:', reportErr)
     }
 
     // Return fresh data
@@ -175,6 +193,10 @@ export async function POST(
       detected: tools.length,
       domain: client.domain,
       completeness,
+      maturityScore,
+      maturityTier,
+      gapAnalysis,
+      recommendations,
     })
   } catch (err) {
     console.error('MarTech detection error:', err)

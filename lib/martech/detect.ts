@@ -15,6 +15,20 @@ export interface DetectionUsage {
   output_tokens: number
 }
 
+export interface GapItem {
+  category: string
+  label: string
+  severity: 'high' | 'medium' | 'low'
+  description: string
+}
+
+export interface Recommendation {
+  priority: number // 1-5
+  title: string
+  description: string
+  category: string
+}
+
 export interface CompletenessReport {
   score: number                 // 0-100
   level: 'complete' | 'good' | 'partial' | 'incomplete'
@@ -41,6 +55,10 @@ export interface DetectionResult {
   tools: DetectedTool[]
   usage: DetectionUsage
   completeness: CompletenessReport
+  maturityScore: number
+  maturityTier: 'Basic' | 'Developing' | 'Advanced' | 'Best-in-Class'
+  gapAnalysis: GapItem[]
+  recommendations: Recommendation[]
 }
 
 /* ── Normalize domain ── */
@@ -152,13 +170,11 @@ function extractInternalLinks(html: string, domain: string): string[] {
 
   while ((match = linkRegex.exec(html)) !== null) {
     const path = match[1]
-    // Skip assets, anchors, query-only
     if (path.match(/\.(css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|pdf|zip|xml|json|mp4|webm)$/i)) continue
     if (path.startsWith('/_') || path.startsWith('/api/') || path.startsWith('/wp-admin')) continue
     found.add(path)
   }
 
-  // Also extract absolute links to same domain
   const absRegex = new RegExp(`href=["'](https?://${domain.replace(/\./g, '\\.')}(/[^"'\\s]*?))["']`, 'gi')
   while ((match = absRegex.exec(html)) !== null) {
     const path = match[2] || '/'
@@ -172,22 +188,21 @@ function extractInternalLinks(html: string, domain: string): string[] {
 
 /* ── Pick best subpages to crawl ── */
 function pickSubpages(links: string[]): string[] {
-  // Priority pages likely to have different tech (e.g., checkout, product pages, blog)
   const priorityPatterns = [
-    /^\/(en|it|es|fr|de)\/?$/i,         // language homepages
-    /\/products?\//i,                     // product pages
-    /\/shop\/?/i,                         // shop section
-    /\/blog\/?/i,                         // blog (often different CMS)
-    /\/about/i,                           // about page
-    /\/contact/i,                         // contact page (forms, chat widgets)
-    /\/cart/i,                            // cart page (payment, checkout tech)
-    /\/checkout/i,                        // checkout
-    /\/account/i,                         // account area
-    /\/login/i,                           // login page
-    /\/privacy|\/cookie/i,               // privacy/cookie pages (CMP details)
-    /\/news\/?/i,                         // news section
-    /\/collection/i,                      // collection pages (e-commerce)
-    /\/category/i,                        // category pages
+    /^\/(en|it|es|fr|de)\/?$/i,
+    /\/products?\//i,
+    /\/shop\/?/i,
+    /\/blog\/?/i,
+    /\/about/i,
+    /\/contact/i,
+    /\/cart/i,
+    /\/checkout/i,
+    /\/account/i,
+    /\/login/i,
+    /\/privacy|\/cookie/i,
+    /\/news\/?/i,
+    /\/collection/i,
+    /\/category/i,
   ]
 
   const prioritized: string[] = []
@@ -197,12 +212,10 @@ function pickSubpages(links: string[]): string[] {
     if (priorityPatterns.some(p => p.test(link))) {
       prioritized.push(link)
     } else if (link.split('/').filter(Boolean).length <= 2) {
-      // shallow paths (max 2 levels)
       rest.push(link)
     }
   }
 
-  // Return top 3 priority + 1 random shallow page
   const result = prioritized.slice(0, 3)
   if (result.length < 4 && rest.length > 0) {
     result.push(rest[Math.floor(Math.random() * rest.length)])
@@ -237,14 +250,12 @@ function extractSignalsFromHTML(html: string, headers: Record<string, string>): 
     scripts.push(match[1])
   }
 
-  // Inline scripts — LARGER capture (500 chars instead of 150)
+  // Inline scripts — LARGER capture (500 chars)
   const inlineScriptRegex = /<script(?:\s[^>]*)?>([^]*?)<\/script>/gi
   while ((match = inlineScriptRegex.exec(html)) !== null) {
     const content = match[1].trim()
     if (content.length < 15) continue
-    // Skip if it's just a src script (already captured)
     if (match[0].includes(' src=')) continue
-    // Capture up to 500 chars, prioritizing known patterns
     const snippet = content.slice(0, 500)
     scripts.push(`[inline] ${snippet}`)
   }
@@ -263,7 +274,7 @@ function extractSignalsFromHTML(html: string, headers: Record<string, string>): 
     metas.push(match[0])
   }
 
-  // JSON-LD — LARGER capture (1000 chars)
+  // JSON-LD
   const jsonLdRegex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
   const jsonLdBlocks: string[] = []
   while ((match = jsonLdRegex.exec(html)) !== null) {
@@ -277,7 +288,7 @@ function extractSignalsFromHTML(html: string, headers: Record<string, string>): 
     preconnects.push(match[1])
   }
 
-  // Noscript content (tracking pixels as <img>)
+  // Noscript content
   const noscriptRegex = /<noscript[^>]*>([\s\S]*?)<\/noscript>/gi
   const noscriptContent: string[] = []
   while ((match = noscriptRegex.exec(html)) !== null) {
@@ -285,21 +296,21 @@ function extractSignalsFromHTML(html: string, headers: Record<string, string>): 
     if (content.length > 5) noscriptContent.push(content)
   }
 
-  // Iframes (chat widgets, embeds, tracking)
+  // Iframes
   const iframeRegex = /<iframe[^>]+src=["']([^"']+)["'][^>]*>/gi
   const iframes: string[] = []
   while ((match = iframeRegex.exec(html)) !== null) {
     iframes.push(match[1])
   }
 
-  // Data attributes (data-*, ng-*, v-*, x-* — framework hints)
+  // Data attributes
   const dataAttrRegex = /\s(data-[a-z][\w-]*|ng-[a-z]+|v-[a-z]+|x-[a-z]+)(?:=["'][^"']*["'])?/gi
   const dataAttributes = new Set<string>()
   while ((match = dataAttrRegex.exec(html)) !== null) {
     dataAttributes.add(match[1].toLowerCase())
   }
 
-  // HTML comments (often contain CMS/platform signatures)
+  // HTML comments
   const commentRegex = /<!--\s*([\s\S]*?)\s*-->/gi
   const htmlComments: string[] = []
   while ((match = commentRegex.exec(html)) !== null) {
@@ -320,7 +331,6 @@ function extractSignalsFromHTML(html: string, headers: Record<string, string>): 
   const headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i)
   const headHtml = headMatch ? headMatch[1].slice(0, 12000) : ''
 
-  // Body — capture first 10000 chars + last 5000 chars (footer often has tracking)
   const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
   let bodySnippet = ''
   if (bodyMatch) {
@@ -373,7 +383,6 @@ async function fetchMultiPageSignals(domain: string): Promise<AggregatedSignals>
 
   console.log(`[MarTech] Fetching homepage: ${baseUrl}`)
 
-  // 1. Fetch homepage
   let homeResult: Awaited<ReturnType<typeof safeFetch>>
   try {
     homeResult = await safeFetch(baseUrl)
@@ -392,12 +401,10 @@ async function fetchMultiPageSignals(domain: string): Promise<AggregatedSignals>
   const homeSignals = extractSignalsFromHTML(homeResult.html, homeResult.headers)
   const totalHtmlSize = homeResult.html.length
 
-  // 2. Find subpages to crawl
   const internalLinks = extractInternalLinks(homeResult.html, cleanDomain)
   const subpages = pickSubpages(internalLinks)
   console.log(`[MarTech] Found ${internalLinks.length} internal links, will crawl ${subpages.length} subpages: ${subpages.join(', ')}`)
 
-  // 3. Fetch subpages in parallel (with timeout per page)
   const subpageResults: { path: string; signals: PageSignals; htmlSize: number }[] = []
   const pagesFailed: string[] = []
 
@@ -427,7 +434,7 @@ async function fetchMultiPageSignals(domain: string): Promise<AggregatedSignals>
     }
   }
 
-  // 4. Merge signals (deduplicate where possible)
+  // Merge signals
   const allSignals: PageSignals[] = [homeSignals, ...subpageResults.map(r => r.signals)]
 
   const mergedScripts = new Set<string>()
@@ -441,7 +448,6 @@ async function fetchMultiPageSignals(domain: string): Promise<AggregatedSignals>
   const mergedComments = new Set<string>()
   const mergedCookies = new Set<string>()
 
-  // Merge all headers (homepage headers are primary)
   const mergedHeaders = { ...homeSignals.headers }
 
   for (const sig of allSignals) {
@@ -456,13 +462,11 @@ async function fetchMultiPageSignals(domain: string): Promise<AggregatedSignals>
     sig.htmlComments.forEach(c => mergedComments.add(c))
     sig.cookieHeaders.forEach(c => mergedCookies.add(c))
 
-    // Merge subpage headers (add any new ones)
     for (const [k, v] of Object.entries(sig.headers)) {
       if (!mergedHeaders[k]) mergedHeaders[k] = v
     }
   }
 
-  // Build body snippets section with page labels
   let combinedBodySnippet = `[HOMEPAGE BODY]\n${homeSignals.bodySnippet}`
   for (const sub of subpageResults) {
     combinedBodySnippet += `\n\n[SUBPAGE: ${sub.path}]\n${sub.signals.bodySnippet}`
@@ -490,88 +494,290 @@ async function fetchMultiPageSignals(domain: string): Promise<AggregatedSignals>
   }
 }
 
-/* ── AI Classification prompt ── */
-const CLASSIFICATION_SYSTEM = `You are a senior enterprise MarTech stack analyst performing a comprehensive technology audit for a consulting engagement (Accenture / Gartner level). Your analysis must be EXHAUSTIVE — identify EVERY externally observable technology, platform, service, SDK, pixel, and integration.
+/* ── Bot Challenge / WAF Detection ── */
+function detectBotChallenge(html: string, headers: Record<string, string>): { isChallenge: boolean; provider: string | null } {
+  if (headers['cf-ray'] && (
+    html.includes('Just a moment...') ||
+    html.includes('Checking your browser') ||
+    html.includes('challenge-platform') ||
+    html.includes('cf-browser-verification') ||
+    html.includes('__cf_chl_') ||
+    (html.length < 5000 && html.includes('cloudflare'))
+  )) {
+    return { isChallenge: true, provider: 'Cloudflare' }
+  }
 
-IMPORTANT: The data provided may come from MULTIPLE pages of the same website. Analyze ALL signals together to build the most complete picture.
+  if (html.includes('akam-sw.js') || html.includes('_abck') ||
+    (html.length < 3000 && headers['server']?.includes('AkamaiGHost'))) {
+    return { isChallenge: true, provider: 'Akamai Bot Manager' }
+  }
 
-## CATEGORIES (use EXACTLY these category keys)
+  if (headers['x-iinfo'] || (html.includes('incapsula') && html.length < 5000)) {
+    return { isChallenge: true, provider: 'Imperva/Incapsula' }
+  }
 
-### Platform & Content
-- cms — CMS / DXP (WordPress, Drupal, Adobe Experience Manager, Sitecore, Contentful, Strapi, Sanity, Kentico, Umbraco, Shopify CMS, Salesforce CMS)
-- ecommerce — E-Commerce Platform (Shopify, Magento/Adobe Commerce, Salesforce Commerce Cloud, BigCommerce, WooCommerce, PrestaShop, SAP Commerce, Hybris, commercetools, VTEX)
-- frontend_framework — Frontend Framework (Next.js, React, Vue, Nuxt, Angular, Svelte, Gatsby, Astro, Remix, Ember, jQuery, Alpine.js, HTMX)
-- hosting — Hosting / PaaS (Vercel, Netlify, AWS, Azure, GCP, Heroku, DigitalOcean, Fly.io, Railway, Render, Fastly Compute)
+  if (html.includes('_pxhd') || html.includes('perimeterx.net')) {
+    return { isChallenge: true, provider: 'PerimeterX' }
+  }
 
-### Data & Intelligence
-- analytics — Web Analytics & BI (Google Analytics 4, Universal Analytics, Adobe Analytics, Matomo, Piwik PRO, Plausible, Fathom, Amplitude, Mixpanel, Heap, Segment, Snowplow, Piano Analytics)
-- tag_manager — Tag Management (Google Tag Manager, Adobe Launch, Tealium iQ, Ensighten, TagCommander, Piwik PRO Tag Manager)
-- customer_data — CDP / DMP (Segment, mParticle, Tealium AudienceStream, Adobe Real-Time CDP, Salesforce Data Cloud, Treasure Data, Lytics, BlueConic, Bloomreach Engagement, Oracle BlueKai)
-- session_recording — Session Recording & UX Analytics (Hotjar, FullStory, LogRocket, Mouseflow, Crazy Egg, Contentsquare, Quantum Metric, Smartlook, Microsoft Clarity, Lucky Orange)
-- ab_testing — A/B Testing & Experimentation (VWO, Optimizely, AB Tasty, Google Optimize, Adobe Target, Kameleoon, LaunchDarkly, Split.io, Statsig, Convert)
+  if (html.includes('datadome.co') || headers['x-datadome']) {
+    return { isChallenge: true, provider: 'DataDome' }
+  }
 
-### Acquisition & Marketing
-- ad_platforms — Advertising Pixels & Attribution (Meta/Facebook Pixel, Google Ads/gtag, TikTok Pixel, LinkedIn Insight Tag, Twitter/X Pixel, Pinterest Tag, Snapchat Pixel, Criteo, DoubleClick/DV360, Amazon Ads, AdRoll, TradeDesk, Taboola, Outbrain)
-- seo — SEO & Structured Data (Schema.org/JSON-LD, Yoast, Rank Math, All in One SEO, Ahrefs, SEMrush, Moz, BrightEdge, Conductor, seoClarity, canonical tags, hreflang, Open Graph, robots meta)
-- social — Social Media Integration (Facebook SDK, Twitter widgets, Instagram embed, LinkedIn API, AddThis, ShareThis, Pinterest, Disqus, social OG tags, oEmbed)
-- marketing_automation — Marketing Automation (HubSpot, Marketo, Pardot/Salesforce, ActiveCampaign, Eloqua, Braze, Iterable, Klaviyo, Customer.io, Mailchimp automation, Drip, Omnisend)
-- email_platform — Email Platform (Mailchimp, SendGrid, Mailgun, Amazon SES, Postmark, SparkPost, Sendinblue/Brevo, Constant Contact, Campaign Monitor, ConvertKit)
-- crm — CRM (Salesforce, HubSpot CRM, Zoho CRM, Pipedrive, Microsoft Dynamics, Freshsales, SugarCRM, monday.com CRM)
-- affiliate — Affiliate / Referral (Commission Junction/CJ, ShareASale, Impact, Awin, Partnerize, Rakuten, Tapfiliate, ReferralCandy, TUNE)
+  if (html.length < 2000 && !html.includes('<body') && !html.includes('<div')) {
+    return { isChallenge: true, provider: 'Unknown (minimal HTML)' }
+  }
 
-### Experience & Engagement
-- personalization — Personalization & AI (Dynamic Yield, Algolia, Bloomreach, Salesforce Einstein, Adobe Sensei, Nosto, Monetate, Certona, Insider, Coveo, Kleecks)
-- chat_support — Chat & Support (Intercom, Zendesk Chat, Drift, LiveChat, Tawk.to, Crisp, Freshchat, Olark, Tidio, HubSpot Chat, Gorgias, Chatbot frameworks)
-- consent_management — Consent / CMP (Cookiebot, OneTrust, TrustArc, Didomi, Osano, CookieYes, Quantcast Choice, Usercentrics, Iubenda, Termly, Complianz, Civic Cookie Control)
-- accessibility — Accessibility (AccessiBe, UserWay, AudioEye, EqualWeb, Recite Me, Level Access, Monsido, Siteimprove accessibility)
-- fonts_media — Fonts & Media (Google Fonts, Adobe Fonts/Typekit, Font Awesome, custom font files, Wistia, Vimeo, YouTube embeds, JW Player, Brightcove, Cloudinary, Imgix)
-- ux_widgets — UX & Widgets (Trustpilot, Yotpo, Bazaarvoice, Judge.me reviews, Privy popups, OptinMonster, Sumo, Hello Bar, Recaptcha, hCaptcha, Calendly, Typeform, interstitials, push notification services)
+  return { isChallenge: false, provider: null }
+}
 
-### Infrastructure & Performance
-- cdn — CDN (Cloudflare, Akamai, Fastly, AWS CloudFront, Azure CDN, Google Cloud CDN, StackPath, KeyCDN, Bunny CDN, Imperva/Incapsula)
-- performance — Performance Monitoring (New Relic, Datadog RUM, Dynatrace, SpeedCurve, WebPageTest, Core Web Vitals instrumentation, Pingdom, GTmetrix, custom RUM scripts)
-- security — Security & WAF (Cloudflare WAF, Akamai Kona, Imperva WAF, AWS WAF, Sucuri, Wordfence, reCAPTCHA, hCaptcha, Content-Security-Policy, HSTS, X-Frame-Options, bot protection)
-- dns — DNS & SSL (Cloudflare DNS, AWS Route 53, Google Cloud DNS, Let's Encrypt, DigiCert, Sectigo, GoDaddy DNS, DNSimple, NS1)
-- image_optimization — Image Optimization (Cloudinary, Imgix, Fastly Image Optimizer, next/image, Thumbor, TinyPNG/TinyJPG, ShortPixel, ImageEngine, Sirv, lazy loading libraries)
+/* ── URL Probing ── */
+async function probeUrls(domain: string): Promise<{ probeResults: Record<string, { exists: boolean; headers?: Record<string, string>; snippet?: string }> }> {
+  const cleanDomain = normalizeDomain(domain)
+  const baseUrl = `https://${cleanDomain}`
 
-### Governance & Operations
-- error_monitoring — Error Monitoring (Sentry, Bugsnag, Rollbar, Datadog APM, Raygun, TrackJS, Airbrake, LogRocket errors, New Relic errors)
-- payment — Payment (Stripe, PayPal, Braintree, Adyen, Square, Klarna, Afterpay, Apple Pay, Google Pay, Amazon Pay, Mollie, Razorpay, checkout.com)
-- other — Other (anything that doesn't fit above categories — webhooks, internal tools, custom SDKs, unrecognized third-party scripts)
+  const probes: { path: string; label: string }[] = [
+    { path: '/robots.txt', label: 'robots' },
+    { path: '/sitemap.xml', label: 'sitemap' },
+    { path: '/wp-login.php', label: 'wordpress_login' },
+    { path: '/wp-json/wp/v2/posts', label: 'wordpress_api' },
+    { path: '/favicon.ico', label: 'favicon' },
+    { path: '/manifest.json', label: 'manifest' },
+    { path: '/sw.js', label: 'service_worker' },
+  ]
 
-## DETECTION METHODOLOGY
+  const probeResults: Record<string, { exists: boolean; headers?: Record<string, string>; snippet?: string }> = {}
 
-Analyze ALL available signals systematically:
+  const probePromises = probes.map(async (probe) => {
+    try {
+      const result = await fetchHTML(`${baseUrl}${probe.path}`, true, 3)
+      const exists = result.statusCode >= 200 && result.statusCode < 400
+      probeResults[probe.label] = {
+        exists,
+        headers: exists ? result.headers : undefined,
+        snippet: exists ? result.html.slice(0, 2000) : undefined,
+      }
+    } catch {
+      probeResults[probe.label] = { exists: false }
+    }
+  })
 
-1. **HTTP Response Headers**: Server, X-Powered-By, Via, X-Cache, X-CDN, CF-Ray, CF-Cache-Status, X-Varnish, X-Akamai, Strict-Transport-Security, Content-Security-Policy, Set-Cookie patterns, X-Frame-Options, X-XSS-Protection, Feature-Policy
-2. **Script Sources**: Domain patterns (cdn.*, js.*, static.*, assets.*), known SDK paths, version strings in URLs, loader scripts, async/defer patterns
-3. **Inline Scripts**: dataLayer pushes, pixel initialization (fbq, gtag, _satellite, analytics.track), global config objects (window.__NEXT_DATA__, Shopify.*, __NUXT__), consent manager init, chat widget init
-4. **Link/Stylesheet refs**: CDN origins, font services, theme paths (wp-content, /assets/themes/, /static/)
-5. **Meta Tags**: generator, og:*, twitter:*, application-name, msapplication-*, apple-mobile-web-app, theme-color, viewport, robots, canonical, alternate hreflang, csp-nonce
-6. **HTML structure**: data-* attributes, class naming patterns (wp-*, shopify-*, next-*, nuxt-*), noscript tags, comment signatures, preconnect/preload/prefetch hints, JSON-LD blocks
-7. **Iframes**: Embedded third-party services, chat widgets, video players, form builders
-8. **Cookie names**: Recognize known cookie patterns (__ga, _fbp, hubspotutk, __cfduid, etc.)
-9. **Body content**: Footer tracking scripts, widget containers, chat bubbles, consent banners
+  await Promise.allSettled(probePromises)
+
+  return { probeResults }
+}
+
+/* ── Extract tools from URL probes ── */
+function toolsFromProbes(probeResults: Record<string, { exists: boolean; headers?: Record<string, string>; snippet?: string }>): DetectedTool[] {
+  const tools: DetectedTool[] = []
+
+  if (probeResults.wordpress_login?.exists || probeResults.wordpress_api?.exists) {
+    tools.push({
+      category: 'cms',
+      tool_name: 'WordPress',
+      tool_version: null,
+      confidence: 0.95,
+      details: { evidence: probeResults.wordpress_api?.exists ? 'WP REST API endpoint responds' : 'wp-login.php exists', source: 'url_probe' },
+    })
+  }
+
+  const robotsSnippet = probeResults.robots?.snippet || ''
+  if (robotsSnippet) {
+    if (robotsSnippet.includes('wp-admin')) {
+      if (!tools.some(t => t.tool_name === 'WordPress')) {
+        tools.push({ category: 'cms', tool_name: 'WordPress', tool_version: null, confidence: 0.90, details: { evidence: 'robots.txt mentions wp-admin', source: 'url_probe' } })
+      }
+    }
+    if (robotsSnippet.includes('Shopify')) {
+      tools.push({ category: 'ecommerce', tool_name: 'Shopify', tool_version: null, confidence: 0.95, details: { evidence: 'robots.txt mentions Shopify paths', source: 'url_probe' } })
+    }
+  }
+
+  const sitemapSnippet = probeResults.sitemap?.snippet || ''
+  if (sitemapSnippet) {
+    if (sitemapSnippet.includes('wp-sitemap') || sitemapSnippet.includes('yoast')) {
+      tools.push({ category: 'seo', tool_name: 'Yoast SEO', tool_version: null, confidence: 0.90, details: { evidence: 'Yoast pattern in sitemap XML', source: 'url_probe' } })
+    }
+  }
+
+  const swSnippet = probeResults.service_worker?.snippet || ''
+  if (swSnippet) {
+    if (swSnippet.includes('workbox') || swSnippet.includes('Workbox')) {
+      tools.push({ category: 'performance', tool_name: 'Workbox (Service Worker)', tool_version: null, confidence: 0.90, details: { evidence: 'Workbox service worker detected', source: 'url_probe' } })
+    }
+    if (swSnippet.includes('OneSignal') || swSnippet.includes('onesignal')) {
+      tools.push({ category: 'ux_widgets', tool_name: 'OneSignal (Push Notifications)', tool_version: null, confidence: 0.90, details: { evidence: 'OneSignal in service worker', source: 'url_probe' } })
+    }
+  }
+
+  const manifestSnippet = probeResults.manifest?.snippet || ''
+  if (manifestSnippet && manifestSnippet.includes('{')) {
+    tools.push({ category: 'frontend_framework', tool_name: 'Progressive Web App (PWA)', tool_version: null, confidence: 0.80, details: { evidence: 'manifest.json present', source: 'url_probe' } })
+  }
+
+  return tools
+}
+
+/* ══════════════════════════════════════════════════════════════════
+ * ANTHROPIC API WITH WEB SEARCH
+ * Uses the web_search_20250305 tool for comprehensive analysis
+ * ══════════════════════════════════════════════════════════════════ */
+
+const MARTECH_ANALYST_SYSTEM = `You are an expert martech analyst specializing in identifying and evaluating marketing technology stacks from website analysis.
+
+You have access to a web_search tool. Use it strategically to:
+1. Search for "[domain] technology stack" or "[domain] built with" to find what technologies the site uses
+2. Search for "[domain] site:[builtwith.com OR wappalyzer.com OR similartech.com]" for tech detection databases
+3. Search for specific technologies you suspect based on the HTML signals provided
+
+Your analysis must cover these technology categories:
+- Tag Management (GTM, Tealium, Adobe Launch, etc.)
+- Analytics & Web Intelligence (GA4, Adobe Analytics, Mixpanel, Heap, Hotjar, Clarity, etc.)
+- CRM & Marketing Automation (HubSpot, Salesforce, Marketo, Pardot, Klaviyo, etc.)
+- CDP & Data Layer (Segment, mParticle, Tealium AudienceStream, etc.)
+- Advertising & Paid Media (Meta Pixel, LinkedIn Insight, Google Ads, DoubleClick, Criteo, etc.)
+- Personalization & Testing (Optimizely, VWO, Dynamic Yield, AB Tasty, etc.)
+- SEO & Content Intelligence (tools detectable via scripts or meta patterns, structured data types)
+- Chat & CX (Intercom, Drift, Zendesk, Salesforce Live Agent, Tawk.to, etc.)
+- Consent Management (OneTrust, Cookiebot, TrustArc, Iubenda, Didomi, etc.)
+- E-commerce & Commerce (Shopify, Magento, SAP Commerce, commercetools, etc.)
+- CMS / DXP (WordPress, Drupal, Adobe Experience Manager, Contentful, etc.)
+- Frontend Framework (React, Next.js, Vue, Angular, jQuery, etc.)
+- Hosting & CDN (AWS, Vercel, Cloudflare, Akamai, Fastly, etc.)
+- Security & WAF (Cloudflare WAF, Akamai, Imperva, reCAPTCHA, etc.)
+- Performance Monitoring (New Relic, Datadog, Sentry, SpeedCurve, etc.)
+- Fonts & Media (Google Fonts, Adobe Fonts, Cloudinary, etc.)
+- Payment (Stripe, PayPal, Adyen, Klarna, etc.)
+- Accessibility (AccessiBe, UserWay, etc.)
+- UX & Widgets (Trustpilot, reviews, popups, push notifications, etc.)
+
+CATEGORY KEYS to use (exactly):
+cms, ecommerce, frontend_framework, hosting, analytics, tag_manager, customer_data, session_recording, ab_testing, ad_platforms, seo, social, marketing_automation, email_platform, crm, affiliate, personalization, chat_support, consent_management, accessibility, fonts_media, ux_widgets, cdn, performance, security, dns, image_optimization, error_monitoring, payment, other
+
+For each technology identified, specify:
+- category: exact category key from above
+- tool_name: official product name
+- tool_version: version if detectable, null otherwise
+- confidence: HIGH (0.90+) = direct script/tag/header found, MEDIUM (0.70-0.89) = indirect signals or web search confirmation, LOW (0.50-0.69) = inferred
+- evidence: brief explanation of how it was detected
+
+Then provide:
+
+MATURITY SCORE (0-100) with tier label:
+- 0-25: Basic
+- 26-50: Developing
+- 51-75: Advanced
+- 76-100: Best-in-Class
+
+Score based on: stack completeness, integration sophistication, presence of CDP/data layer, consent management, testing & personalization capability.
+
+GAP ANALYSIS: Identify missing categories or weak points vs. industry best practice for the apparent business type. For each gap specify severity (high/medium/low).
+
+RECOMMENDATIONS: 3-5 prioritized, actionable suggestions to improve the martech stack.
 
 ## OUTPUT FORMAT
+Return ONLY valid JSON (no markdown fences, no explanation outside the JSON):
+{
+  "tools": [
+    {
+      "category": "<exact_category_key>",
+      "tool_name": "<official_product_name>",
+      "tool_version": "<version_or_null>",
+      "confidence": <0.0-1.0>,
+      "evidence": "<concise_evidence_string>"
+    }
+  ],
+  "maturity_score": <0-100>,
+  "maturity_tier": "<Basic|Developing|Advanced|Best-in-Class>",
+  "gap_analysis": [
+    {
+      "category": "<category_key>",
+      "label": "<readable label>",
+      "severity": "<high|medium|low>",
+      "description": "<what is missing and why it matters>"
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": <1-5>,
+      "title": "<short title>",
+      "description": "<actionable description>",
+      "category": "<relevant category_key>"
+    }
+  ]
+}`
 
-Return ONLY valid JSON:
-{"tools":[{"category":"<exact_category_key>","tool_name":"<official_product_name>","tool_version":"<version_or_null>","confidence":<0.0-1.0>,"evidence":"<concise_evidence_string>","sub_category":"<optional_sub_type>"}]}
+/* ── Call Anthropic API with web_search tool ── */
+async function callAnthropicWithSearch(
+  systemPrompt: string,
+  userMessage: string,
+  maxTokens = 8192
+): Promise<{ text: string; usage: DetectionUsage }> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured')
 
-## RULES
-- Be EXHAUSTIVE: report every technology you can detect, no matter how minor
-- Distinguish between primary tools and supporting libraries (e.g., jQuery as dependency vs jQuery as main framework)
-- Report EACH advertising pixel separately (Meta Pixel, Google Ads, TikTok etc.)
-- Report EACH analytics tool separately (GA4, Hotjar, etc.)
-- Report infrastructure signals from headers (CDN, WAF, server tech)
-- For SEO: report schema types found (Organization, Product, BreadcrumbList, FAQ, etc.)
-- For consent: identify CMP platform AND compliance framework (GDPR, CCPA)
-- Confidence guide: 0.95+ = definitive (unique identifier), 0.8-0.94 = strong (multiple signals), 0.6-0.79 = probable (pattern match), 0.4-0.59 = possible (indirect evidence)
-- Do NOT hallucinate tools. Only report what you can evidence from the signals provided.
-- Use the EXACT category keys listed above. Do not invent new ones.`
+  const body = JSON.stringify({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: maxTokens,
+    temperature: 0.1,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userMessage }],
+    tools: [
+      {
+        type: 'web_search_20250305',
+        name: 'web_search',
+        max_uses: 5,
+      },
+    ],
+  })
 
-/* ── Call Anthropic API ── */
-async function callAnthropic(
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2025-04-14',
+    },
+    body,
+  })
+
+  if (!res.ok) {
+    const errBody = await res.text()
+    console.error(`[MarTech] Anthropic API error ${res.status}:`, errBody)
+    // Fallback: try without web_search if the API version doesn't support it
+    if (res.status === 400 || res.status === 422) {
+      console.warn('[MarTech] Falling back to API call without web_search tool...')
+      return callAnthropicBasic(systemPrompt, userMessage, maxTokens)
+    }
+    throw new Error(`Anthropic API error ${res.status}: ${errBody.slice(0, 200)}`)
+  }
+
+  const data = await res.json() as {
+    content: Array<{ type: string; text?: string }>
+    usage?: { input_tokens: number; output_tokens: number }
+  }
+
+  // Extract text from all text blocks (the API may return web_search_tool_result blocks too)
+  let fullText = ''
+  for (const block of data.content) {
+    if (block.type === 'text' && block.text) {
+      fullText += block.text
+    }
+  }
+
+  if (!fullText) throw new Error('Anthropic API: no text in response')
+
+  return {
+    text: fullText,
+    usage: {
+      input_tokens: data.usage?.input_tokens || 0,
+      output_tokens: data.usage?.output_tokens || 0,
+    },
+  }
+}
+
+/* ── Fallback: basic Anthropic call without tools ── */
+async function callAnthropicBasic(
   systemPrompt: string,
   userMessage: string,
   maxTokens = 8192
@@ -599,7 +805,6 @@ async function callAnthropic(
 
   if (!res.ok) {
     const errBody = await res.text()
-    console.error(`[MarTech] Anthropic API error ${res.status}:`, errBody)
     throw new Error(`Anthropic API error ${res.status}: ${errBody.slice(0, 200)}`)
   }
 
@@ -618,31 +823,6 @@ async function callAnthropic(
       output_tokens: data.usage?.output_tokens || 0,
     },
   }
-}
-
-/* ── Parse AI response into tools array ── */
-function parseToolsFromResponse(text: string): Array<{
-  category: string
-  tool_name: string
-  tool_version: string | null
-  confidence: number
-  evidence: string
-  sub_category?: string
-}> {
-  let jsonText = text.trim()
-  // Strip markdown code fences
-  if (jsonText.startsWith('```')) {
-    jsonText = jsonText.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '')
-  }
-
-  const parsed = JSON.parse(jsonText)
-
-  if (!parsed.tools || !Array.isArray(parsed.tools)) {
-    console.error('[MarTech] Unexpected response structure:', jsonText.slice(0, 500))
-    throw new Error('AI response missing tools array')
-  }
-
-  return parsed.tools
 }
 
 /* ── Build signal summary for AI ── */
@@ -690,36 +870,55 @@ BODY HTML SNIPPETS (from ${signals.pagesScanned} pages):
 ${signals.bodySnippet}`
 }
 
-/* ── AI Classification (primary pass) ── */
-async function classifyWithAI(
-  domain: string,
-  signals: AggregatedSignals
-): Promise<{ tools: DetectedTool[]; usage: DetectionUsage }> {
-  const signalsSummary = buildSignalsSummary(domain, signals)
+/* ── Parse structured AI response ── */
+interface AIAnalysisResult {
+  tools: Array<{
+    category: string
+    tool_name: string
+    tool_version: string | null
+    confidence: number
+    evidence: string
+    sub_category?: string
+  }>
+  maturity_score: number
+  maturity_tier: string
+  gap_analysis: GapItem[]
+  recommendations: Recommendation[]
+}
 
-  console.log(`[MarTech] Sending to AI: ~${Math.round(signalsSummary.length / 1000)}K chars of signals`)
+function parseAIResponse(text: string): AIAnalysisResult {
+  let jsonText = text.trim()
+  // Strip markdown code fences
+  if (jsonText.startsWith('```')) {
+    jsonText = jsonText.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '')
+  }
 
-  const { text, usage } = await callAnthropic(
-    CLASSIFICATION_SYSTEM,
-    `Perform an EXHAUSTIVE enterprise technology audit on the following website signals from ${signals.pagesScanned} page(s). Identify ALL technologies, platforms, SDKs, pixels, tracking scripts, CDNs, fonts, frameworks, and third-party services. This is for a senior consulting partner — completeness is critical. Return ONLY the JSON object, no markdown, no explanation.\n\n${signalsSummary}`
-  )
+  // Try to find JSON in the text if there's preamble
+  const jsonStart = jsonText.indexOf('{')
+  const jsonEnd = jsonText.lastIndexOf('}')
+  if (jsonStart >= 0 && jsonEnd > jsonStart) {
+    jsonText = jsonText.slice(jsonStart, jsonEnd + 1)
+  }
 
-  console.log(`[MarTech] Primary pass usage: ${usage.input_tokens} in / ${usage.output_tokens} out tokens`)
+  const parsed = JSON.parse(jsonText)
 
-  const parsedTools = parseToolsFromResponse(text)
-
-  const tools = parsedTools.map(t => ({
-    category: t.category || 'other',
-    tool_name: t.tool_name || 'Unknown',
-    tool_version: t.tool_version || null,
-    confidence: typeof t.confidence === 'number' ? t.confidence : 0.5,
-    details: {
-      ...(t.evidence ? { evidence: t.evidence } : {}),
-      ...(t.sub_category ? { sub_category: t.sub_category } : {}),
-    },
-  }))
-
-  return { tools, usage }
+  return {
+    tools: parsed.tools || [],
+    maturity_score: typeof parsed.maturity_score === 'number' ? parsed.maturity_score : 30,
+    maturity_tier: parsed.maturity_tier || 'Developing',
+    gap_analysis: (parsed.gap_analysis || []).map((g: Record<string, unknown>) => ({
+      category: String(g.category || 'other'),
+      label: String(g.label || 'Unknown'),
+      severity: (['high', 'medium', 'low'].includes(String(g.severity)) ? g.severity : 'medium') as 'high' | 'medium' | 'low',
+      description: String(g.description || ''),
+    })),
+    recommendations: (parsed.recommendations || []).map((r: Record<string, unknown>) => ({
+      priority: typeof r.priority === 'number' ? r.priority : 3,
+      title: String(r.title || ''),
+      description: String(r.description || ''),
+      category: String(r.category || 'other'),
+    })),
+  }
 }
 
 /* ── Completeness Validator ── */
@@ -781,9 +980,7 @@ function validateCompleteness(
 
   // 2. Tool coverage assessment (max 50 points)
   const categories = new Set(tools.map(t => t.category))
-  const areas = new Set<string>()
 
-  // Check essential categories for a commercial site
   const essentialChecks: Array<{ cats: string[]; label: string; points: number }> = [
     { cats: ['analytics', 'tag_manager'], label: 'Analytics/Tag Management', points: 8 },
     { cats: ['cms', 'ecommerce', 'frontend_framework'], label: 'Platform/CMS/Framework', points: 8 },
@@ -816,12 +1013,11 @@ function validateCompleteness(
     diagnostics.push({ type: 'info', message: `Moderate: ${tools.length} technologies identified` })
   } else if (tools.length >= 3) {
     score += 5
-    diagnostics.push({ type: 'warning', message: `Below average: only ${tools.length} technologies detected. Consider re-running the analysis.` })
+    diagnostics.push({ type: 'warning', message: `Below average: only ${tools.length} technologies detected.` })
   } else {
     diagnostics.push({ type: 'error', message: `Very few tools (${tools.length}) detected. The analysis is likely incomplete.` })
   }
 
-  // Failed pages info
   if (signals.pagesFailed.length > 0) {
     diagnostics.push({
       type: 'info',
@@ -829,7 +1025,6 @@ function validateCompleteness(
     })
   }
 
-  // Determine level
   let level: CompletenessReport['level']
   if (score >= 80) level = 'complete'
   else if (score >= 60) level = 'good'
@@ -846,169 +1041,244 @@ function validateCompleteness(
   }
 }
 
-/* ── Deep Scan (second AI pass for incomplete results) ── */
-const DEEP_SCAN_SYSTEM = `You are a senior MarTech analyst doing a SECOND-PASS review of a website technology audit. The FIRST pass found fewer technologies than expected. Your job is to:
+/* ── Merge and deduplicate tools ── */
+function mergeTools(patternTools: DetectedTool[], aiTools: DetectedTool[], probeTools: DetectedTool[]): DetectedTool[] {
+  const toolMap = new Map<string, DetectedTool>()
 
-1. Re-analyze ALL signals very carefully, looking for technologies that may have been missed
-2. Look for INDIRECT evidence: cookie names suggesting specific platforms, CSS class naming conventions, HTML data attributes, comment signatures
-3. Infer technologies from patterns: e.g., "wp-content" in paths = WordPress, "__next" data = Next.js, "shopify" in any context = Shopify
-4. Check if common technologies are hiding behind CDN or proxy (e.g., scripts served from site's own domain but actually from GTM/GA)
-5. Report ANY additional technologies found, even with lower confidence
+  const key = (t: DetectedTool) => `${t.category}::${t.tool_name.toLowerCase().replace(/\s+/g, ' ').trim()}`
 
-Return ONLY valid JSON in the same format:
-{"tools":[{"category":"<category_key>","tool_name":"<name>","tool_version":"<version_or_null>","confidence":<0.0-1.0>,"evidence":"<evidence>","sub_category":"<optional>"}],"analysis_notes":"<brief explanation of what you found or why detection is limited>"}`
-
-async function deepScanPass(
-  domain: string,
-  signals: AggregatedSignals,
-  firstPassTools: DetectedTool[]
-): Promise<{ additionalTools: DetectedTool[]; usage: DetectionUsage; notes: string }> {
-  const existingToolNames = firstPassTools.map(t => `${t.category}:${t.tool_name}`).join(', ')
-
-  const signalsSummary = buildSignalsSummary(domain, signals)
-
-  const userMessage = `SECOND-PASS DEEP ANALYSIS for ${domain}
-
-The first pass detected only ${firstPassTools.length} tools: ${existingToolNames}
-
-This seems INCOMPLETE for a commercial website. Please:
-1. Re-analyze all signals very carefully
-2. Look for ANY additional technologies, SDKs, pixels, or services
-3. Check for technologies hidden behind proxies or CDNs
-4. Look for cookie-based evidence of analytics/marketing tools
-5. Identify framework patterns from HTML structure, data attributes, and class names
-6. Report ONLY NEW tools not already listed above
-
-If you believe the first pass was complete and no additional tools can be detected, explain WHY in analysis_notes (e.g., "site uses aggressive bot protection", "SPA with minimal HTML", "geo-restricted content").
-
-SIGNALS:
-${signalsSummary}`
-
-  const { text, usage } = await callAnthropic(DEEP_SCAN_SYSTEM, userMessage, 4096)
-
-  console.log(`[MarTech] Deep scan usage: ${usage.input_tokens} in / ${usage.output_tokens} out tokens`)
-
-  let jsonText = text.trim()
-  if (jsonText.startsWith('```')) {
-    jsonText = jsonText.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '')
+  // Pattern tools go first (highest priority — deterministic)
+  for (const tool of patternTools) {
+    const k = key(tool)
+    if (!toolMap.has(k) || (toolMap.get(k)!.confidence < tool.confidence)) {
+      toolMap.set(k, { ...tool, details: { ...tool.details, source: 'pattern' } })
+    }
   }
 
-  try {
-    const parsed = JSON.parse(jsonText) as {
-      tools: Array<{ category: string; tool_name: string; tool_version: string | null; confidence: number; evidence: string; sub_category?: string }>
-      analysis_notes?: string
+  // Probe tools
+  for (const tool of probeTools) {
+    const k = key(tool)
+    if (!toolMap.has(k) || (toolMap.get(k)!.confidence < tool.confidence)) {
+      toolMap.set(k, tool)
     }
-
-    const additionalTools: DetectedTool[] = (parsed.tools || [])
-      .filter(t => {
-        // Deduplicate against first pass
-        return !firstPassTools.some(
-          existing => existing.tool_name.toLowerCase() === t.tool_name?.toLowerCase() &&
-            existing.category === t.category
-        )
-      })
-      .map(t => ({
-        category: t.category || 'other',
-        tool_name: t.tool_name || 'Unknown',
-        tool_version: t.tool_version || null,
-        confidence: typeof t.confidence === 'number' ? t.confidence : 0.5,
-        details: {
-          ...(t.evidence ? { evidence: t.evidence } : {}),
-          ...(t.sub_category ? { sub_category: t.sub_category } : {}),
-          source: 'deep_scan',
-        },
-      }))
-
-    return {
-      additionalTools,
-      usage,
-      notes: parsed.analysis_notes || '',
-    }
-  } catch (err) {
-    console.error('[MarTech] Deep scan parse error:', text.slice(0, 500))
-    return { additionalTools: [], usage, notes: 'Deep scan response could not be parsed' }
   }
+
+  // AI tools (fill gaps — lower priority)
+  for (const tool of aiTools) {
+    const k = key(tool)
+    if (!toolMap.has(k)) {
+      toolMap.set(k, { ...tool, details: { ...tool.details, source: 'ai' } })
+    } else {
+      // If AI found it too, boost confidence slightly
+      const existing = toolMap.get(k)!
+      if (existing.confidence < 0.95) {
+        existing.confidence = Math.min(0.98, existing.confidence + 0.05)
+      }
+    }
+  }
+
+  return Array.from(toolMap.values()).sort((a, b) => b.confidence - a.confidence)
 }
 
-/* ── Combined: Detect Full Stack with Completeness Controller ── */
+/* ══════════════════════════════════════════════════════════════════
+ * MAIN DETECTION PIPELINE
+ * Hybrid: Pattern Matching → URL Probing → AI with Web Search
+ * → Merge → Maturity Score → Gap Analysis → Recommendations
+ * ══════════════════════════════════════════════════════════════════ */
 export async function detectMartechStack(domain: string): Promise<DetectionResult> {
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY not configured. Add the key to environment variables.')
   }
 
   const cleanDomain = normalizeDomain(domain)
-  console.log(`[MarTech] ═══ Starting ENHANCED detection for ${cleanDomain} ═══`)
+  console.log(`[MarTech] ═══ Starting V3 HYBRID+WEBSEARCH detection for ${cleanDomain} ═══`)
 
-  // Step 1: Multi-page signal collection
-  const signals = await fetchMultiPageSignals(cleanDomain)
-  console.log(`[MarTech] Collected signals from ${signals.pagesScanned} page(s): ${signals.scripts.length} scripts, ${signals.links.length} links, ${signals.metas.length} metas, ${signals.jsonLd.length} JSON-LD, ${signals.iframes.length} iframes, ${signals.dataAttributes.length} data-attrs`)
+  // Step 1: Multi-page signal collection + URL probing (in parallel)
+  const [signals, { probeResults }] = await Promise.all([
+    fetchMultiPageSignals(cleanDomain),
+    probeUrls(cleanDomain),
+  ])
 
-  // Step 2: Primary AI classification
-  const primaryResult = await classifyWithAI(cleanDomain, signals)
-  console.log(`[MarTech] Primary pass: ${primaryResult.tools.length} tools detected`)
+  console.log(`[MarTech] Collected signals from ${signals.pagesScanned} page(s): ${signals.scripts.length} scripts, ${signals.links.length} links, ${signals.metas.length} metas, ${signals.jsonLd.length} JSON-LD`)
+  console.log(`[MarTech] URL probes: ${Object.entries(probeResults).filter(([, v]) => v.exists).map(([k]) => k).join(', ') || 'none responded'}`)
 
-  let totalUsage: DetectionUsage = { ...primaryResult.usage }
-  let allTools = [...primaryResult.tools]
-
-  // Step 3: Completeness validation
-  let completeness = validateCompleteness(cleanDomain, allTools, signals)
-  console.log(`[MarTech] Completeness: ${completeness.score}/100 (${completeness.level})`)
-
-  // Step 4: Deep scan if completeness is low
-  if (completeness.level === 'incomplete' || completeness.level === 'partial') {
-    console.log(`[MarTech] Triggering DEEP SCAN (completeness: ${completeness.level})...`)
-    completeness.diagnostics.push({
-      type: 'info',
-      message: 'Automatic deep scan triggered due to low completeness score'
-    })
-
-    try {
-      const deepResult = await deepScanPass(cleanDomain, signals, primaryResult.tools)
-
-      // Merge usage
-      totalUsage.input_tokens += deepResult.usage.input_tokens
-      totalUsage.output_tokens += deepResult.usage.output_tokens
-
-      if (deepResult.additionalTools.length > 0) {
-        allTools = [...allTools, ...deepResult.additionalTools]
-        completeness.diagnostics.push({
-          type: 'success',
-          message: `Deep scan found ${deepResult.additionalTools.length} additional technologies`
-        })
-        console.log(`[MarTech] Deep scan found ${deepResult.additionalTools.length} additional tools`)
-      }
-
-      if (deepResult.notes) {
-        completeness.diagnostics.push({
-          type: 'info',
-          message: `AI analysis: ${deepResult.notes}`
-        })
-        console.log(`[MarTech] AI notes: ${deepResult.notes}`)
-      }
-
-      // Re-validate completeness with new tools
-      completeness = validateCompleteness(cleanDomain, allTools, signals)
-      // Keep the deep scan diagnostics
-      if (deepResult.additionalTools.length > 0) {
-        completeness.diagnostics.push({
-          type: 'success',
-          message: `Deep scan improved detection: now ${allTools.length} total tools (was ${primaryResult.tools.length})`
-        })
-      }
-    } catch (err) {
-      console.error('[MarTech] Deep scan failed:', err)
-      completeness.diagnostics.push({
-        type: 'error',
-        message: `Deep scan failed: ${err instanceof Error ? err.message : 'Unknown error'}`
-      })
-    }
+  // Step 1.5: Detect bot challenge
+  const fullHtml = signals.headHtml + signals.bodySnippet
+  const challengeCheck = detectBotChallenge(fullHtml, signals.headers)
+  if (challengeCheck.isChallenge) {
+    console.warn(`[MarTech] ⚠ Bot challenge detected: ${challengeCheck.provider}. HTML may be incomplete.`)
   }
 
-  console.log(`[MarTech] ═══ Final: ${allTools.length} tools, completeness ${completeness.score}/100 (${completeness.level}) ═══`)
+  // Step 2: DETERMINISTIC pattern matching (fast, reliable, no API call)
+  const { runPatternMatching } = await import('./patterns')
+  const patternMatches = runPatternMatching({
+    html: fullHtml,
+    headers: signals.headers,
+    scripts: signals.scripts,
+    cookies: signals.cookieHeaders,
+    metas: signals.metas,
+  })
+  const patternTools: DetectedTool[] = patternMatches.map(m => ({
+    category: m.category,
+    tool_name: m.tool_name,
+    tool_version: m.tool_version || null,
+    confidence: m.confidence,
+    details: { evidence: m.evidence, source: 'pattern' },
+  }))
+  console.log(`[MarTech] Pattern matching: ${patternTools.length} tools detected deterministically`)
+
+  // Step 3: URL probe tools
+  const probeTools = toolsFromProbes(probeResults)
+  console.log(`[MarTech] URL probes: ${probeTools.length} additional tools from probing`)
+
+  // Step 4: AI classification WITH WEB SEARCH (the big upgrade)
+  const signalsSummary = buildSignalsSummary(cleanDomain, signals)
+
+  // Add probe results to context
+  const probeContext = Object.entries(probeResults)
+    .filter(([, v]) => v.exists && v.snippet)
+    .map(([label, v]) => `[${label}] ${v.snippet!.slice(0, 500)}`)
+    .join('\n\n')
+
+  // Add pattern matches to context so AI doesn't duplicate
+  const patternContext = patternTools.length > 0
+    ? `\nALREADY DETECTED BY PATTERN MATCHING (${patternTools.length} tools, DO NOT repeat these, focus on finding ADDITIONAL technologies):\n${patternTools.map(t => `- ${t.tool_name} (${t.category})`).join('\n')}`
+    : ''
+
+  // Build the user message
+  const userMessage = `Analyze the martech stack of this website: https://${cleanDomain}
+
+Use web_search to:
+1. Search for "${cleanDomain} technology stack" or "${cleanDomain} built with" on BuiltWith/Wappalyzer/SimilarTech
+2. Search for the company name + "marketing technology" or "tech stack"
+3. Verify any technologies you're uncertain about from the HTML signals
+
+Then combine web search results with the HTML signals I collected below to deliver:
+1. Full technology inventory by category (be EXHAUSTIVE — every pixel, SDK, font, CDN, script)
+2. Maturity Score (0-100) with tier
+3. Gap analysis vs. industry best practice
+4. Prioritized recommendations (3-5)
+${patternContext}
+
+${challengeCheck.isChallenge ? `\n⚠ NOTE: Bot protection (${challengeCheck.provider}) was detected. HTML signals may be incomplete. Rely more on web search for this site.\n` : ''}
+
+URL PROBE RESULTS:
+${probeContext || '(no probe results)'}
+
+COLLECTED HTML SIGNALS:
+${signalsSummary}`
+
+  let aiAnalysis: AIAnalysisResult = {
+    tools: [],
+    maturity_score: 30,
+    maturity_tier: 'Developing',
+    gap_analysis: [],
+    recommendations: [],
+  }
+  let totalUsage: DetectionUsage = { input_tokens: 0, output_tokens: 0 }
+
+  try {
+    console.log(`[MarTech] Calling AI with web_search (sending ~${Math.round(userMessage.length / 1000)}K chars)...`)
+    const { text, usage } = await callAnthropicWithSearch(
+      MARTECH_ANALYST_SYSTEM,
+      userMessage,
+      8192
+    )
+    totalUsage = usage
+    console.log(`[MarTech] AI response received: ${usage.input_tokens} in / ${usage.output_tokens} out tokens`)
+
+    aiAnalysis = parseAIResponse(text)
+    console.log(`[MarTech] AI found: ${aiAnalysis.tools.length} tools, maturity: ${aiAnalysis.maturity_score}/100 (${aiAnalysis.maturity_tier}), ${aiAnalysis.gap_analysis.length} gaps, ${aiAnalysis.recommendations.length} recommendations`)
+  } catch (err) {
+    console.error(`[MarTech] AI analysis failed:`, err instanceof Error ? err.message : err)
+    // Continue with pattern + probe results even if AI fails
+  }
+
+  // Convert AI tools to DetectedTool format
+  const aiTools: DetectedTool[] = aiAnalysis.tools.map(t => ({
+    category: t.category || 'other',
+    tool_name: t.tool_name || 'Unknown',
+    tool_version: t.tool_version || null,
+    confidence: typeof t.confidence === 'number' ? t.confidence : 0.5,
+    details: {
+      ...(t.evidence ? { evidence: t.evidence } : {}),
+      ...(t.sub_category ? { sub_category: t.sub_category } : {}),
+      source: 'ai_websearch',
+    },
+  }))
+
+  // Step 5: Merge all sources
+  const allTools = mergeTools(patternTools, aiTools, probeTools)
+  console.log(`[MarTech] Merged: ${allTools.length} total unique tools`)
+
+  // Step 6: Completeness validation
+  const completeness = validateCompleteness(cleanDomain, allTools, signals)
+
+  // Add detection method breakdown
+  if (challengeCheck.isChallenge) {
+    completeness.diagnostics.unshift({
+      type: 'warning',
+      message: `Bot protection detected (${challengeCheck.provider}). HTML signals may be incomplete — web search compensates for this.`
+    })
+  }
+
+  completeness.diagnostics.push({
+    type: 'info',
+    message: `Detection: ${patternTools.length} pattern + ${probeTools.length} probe + ${aiTools.length} AI/web-search → ${allTools.length} unique after merge`
+  })
+
+  // Use AI maturity score if we have it, otherwise compute from tools
+  let maturityScore = aiAnalysis.maturity_score
+  let maturityTier = aiAnalysis.maturity_tier as DetectionResult['maturityTier']
+
+  // If AI didn't provide a score, compute a basic one
+  if (aiAnalysis.tools.length === 0) {
+    maturityScore = computeFallbackMaturity(allTools)
+    if (maturityScore <= 25) maturityTier = 'Basic'
+    else if (maturityScore <= 50) maturityTier = 'Developing'
+    else if (maturityScore <= 75) maturityTier = 'Advanced'
+    else maturityTier = 'Best-in-Class'
+  }
+
+  // Validate maturity tier matches score
+  if (maturityScore <= 25) maturityTier = 'Basic'
+  else if (maturityScore <= 50) maturityTier = 'Developing'
+  else if (maturityScore <= 75) maturityTier = 'Advanced'
+  else maturityTier = 'Best-in-Class'
+
+  console.log(`[MarTech] ═══ Final: ${allTools.length} tools, maturity ${maturityScore}/100 (${maturityTier}), completeness ${completeness.score}/100 (${completeness.level}) ═══`)
 
   return {
     tools: allTools,
     usage: totalUsage,
     completeness,
+    maturityScore,
+    maturityTier,
+    gapAnalysis: aiAnalysis.gap_analysis,
+    recommendations: aiAnalysis.recommendations.sort((a, b) => a.priority - b.priority),
   }
+}
+
+/* ── Fallback maturity score computation ── */
+function computeFallbackMaturity(tools: DetectedTool[]): number {
+  let score = 0
+  const cats = new Set(tools.map(t => t.category))
+
+  // Basic presence scores
+  if (cats.has('analytics') || cats.has('tag_manager')) score += 15
+  if (cats.has('cms') || cats.has('ecommerce') || cats.has('frontend_framework')) score += 10
+  if (cats.has('cdn') || cats.has('hosting')) score += 8
+  if (cats.has('seo')) score += 8
+  if (cats.has('consent_management')) score += 10
+  if (cats.has('ad_platforms')) score += 7
+  if (cats.has('security')) score += 5
+
+  // Sophistication bonuses
+  if (cats.has('customer_data')) score += 10  // CDP
+  if (cats.has('ab_testing') || cats.has('personalization')) score += 10 // Testing/personalization
+  if (cats.has('session_recording')) score += 5
+  if (cats.has('marketing_automation') || cats.has('crm')) score += 7
+  if (cats.has('error_monitoring') || cats.has('performance')) score += 5
+
+  return Math.min(100, score)
 }
