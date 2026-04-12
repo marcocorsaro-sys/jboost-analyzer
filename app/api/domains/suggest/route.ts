@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const COMMON_TLDS = ['.com', '.it', '.co.uk', '.org']
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: NextRequest) {
   try {
     const supabase = await createClient()
