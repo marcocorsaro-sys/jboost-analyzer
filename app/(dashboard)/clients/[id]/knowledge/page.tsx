@@ -309,25 +309,51 @@ export default function ClientKnowledgePage() {
             }
           </p>
         </div>
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className={cn(
-            'px-4 py-2 rounded-lg border-none text-[13px] font-bold font-mono whitespace-nowrap',
-            uploading
-              ? 'bg-border text-gray-500 cursor-not-allowed'
-              : 'bg-primary text-background cursor-pointer'
+        <div className="flex gap-2 items-start">
+          {files.length > 0 && files.some(f => f.extraction_status !== 'completed' && f.extraction_status !== 'unsupported') && (
+            <button
+              type="button"
+              onClick={async () => {
+                setError(null)
+                const res = await fetch(`/api/clients/${clientId}/files/extract-all`, { method: 'POST' })
+                const data = await res.json().catch(() => ({}))
+                if (!res.ok) {
+                  setError(data.error || 'extract-all failed')
+                  return
+                }
+                console.log('[extract-all]', data)
+                alert(
+                  `Extract-all: ${data.succeeded} ok · ${data.failed} failed · ` +
+                  `${data.unsupported} unsupported · ${data.skipped} skipped`
+                )
+                await loadFiles()
+              }}
+              className="px-4 py-2 rounded-lg border border-primary/40 bg-primary/[0.08] text-primary text-[12px] font-bold font-mono whitespace-nowrap cursor-pointer"
+              title="Estrae il testo da tutti i file non ancora processati"
+            >
+              ⚡ Extract all
+            </button>
+          )}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className={cn(
+              'px-4 py-2 rounded-lg border-none text-[13px] font-bold font-mono whitespace-nowrap',
+              uploading
+                ? 'bg-border text-gray-500 cursor-not-allowed'
+                : 'bg-primary text-background cursor-pointer'
           )}
         >
           {uploading ? t('knowledge.uploading') : t('knowledge.uploadButton')}
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={(e) => handleUpload(e.target.files)}
-        />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(e) => handleUpload(e.target.files)}
+          />
+        </div>
       </div>
 
       {/* Drop Zone */}
