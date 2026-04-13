@@ -157,6 +157,124 @@ export interface MemoryProfile {
     report_frequency?: string
     preferred_contact?: string
   }
+
+  // ─── Phase 5D — Onboarding seed (all optional, backward-compatible) ───
+  // Populated by the structured onboarding wizard + discovery chat.
+  // These sections become the first authoritative "user_answer" source
+  // for a new client, so the memory synthesizer has real context from
+  // day 1 instead of waiting for SEO analyses / uploaded files to arrive.
+
+  brand?: {
+    legal_name?: string
+    tagline?: string
+    uvp?: string
+    mission?: string
+    values?: string[]
+    voice?: string
+    tone?: string
+    do_not_say?: string[]
+  }
+
+  markets?: {
+    primary_regions?: string[]
+    secondary_regions?: string[]
+    languages?: string[]
+    b2b_b2c?: 'b2b' | 'b2c' | 'b2b2c' | 'mixed'
+    icp?: string
+    personas?: Array<{
+      name: string
+      description: string
+      pain_points?: string[]
+    }>
+  }
+
+  // Extended stakeholder directory. `team_contacts` stays for legacy
+  // LLM-extracted contacts; `stakeholders` is the structured onboarding
+  // version with department + decision-maker flags.
+  stakeholders?: Array<{
+    name: string
+    role: string
+    department?: 'c_level' | 'marketing' | 'content' | 'technical' | 'legal' | 'agency'
+    email?: string
+    phone?: string
+    is_decision_maker?: boolean
+    approval_scope?: string
+  }>
+
+  access?: {
+    cms?: { platform?: string; credentials_location?: string }
+    analytics?: { ga4_property_id?: string; gsc_verified?: boolean }
+    seo_tools?: { semrush?: boolean; ahrefs?: boolean; notes?: string }
+    asset_repos?: string[]
+    brand_guidelines_url?: string
+  }
+
+  seo_foundation?: {
+    maturity_level?: 'none' | 'basic' | 'intermediate' | 'advanced'
+    priority_keywords?: string[]
+    priority_topics?: string[]
+    priority_pages?: string[]
+    current_issues?: string[]
+    historical_context?: string
+  }
+
+  // Generative Engine Optimization — visibility on ChatGPT, Perplexity,
+  // Google AI Overviews, Gemini, Claude, Copilot. Paired with the
+  // existing "AI Relevance" SEO driver.
+  geo?: {
+    target_engines?: Array<
+      'chatgpt' | 'perplexity' | 'claude' | 'google_aio' | 'gemini' | 'copilot'
+    >
+    entity_status?: {
+      wikipedia?: boolean
+      knowledge_panel?: boolean
+      llms_txt?: boolean
+    }
+    schema_maturity?: 'none' | 'basic' | 'advanced'
+    eeat_signals?: string[]
+    author_entities?: Array<{ name: string; credentials?: string }>
+    current_mentions?: string
+    geo_goals?: string[]
+  }
+
+  content_strategy?: {
+    pillars?: string[]
+    topic_clusters?: string[]
+    editorial_calendar_url?: string
+    formats?: string[]
+    publishing_cadence?: string
+    multilingual?: boolean
+    distribution_channels?: string[]
+    content_inventory_size?: string
+  }
+
+  goals_kpis?: {
+    short_term?: string[]   // 90 days
+    medium_term?: string[]  // 6 months
+    long_term?: string[]    // 12 months+
+    primary_kpi?: string
+    baselines?: Record<string, string>
+    success_criteria?: string
+  }
+
+  compliance?: {
+    regulations?: string[]
+    approval_workflow?: string
+    embargo_topics?: string[]
+    legal_review_required?: boolean
+    trademark_notes?: string
+  }
+
+  onboarding?: {
+    version: number
+    status: 'not_started' | 'in_progress' | 'completed'
+    completed_sections: string[]
+    skipped_fields: string[]
+    last_section?: string
+    started_at?: string
+    completed_at?: string
+    discovery_chat_completed?: boolean
+  }
 }
 
 export type MemoryFactCategory =
@@ -198,6 +316,19 @@ export type MemoryGapCategory =
   // which one is correct?", produced by the synthesizer when it detects
   // a conflict instead of silently picking a side.
   | 'conflict_resolution'
+  // Phase 5D — Onboarding-driven gap categories. These surface when the
+  // user skipped a field in the structured onboarding wizard or when the
+  // synthesizer notices a missing piece inside one of the new profile
+  // sections (brand voice, markets, stakeholder decision chain, tool
+  // access, SEO baseline, Generative Engine Optimization targets,
+  // regulatory constraints).
+  | 'brand'
+  | 'markets'
+  | 'stakeholders'
+  | 'access'
+  | 'seo_foundation'
+  | 'geo'
+  | 'compliance'
 
 export interface MemoryGap {
   id: string

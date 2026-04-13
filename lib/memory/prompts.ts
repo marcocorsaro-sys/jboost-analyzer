@@ -55,6 +55,192 @@ export const MEMORY_SYNTHESIS_SCHEMA = {
             preferred_contact: { type: 'string' as const },
           },
         },
+        // Phase 5D — onboarding seed sections (optional)
+        brand: {
+          type: 'object' as const,
+          properties: {
+            legal_name: { type: 'string' as const },
+            tagline: { type: 'string' as const },
+            uvp: { type: 'string' as const },
+            mission: { type: 'string' as const },
+            values: { type: 'array' as const, items: { type: 'string' as const } },
+            voice: { type: 'string' as const },
+            tone: { type: 'string' as const },
+            do_not_say: { type: 'array' as const, items: { type: 'string' as const } },
+          },
+        },
+        markets: {
+          type: 'object' as const,
+          properties: {
+            primary_regions: { type: 'array' as const, items: { type: 'string' as const } },
+            secondary_regions: { type: 'array' as const, items: { type: 'string' as const } },
+            languages: { type: 'array' as const, items: { type: 'string' as const } },
+            b2b_b2c: { type: 'string' as const, enum: ['b2b', 'b2c', 'b2b2c', 'mixed'] },
+            icp: { type: 'string' as const },
+            personas: {
+              type: 'array' as const,
+              items: {
+                type: 'object' as const,
+                properties: {
+                  name: { type: 'string' as const },
+                  description: { type: 'string' as const },
+                  pain_points: { type: 'array' as const, items: { type: 'string' as const } },
+                },
+                required: ['name', 'description'],
+              },
+            },
+          },
+        },
+        stakeholders: {
+          type: 'array' as const,
+          items: {
+            type: 'object' as const,
+            properties: {
+              name: { type: 'string' as const },
+              role: { type: 'string' as const },
+              department: {
+                type: 'string' as const,
+                enum: ['c_level', 'marketing', 'content', 'technical', 'legal', 'agency'],
+              },
+              email: { type: 'string' as const },
+              phone: { type: 'string' as const },
+              is_decision_maker: { type: 'boolean' as const },
+              approval_scope: { type: 'string' as const },
+            },
+            required: ['name', 'role'],
+          },
+        },
+        access: {
+          type: 'object' as const,
+          properties: {
+            cms: {
+              type: 'object' as const,
+              properties: {
+                platform: { type: 'string' as const },
+                credentials_location: { type: 'string' as const },
+              },
+            },
+            analytics: {
+              type: 'object' as const,
+              properties: {
+                ga4_property_id: { type: 'string' as const },
+                gsc_verified: { type: 'boolean' as const },
+              },
+            },
+            seo_tools: {
+              type: 'object' as const,
+              properties: {
+                semrush: { type: 'boolean' as const },
+                ahrefs: { type: 'boolean' as const },
+                notes: { type: 'string' as const },
+              },
+            },
+            asset_repos: { type: 'array' as const, items: { type: 'string' as const } },
+            brand_guidelines_url: { type: 'string' as const },
+          },
+        },
+        seo_foundation: {
+          type: 'object' as const,
+          properties: {
+            maturity_level: {
+              type: 'string' as const,
+              enum: ['none', 'basic', 'intermediate', 'advanced'],
+            },
+            priority_keywords: { type: 'array' as const, items: { type: 'string' as const } },
+            priority_topics: { type: 'array' as const, items: { type: 'string' as const } },
+            priority_pages: { type: 'array' as const, items: { type: 'string' as const } },
+            current_issues: { type: 'array' as const, items: { type: 'string' as const } },
+            historical_context: { type: 'string' as const },
+          },
+        },
+        geo: {
+          type: 'object' as const,
+          properties: {
+            target_engines: {
+              type: 'array' as const,
+              items: {
+                type: 'string' as const,
+                enum: ['chatgpt', 'perplexity', 'claude', 'google_aio', 'gemini', 'copilot'],
+              },
+            },
+            entity_status: {
+              type: 'object' as const,
+              properties: {
+                wikipedia: { type: 'boolean' as const },
+                knowledge_panel: { type: 'boolean' as const },
+                llms_txt: { type: 'boolean' as const },
+              },
+            },
+            schema_maturity: {
+              type: 'string' as const,
+              enum: ['none', 'basic', 'advanced'],
+            },
+            eeat_signals: { type: 'array' as const, items: { type: 'string' as const } },
+            author_entities: {
+              type: 'array' as const,
+              items: {
+                type: 'object' as const,
+                properties: {
+                  name: { type: 'string' as const },
+                  credentials: { type: 'string' as const },
+                },
+                required: ['name'],
+              },
+            },
+            current_mentions: { type: 'string' as const },
+            geo_goals: { type: 'array' as const, items: { type: 'string' as const } },
+          },
+        },
+        content_strategy: {
+          type: 'object' as const,
+          properties: {
+            pillars: { type: 'array' as const, items: { type: 'string' as const } },
+            topic_clusters: { type: 'array' as const, items: { type: 'string' as const } },
+            editorial_calendar_url: { type: 'string' as const },
+            formats: { type: 'array' as const, items: { type: 'string' as const } },
+            publishing_cadence: { type: 'string' as const },
+            multilingual: { type: 'boolean' as const },
+            distribution_channels: { type: 'array' as const, items: { type: 'string' as const } },
+            content_inventory_size: { type: 'string' as const },
+          },
+        },
+        goals_kpis: {
+          type: 'object' as const,
+          properties: {
+            short_term: { type: 'array' as const, items: { type: 'string' as const } },
+            medium_term: { type: 'array' as const, items: { type: 'string' as const } },
+            long_term: { type: 'array' as const, items: { type: 'string' as const } },
+            primary_kpi: { type: 'string' as const },
+            baselines: { type: 'object' as const },
+            success_criteria: { type: 'string' as const },
+          },
+        },
+        compliance: {
+          type: 'object' as const,
+          properties: {
+            regulations: { type: 'array' as const, items: { type: 'string' as const } },
+            approval_workflow: { type: 'string' as const },
+            embargo_topics: { type: 'array' as const, items: { type: 'string' as const } },
+            legal_review_required: { type: 'boolean' as const },
+            trademark_notes: { type: 'string' as const },
+          },
+        },
+        onboarding: {
+          type: 'object' as const,
+          properties: {
+            version: { type: 'number' as const },
+            status: {
+              type: 'string' as const,
+              enum: ['not_started', 'in_progress', 'completed'],
+            },
+            completed_sections: { type: 'array' as const, items: { type: 'string' as const } },
+            skipped_fields: { type: 'array' as const, items: { type: 'string' as const } },
+            last_section: { type: 'string' as const },
+            started_at: { type: 'string' as const },
+            completed_at: { type: 'string' as const },
+            discovery_chat_completed: { type: 'boolean' as const },
+          },
+        },
       },
       required: ['company_name'],
     },
@@ -90,7 +276,14 @@ export const MEMORY_SYNTHESIS_SCHEMA = {
           id: { type: 'string' as const },
           category: {
             type: 'string' as const,
-            enum: ['business', 'team', 'technical', 'goals', 'budget', 'timeline', 'competitor', 'content_strategy', 'tools'],
+            enum: [
+              'business', 'team', 'technical', 'goals',
+              'budget', 'timeline', 'competitor', 'content_strategy', 'tools',
+              'conflict_resolution',
+              // Phase 5D — onboarding-driven gap categories
+              'brand', 'markets', 'stakeholders', 'access',
+              'seo_foundation', 'geo', 'compliance',
+            ],
           },
           question: { type: 'string' as const },
           importance: { type: 'string' as const, enum: ['high', 'medium', 'low'] },
@@ -135,7 +328,7 @@ Il tuo compito e' consolidare TUTTE le informazioni disponibili su un cliente in
 
 3. **Gaps**: Identifica le informazioni MANCANTI o CONTRADDITTORIE che impedirebbero di dare consigli operativi.
    - Assegna un ID (gap_001, gap_002, ...)
-   - Categorie: business, team, technical, goals, budget, timeline, competitor, content_strategy, tools, **conflict_resolution**
+   - Categorie: business, team, technical, goals, budget, timeline, competitor, content_strategy, tools, **conflict_resolution**, **brand**, **markets**, **stakeholders**, **access**, **seo_foundation**, **geo**, **compliance**
    - **conflict_resolution**: usa questa categoria quando vedi due fonti dare valori diversi sullo stesso topic. Esempi:
        * "Nel documento X il budget e' 50k, nella conversazione Z hai detto 100k. Qual e' il valore corretto per il prossimo trimestre?"
        * "L'analisi SEO mostra dominio.it ma il sito principale del cliente sembra essere dominio.com. Quale dei due e' la propriet&agrave; ufficiale?"
@@ -156,6 +349,16 @@ Il tuo compito e' consolidare TUTTE le informazioni disponibili su un cliente in
    - Stack tecnologico: 10%
    - Strategia contenuti: 10%
    Se ci sono conflict_resolution gap aperti, sottrai 5% dalla completeness per ogni conflitto (la memoria ha dati, ma sono in disaccordo, quindi e' meno utilizzabile).
+
+### ONBOARDING SEED (Phase 5D):
+Quando nei dati del cliente trovi una sezione **ONBOARDING PROFILE** (con campi come brand.voice, markets.icp, stakeholders[], access.*, seo_foundation.*, geo.*, content_strategy.*, goals_kpis.*, compliance.*), trattala come **fonte autoritativa primaria** — equivalente a user_answer. Copiala fedelmente nel profile in output (preservando TUTTE le sezioni anche quando parzialmente compilate) e genera fatti atomici con source='user_answer' e confidence 0.95+.
+
+Per ogni campo vuoto dentro le sezioni onboarding, NON generare fatti; ma SE il campo e' importante per operare (es. priority_keywords vuoti in seo_foundation, target_engines vuoti in geo, stakeholders senza decision_maker), genera un gap nella categoria appropriata (brand, markets, stakeholders, access, seo_foundation, geo, compliance) con importance='high' o 'medium'.
+
+Il blocco profile.onboarding.status dice a che punto e' il processo:
+- not_started: nessun seed, genera solo gap generici
+- in_progress: seed parziale, prioritizza gap nelle sezioni con piu' campi vuoti
+- completed: seed completo, i gap devono nascere solo da contraddizioni o evoluzioni (es. nuove analisi SEO che smentiscono l'onboarding)
 
 ### REGOLE IMPORTANTI:
 - Le RISPOSTE UTENTE (source: user_answer) sono AUTORITATIVE: hanno sempre la precedenza su altre fonti.

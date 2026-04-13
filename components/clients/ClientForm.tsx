@@ -85,7 +85,14 @@ export default function ClientForm({ initialData, clientId, mode }: ClientFormPr
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to save client')
 
-      router.push(mode === 'create' ? `/clients/${data.client.id}` : `/clients/${clientId}`)
+      // Phase 5D — after a fresh create, jump straight into the
+      // structured onboarding wizard. Edits still return to the
+      // client detail page.
+      router.push(
+        mode === 'create'
+          ? `/clients/${data.client.id}/onboarding?from=create`
+          : `/clients/${clientId}`
+      )
       router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')

@@ -72,11 +72,139 @@ const GapSchema = z.object({
     'business', 'team', 'technical', 'goals',
     'budget', 'timeline', 'competitor', 'content_strategy', 'tools',
     'conflict_resolution',
+    // Phase 5D — onboarding-driven categories
+    'brand', 'markets', 'stakeholders', 'access',
+    'seo_foundation', 'geo', 'compliance',
   ]),
   question: z.string(),
   importance: z.enum(['high', 'medium', 'low']),
   context: z.string(),
 })
+
+// ─── Phase 5D onboarding sub-schemas ────────────────────────────────────
+// All fields are optional so LLM output for clients that haven't gone
+// through the onboarding wizard yet is still valid.
+
+const BrandSchema = z.object({
+  legal_name: z.string().optional(),
+  tagline: z.string().optional(),
+  uvp: z.string().optional(),
+  mission: z.string().optional(),
+  values: z.array(z.string()).optional(),
+  voice: z.string().optional(),
+  tone: z.string().optional(),
+  do_not_say: z.array(z.string()).optional(),
+}).optional()
+
+const MarketsSchema = z.object({
+  primary_regions: z.array(z.string()).optional(),
+  secondary_regions: z.array(z.string()).optional(),
+  languages: z.array(z.string()).optional(),
+  b2b_b2c: z.enum(['b2b', 'b2c', 'b2b2c', 'mixed']).optional(),
+  icp: z.string().optional(),
+  personas: z.array(z.object({
+    name: z.string(),
+    description: z.string(),
+    pain_points: z.array(z.string()).optional(),
+  })).optional(),
+}).optional()
+
+const StakeholdersSchema = z.array(z.object({
+  name: z.string(),
+  role: z.string(),
+  department: z.enum([
+    'c_level', 'marketing', 'content', 'technical', 'legal', 'agency',
+  ]).optional(),
+  email: z.string().optional(),
+  phone: z.string().optional(),
+  is_decision_maker: z.boolean().optional(),
+  approval_scope: z.string().optional(),
+})).optional()
+
+const AccessSchema = z.object({
+  cms: z.object({
+    platform: z.string().optional(),
+    credentials_location: z.string().optional(),
+  }).optional(),
+  analytics: z.object({
+    ga4_property_id: z.string().optional(),
+    gsc_verified: z.boolean().optional(),
+  }).optional(),
+  seo_tools: z.object({
+    semrush: z.boolean().optional(),
+    ahrefs: z.boolean().optional(),
+    notes: z.string().optional(),
+  }).optional(),
+  asset_repos: z.array(z.string()).optional(),
+  brand_guidelines_url: z.string().optional(),
+}).optional()
+
+const SeoFoundationSchema = z.object({
+  maturity_level: z.enum(['none', 'basic', 'intermediate', 'advanced']).optional(),
+  priority_keywords: z.array(z.string()).optional(),
+  priority_topics: z.array(z.string()).optional(),
+  priority_pages: z.array(z.string()).optional(),
+  current_issues: z.array(z.string()).optional(),
+  historical_context: z.string().optional(),
+}).optional()
+
+const GeoSchema = z.object({
+  target_engines: z.array(z.enum([
+    'chatgpt', 'perplexity', 'claude', 'google_aio', 'gemini', 'copilot',
+  ])).optional(),
+  entity_status: z.object({
+    wikipedia: z.boolean().optional(),
+    knowledge_panel: z.boolean().optional(),
+    llms_txt: z.boolean().optional(),
+  }).optional(),
+  schema_maturity: z.enum(['none', 'basic', 'advanced']).optional(),
+  eeat_signals: z.array(z.string()).optional(),
+  author_entities: z.array(z.object({
+    name: z.string(),
+    credentials: z.string().optional(),
+  })).optional(),
+  current_mentions: z.string().optional(),
+  geo_goals: z.array(z.string()).optional(),
+}).optional()
+
+const ContentStrategySchema = z.object({
+  pillars: z.array(z.string()).optional(),
+  topic_clusters: z.array(z.string()).optional(),
+  editorial_calendar_url: z.string().optional(),
+  formats: z.array(z.string()).optional(),
+  publishing_cadence: z.string().optional(),
+  multilingual: z.boolean().optional(),
+  distribution_channels: z.array(z.string()).optional(),
+  content_inventory_size: z.string().optional(),
+}).optional()
+
+const GoalsKpisSchema = z.object({
+  short_term: z.array(z.string()).optional(),
+  medium_term: z.array(z.string()).optional(),
+  long_term: z.array(z.string()).optional(),
+  primary_kpi: z.string().optional(),
+  baselines: z.record(z.string()).optional(),
+  success_criteria: z.string().optional(),
+}).optional()
+
+const ComplianceSchema = z.object({
+  regulations: z.array(z.string()).optional(),
+  approval_workflow: z.string().optional(),
+  embargo_topics: z.array(z.string()).optional(),
+  legal_review_required: z.boolean().optional(),
+  trademark_notes: z.string().optional(),
+}).optional()
+
+const OnboardingStateSchema = z.object({
+  version: z.number(),
+  status: z.enum(['not_started', 'in_progress', 'completed']),
+  completed_sections: z.array(z.string()),
+  skipped_fields: z.array(z.string()),
+  last_section: z.string().optional(),
+  started_at: z.string().optional(),
+  completed_at: z.string().optional(),
+  discovery_chat_completed: z.boolean().optional(),
+}).optional()
 
 const ProfileSchema = z.object({
   company_name: z.string().optional(),
@@ -109,6 +237,18 @@ const ProfileSchema = z.object({
     report_frequency: z.string().optional(),
     preferred_contact: z.string().optional(),
   }).optional(),
+
+  // Phase 5D — onboarding seed sections (all optional)
+  brand: BrandSchema,
+  markets: MarketsSchema,
+  stakeholders: StakeholdersSchema,
+  access: AccessSchema,
+  seo_foundation: SeoFoundationSchema,
+  geo: GeoSchema,
+  content_strategy: ContentStrategySchema,
+  goals_kpis: GoalsKpisSchema,
+  compliance: ComplianceSchema,
+  onboarding: OnboardingStateSchema,
 })
 
 const FullMemorySchema = z.object({
@@ -257,7 +397,7 @@ export async function refreshClientMemory(
   // ─── 1. Look up existing memory (if any) ─────────────────────────────
   const { data: existing, error: lookupError } = await supabase
     .from('client_memory')
-    .select('id, status, last_refreshed_at, source_versions, facts, answers')
+    .select('id, status, last_refreshed_at, source_versions, facts, answers, profile')
     .eq('client_id', clientId)
     .maybeSingle()
 
@@ -292,6 +432,8 @@ export async function refreshClientMemory(
     (existing?.answers as MemoryAnswer[]) || []
   const existingFacts: MemoryFact[] =
     (existing?.facts as MemoryFact[]) || []
+  const existingProfile: MemoryProfile | null =
+    (existing?.profile as MemoryProfile) || null
   const existingSourceVersions: Record<string, unknown> | null = existing
     ? ((existing.source_versions as Record<string, unknown>) || {})
     : null
@@ -322,7 +464,14 @@ export async function refreshClientMemory(
 
   try {
     // ─── 4. Assemble all data sources ──────────────────────────────────
-    const assembled = await assembleClientData(clientId, supabase, existingAnswers)
+    // Pass the existing profile so the onboarding seed sections (Phase 5D)
+    // survive every refresh as an authoritative source.
+    const assembled = await assembleClientData(
+      clientId,
+      supabase,
+      existingAnswers,
+      existingProfile,
+    )
     log.info(clientId, `assembled sources`, {
       chars: assembled.inputText.length,
       sources: Object.keys(assembled.sourceVersions),
