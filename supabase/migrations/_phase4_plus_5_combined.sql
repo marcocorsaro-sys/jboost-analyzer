@@ -1,9 +1,12 @@
 -- ============================================================================
--- JBoost Analyzer — Phase 4 + Phase 5 COMBINED one-shot bundle
+-- JBoost Analyzer — Phase 4 + Phase 5 + Phase 5B COMBINED one-shot bundle
 -- Run this whole file in Supabase Studio → SQL Editor → New query → Run.
--- Idempotent + transactional inside each phase. Safe to re-run.
--- NOTE: uses public.jboost_is_admin() to avoid collision with any
--- pre-existing public.is_admin() function in the target database.
+-- Idempotent + transactional. Safe to re-run.
+-- 
+-- Includes the Phase 5B robustness backfill: pre-creates client_memory
+-- placeholder rows for every existing client and assigns a fallback owner
+-- to any orphaned client (a client with no row in client_members).
+-- This fixes the Benetton-style "Not initialized" symptom.
 -- ============================================================================
 
 -- ============================================================================
@@ -593,6 +596,55 @@ BEGIN
     ';
   END IF;
 END $$;
+
+
+-- ============================================================================
+-- PHASE 5B — Memory robustness backfill (added by hotfix)
+-- Promotes a fallback owner for orphaned clients + pre-creates client_memory
+-- placeholder rows so the first refresh always finds a row to UPDATE.
+-- ============================================================================
+
+DO $$
+DECLARE
+  fallback_owner UUID;
+BEGIN
+  SELECT id INTO fallback_owner
+  FROM public.profiles
+  WHERE role = 'admin' AND is_active = TRUE
+  ORDER BY created_at ASC
+  LIMIT 1;
+
+  IF fallback_owner IS NULL THEN
+    SELECT id INTO fallback_owner
+    FROM public.profiles
+    WHERE is_active = TRUE
+    ORDER BY created_at ASC
+    LIMIT 1;
+  END IF;
+
+  IF fallback_owner IS NULL THEN
+    SELECT id INTO fallback_owner
+    FROM auth.users
+    ORDER BY created_at ASC
+    LIMIT 1;
+  END IF;
+
+  IF fallback_owner IS NOT NULL THEN
+    INSERT INTO public.client_members (client_id, user_id, role, added_by)
+    SELECT c.id, fallback_owner, 'owner', fallback_owner
+    FROM public.clients c
+    LEFT JOIN public.client_members m
+      ON m.client_id = c.id AND m.role = 'owner'
+    WHERE m.id IS NULL
+    ON CONFLICT (client_id, user_id) DO NOTHING;
+  END IF;
+END $$;
+
+INSERT INTO public.client_memory (client_id, status)
+SELECT id, 'empty'
+FROM public.clients
+ON CONFLICT (client_id) DO NOTHING;
+
 
 COMMIT;
 
