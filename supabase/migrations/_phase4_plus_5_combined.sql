@@ -2,6 +2,8 @@
 -- JBoost Analyzer — Phase 4 + Phase 5 COMBINED one-shot bundle
 -- Run this whole file in Supabase Studio → SQL Editor → New query → Run.
 -- Idempotent + transactional inside each phase. Safe to re-run.
+-- NOTE: uses public.jboost_is_admin() to avoid collision with any
+-- pre-existing public.is_admin() function in the target database.
 -- ============================================================================
 
 -- ============================================================================
@@ -32,7 +34,7 @@ BEGIN;
 -- 1/4 — phase4a: enable multi-tenant RLS on clients via client_members
 -- ============================================================================
 
-CREATE OR REPLACE FUNCTION public.is_admin(p_user_id UUID DEFAULT auth.uid())
+CREATE OR REPLACE FUNCTION public.jboost_is_admin(p_user_id UUID DEFAULT auth.uid())
 RETURNS BOOLEAN
 LANGUAGE sql
 STABLE
@@ -45,7 +47,7 @@ AS $fn$
   );
 $fn$;
 
-GRANT EXECUTE ON FUNCTION public.is_admin(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.jboost_is_admin(UUID) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.clients_register_owner_member()
 RETURNS TRIGGER
@@ -94,31 +96,31 @@ CREATE POLICY "clients_select"
   ON public.clients FOR SELECT
   TO authenticated
   USING (
-    public.user_has_client_access(id) OR public.is_admin()
+    public.user_has_client_access(id) OR public.jboost_is_admin()
   );
 
 CREATE POLICY "clients_insert"
   ON public.clients FOR INSERT
   TO authenticated
   WITH CHECK (
-    user_id = auth.uid() OR public.is_admin()
+    user_id = auth.uid() OR public.jboost_is_admin()
   );
 
 CREATE POLICY "clients_update"
   ON public.clients FOR UPDATE
   TO authenticated
   USING (
-    public.user_can_edit_client(id) OR public.is_admin()
+    public.user_can_edit_client(id) OR public.jboost_is_admin()
   )
   WITH CHECK (
-    public.user_can_edit_client(id) OR public.is_admin()
+    public.user_can_edit_client(id) OR public.jboost_is_admin()
   );
 
 CREATE POLICY "clients_delete"
   ON public.clients FOR DELETE
   TO authenticated
   USING (
-    public.user_is_client_owner(id) OR public.is_admin()
+    public.user_is_client_owner(id) OR public.jboost_is_admin()
   );
 
 -- ============================================================================
@@ -224,23 +226,23 @@ ALTER TABLE public.client_update_subscriptions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "subs_select"
   ON public.client_update_subscriptions FOR SELECT
   TO authenticated
-  USING (public.user_has_client_access(client_id) OR public.is_admin());
+  USING (public.user_has_client_access(client_id) OR public.jboost_is_admin());
 
 CREATE POLICY "subs_insert"
   ON public.client_update_subscriptions FOR INSERT
   TO authenticated
-  WITH CHECK (public.user_can_edit_client(client_id) OR public.is_admin());
+  WITH CHECK (public.user_can_edit_client(client_id) OR public.jboost_is_admin());
 
 CREATE POLICY "subs_update"
   ON public.client_update_subscriptions FOR UPDATE
   TO authenticated
-  USING (public.user_can_edit_client(client_id) OR public.is_admin())
-  WITH CHECK (public.user_can_edit_client(client_id) OR public.is_admin());
+  USING (public.user_can_edit_client(client_id) OR public.jboost_is_admin())
+  WITH CHECK (public.user_can_edit_client(client_id) OR public.jboost_is_admin());
 
 CREATE POLICY "subs_delete"
   ON public.client_update_subscriptions FOR DELETE
   TO authenticated
-  USING (public.user_is_client_owner(client_id) OR public.is_admin());
+  USING (public.user_is_client_owner(client_id) OR public.jboost_is_admin());
 
 -- ============================================================================
 -- 4/4 — phase4e: bullet-proof guardrails (last owner / last admin)
@@ -450,23 +452,23 @@ DROP POLICY IF EXISTS "client_memory_delete" ON public.client_memory;
 CREATE POLICY "client_memory_select"
   ON public.client_memory FOR SELECT
   TO authenticated
-  USING (public.user_has_client_access(client_id) OR public.is_admin());
+  USING (public.user_has_client_access(client_id) OR public.jboost_is_admin());
 
 CREATE POLICY "client_memory_insert"
   ON public.client_memory FOR INSERT
   TO authenticated
-  WITH CHECK (public.user_can_edit_client(client_id) OR public.is_admin());
+  WITH CHECK (public.user_can_edit_client(client_id) OR public.jboost_is_admin());
 
 CREATE POLICY "client_memory_update"
   ON public.client_memory FOR UPDATE
   TO authenticated
-  USING (public.user_can_edit_client(client_id) OR public.is_admin())
-  WITH CHECK (public.user_can_edit_client(client_id) OR public.is_admin());
+  USING (public.user_can_edit_client(client_id) OR public.jboost_is_admin())
+  WITH CHECK (public.user_can_edit_client(client_id) OR public.jboost_is_admin());
 
 CREATE POLICY "client_memory_delete"
   ON public.client_memory FOR DELETE
   TO authenticated
-  USING (public.user_is_client_owner(client_id) OR public.is_admin());
+  USING (public.user_is_client_owner(client_id) OR public.jboost_is_admin());
 
 -- client_memory_facts_history: append-only fact audit log
 CREATE TABLE IF NOT EXISTS public.client_memory_facts_history (
@@ -489,7 +491,7 @@ DROP POLICY IF EXISTS "facts_history_select" ON public.client_memory_facts_histo
 CREATE POLICY "facts_history_select"
   ON public.client_memory_facts_history FOR SELECT
   TO authenticated
-  USING (public.user_has_client_access(client_id) OR public.is_admin());
+  USING (public.user_has_client_access(client_id) OR public.jboost_is_admin());
 
 -- Auto-stale marker helper + triggers
 CREATE OR REPLACE FUNCTION public.mark_client_memory_stale(p_client_id UUID)

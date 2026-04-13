@@ -26,7 +26,7 @@ BEGIN;
 -- 1/4 — phase4a: enable multi-tenant RLS on clients via client_members
 -- ============================================================================
 
-CREATE OR REPLACE FUNCTION public.is_admin(p_user_id UUID DEFAULT auth.uid())
+CREATE OR REPLACE FUNCTION public.jboost_is_admin(p_user_id UUID DEFAULT auth.uid())
 RETURNS BOOLEAN
 LANGUAGE sql
 STABLE
@@ -39,7 +39,7 @@ AS $fn$
   );
 $fn$;
 
-GRANT EXECUTE ON FUNCTION public.is_admin(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.jboost_is_admin(UUID) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.clients_register_owner_member()
 RETURNS TRIGGER
@@ -88,31 +88,31 @@ CREATE POLICY "clients_select"
   ON public.clients FOR SELECT
   TO authenticated
   USING (
-    public.user_has_client_access(id) OR public.is_admin()
+    public.user_has_client_access(id) OR public.jboost_is_admin()
   );
 
 CREATE POLICY "clients_insert"
   ON public.clients FOR INSERT
   TO authenticated
   WITH CHECK (
-    user_id = auth.uid() OR public.is_admin()
+    user_id = auth.uid() OR public.jboost_is_admin()
   );
 
 CREATE POLICY "clients_update"
   ON public.clients FOR UPDATE
   TO authenticated
   USING (
-    public.user_can_edit_client(id) OR public.is_admin()
+    public.user_can_edit_client(id) OR public.jboost_is_admin()
   )
   WITH CHECK (
-    public.user_can_edit_client(id) OR public.is_admin()
+    public.user_can_edit_client(id) OR public.jboost_is_admin()
   );
 
 CREATE POLICY "clients_delete"
   ON public.clients FOR DELETE
   TO authenticated
   USING (
-    public.user_is_client_owner(id) OR public.is_admin()
+    public.user_is_client_owner(id) OR public.jboost_is_admin()
   );
 
 -- ============================================================================
@@ -218,23 +218,23 @@ ALTER TABLE public.client_update_subscriptions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "subs_select"
   ON public.client_update_subscriptions FOR SELECT
   TO authenticated
-  USING (public.user_has_client_access(client_id) OR public.is_admin());
+  USING (public.user_has_client_access(client_id) OR public.jboost_is_admin());
 
 CREATE POLICY "subs_insert"
   ON public.client_update_subscriptions FOR INSERT
   TO authenticated
-  WITH CHECK (public.user_can_edit_client(client_id) OR public.is_admin());
+  WITH CHECK (public.user_can_edit_client(client_id) OR public.jboost_is_admin());
 
 CREATE POLICY "subs_update"
   ON public.client_update_subscriptions FOR UPDATE
   TO authenticated
-  USING (public.user_can_edit_client(client_id) OR public.is_admin())
-  WITH CHECK (public.user_can_edit_client(client_id) OR public.is_admin());
+  USING (public.user_can_edit_client(client_id) OR public.jboost_is_admin())
+  WITH CHECK (public.user_can_edit_client(client_id) OR public.jboost_is_admin());
 
 CREATE POLICY "subs_delete"
   ON public.client_update_subscriptions FOR DELETE
   TO authenticated
-  USING (public.user_is_client_owner(client_id) OR public.is_admin());
+  USING (public.user_is_client_owner(client_id) OR public.jboost_is_admin());
 
 -- ============================================================================
 -- 4/4 — phase4e: bullet-proof guardrails (last owner / last admin)

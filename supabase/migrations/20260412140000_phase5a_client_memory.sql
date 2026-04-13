@@ -76,23 +76,23 @@ DROP POLICY IF EXISTS "client_memory_delete" ON public.client_memory;
 CREATE POLICY "client_memory_select"
   ON public.client_memory FOR SELECT
   TO authenticated
-  USING (public.user_has_client_access(client_id) OR public.is_admin());
+  USING (public.user_has_client_access(client_id) OR public.jboost_is_admin());
 
 CREATE POLICY "client_memory_insert"
   ON public.client_memory FOR INSERT
   TO authenticated
-  WITH CHECK (public.user_can_edit_client(client_id) OR public.is_admin());
+  WITH CHECK (public.user_can_edit_client(client_id) OR public.jboost_is_admin());
 
 CREATE POLICY "client_memory_update"
   ON public.client_memory FOR UPDATE
   TO authenticated
-  USING (public.user_can_edit_client(client_id) OR public.is_admin())
-  WITH CHECK (public.user_can_edit_client(client_id) OR public.is_admin());
+  USING (public.user_can_edit_client(client_id) OR public.jboost_is_admin())
+  WITH CHECK (public.user_can_edit_client(client_id) OR public.jboost_is_admin());
 
 CREATE POLICY "client_memory_delete"
   ON public.client_memory FOR DELETE
   TO authenticated
-  USING (public.user_is_client_owner(client_id) OR public.is_admin());
+  USING (public.user_is_client_owner(client_id) OR public.jboost_is_admin());
 
 -- ----------------------------------------------------------------------------
 -- 3. client_memory_facts_history — append-only fact audit log
@@ -122,7 +122,7 @@ DROP POLICY IF EXISTS "facts_history_select" ON public.client_memory_facts_histo
 CREATE POLICY "facts_history_select"
   ON public.client_memory_facts_history FOR SELECT
   TO authenticated
-  USING (public.user_has_client_access(client_id) OR public.is_admin());
+  USING (public.user_has_client_access(client_id) OR public.jboost_is_admin());
 
 -- ----------------------------------------------------------------------------
 -- 4. Auto-stale marker

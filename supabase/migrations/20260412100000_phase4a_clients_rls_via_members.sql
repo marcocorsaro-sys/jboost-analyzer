@@ -26,7 +26,7 @@
 -- Reads public.profiles (which already exists, created pre-Phase 1A via the
 -- Supabase Studio UI). SECURITY DEFINER lets it bypass RLS on profiles when
 -- called from inside another policy.
-CREATE OR REPLACE FUNCTION public.is_admin(p_user_id UUID DEFAULT auth.uid())
+CREATE OR REPLACE FUNCTION public.jboost_is_admin(p_user_id UUID DEFAULT auth.uid())
 RETURNS BOOLEAN
 LANGUAGE sql
 STABLE
@@ -39,7 +39,7 @@ AS $fn$
   );
 $fn$;
 
-GRANT EXECUTE ON FUNCTION public.is_admin(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.jboost_is_admin(UUID) TO authenticated;
 
 -- ----------------------------------------------------------------------------
 -- 2. Auto-owner trigger on clients INSERT
@@ -115,7 +115,7 @@ CREATE POLICY "clients_select"
   ON public.clients FOR SELECT
   TO authenticated
   USING (
-    public.user_has_client_access(id) OR public.is_admin()
+    public.user_has_client_access(id) OR public.jboost_is_admin()
   );
 
 -- INSERT: an authenticated user can create a client they own. Admins can
@@ -124,7 +124,7 @@ CREATE POLICY "clients_insert"
   ON public.clients FOR INSERT
   TO authenticated
   WITH CHECK (
-    user_id = auth.uid() OR public.is_admin()
+    user_id = auth.uid() OR public.jboost_is_admin()
   );
 
 -- UPDATE: any owner or editor of the client, or any admin. The WITH CHECK
@@ -134,10 +134,10 @@ CREATE POLICY "clients_update"
   ON public.clients FOR UPDATE
   TO authenticated
   USING (
-    public.user_can_edit_client(id) OR public.is_admin()
+    public.user_can_edit_client(id) OR public.jboost_is_admin()
   )
   WITH CHECK (
-    public.user_can_edit_client(id) OR public.is_admin()
+    public.user_can_edit_client(id) OR public.jboost_is_admin()
   );
 
 -- DELETE: only the owner or an admin. (The app uses soft delete via UPDATE
@@ -147,5 +147,5 @@ CREATE POLICY "clients_delete"
   ON public.clients FOR DELETE
   TO authenticated
   USING (
-    public.user_is_client_owner(id) OR public.is_admin()
+    public.user_is_client_owner(id) OR public.jboost_is_admin()
   );
