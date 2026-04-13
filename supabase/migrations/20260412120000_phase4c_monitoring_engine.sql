@@ -97,22 +97,22 @@ ALTER TABLE public.client_update_subscriptions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "subs_select"
   ON public.client_update_subscriptions FOR SELECT
   TO authenticated
-  USING (public.user_has_client_access(client_id) OR public.is_admin());
+  USING (public.user_has_client_access(client_id) OR public.jboost_is_admin());
 
 -- Editors+ can mutate. Inserts go through promote/upsert paths so the
 -- WITH CHECK mirrors USING.
 CREATE POLICY "subs_insert"
   ON public.client_update_subscriptions FOR INSERT
   TO authenticated
-  WITH CHECK (public.user_can_edit_client(client_id) OR public.is_admin());
+  WITH CHECK (public.user_can_edit_client(client_id) OR public.jboost_is_admin());
 
 CREATE POLICY "subs_update"
   ON public.client_update_subscriptions FOR UPDATE
   TO authenticated
-  USING (public.user_can_edit_client(client_id) OR public.is_admin())
-  WITH CHECK (public.user_can_edit_client(client_id) OR public.is_admin());
+  USING (public.user_can_edit_client(client_id) OR public.jboost_is_admin())
+  WITH CHECK (public.user_can_edit_client(client_id) OR public.jboost_is_admin());
 
 CREATE POLICY "subs_delete"
   ON public.client_update_subscriptions FOR DELETE
   TO authenticated
-  USING (public.user_is_client_owner(client_id) OR public.is_admin());
+  USING (public.user_is_client_owner(client_id) OR public.jboost_is_admin());

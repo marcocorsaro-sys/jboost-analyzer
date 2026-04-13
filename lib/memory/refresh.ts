@@ -1,14 +1,34 @@
 // ============================================================
 // JBoost — Client Memory: refresh orchestration
 //
-// Phase 5A rewrite: fixes the bugs in the original implementation
-//   - .single() -> .maybeSingle() so a missing row doesn't throw
-//   - atomic upsert instead of insert-then-update dance
-//   - source_versions short-circuit (skip refresh if nothing changed)
-//   - current_phase progress tracking for the realtime UX layer
-//   - facts history archiving on every refresh (Phase 5E groundwork)
-//   - clearer error surfacing (status='failed' + error_message visible
-//     to the GET endpoint)
+// Phase 5A original + Phase 5C-hotfix robustness pass.
+//
+// Critical changes vs. the previous revision:
+//
+//   1. setRefreshPhase() now uses UPSERT (not UPDATE), so it ALWAYS
+//      persists the row even if the placeholder hasn't been created yet.
+//      Previously, when the refresh failed before the placeholder insert
+//      succeeded, the catch block would call setRefreshPhase('failed')
+//      which silently no-op'd because there was no row to update — and
+//      the user would see "Not initialized" forever.
+//
+//   2. The initial placeholder UPSERT is now error-checked. If RLS rejects
+//      it (most commonly because the caller isn't in client_members for
+//      this client), we return immediately with a clear error message
+//      INSTEAD of proceeding through the assembler + LLM call (which
+//      would waste tokens and then fail the save anyway).
+//
+//   3. Every step now logs its outcome with a [Memory] prefix so Vercel
+//      function logs make root-causing trivial: assembling, synthesizing,
+//      saving, success / failed at each stage with the relevant details.
+//
+//   4. The final save error is also surfaced via setRefreshPhase, which
+//      now actually persists thanks to (1).
+//
+// This file is paired with:
+//   - lib/memory/assembler.ts   (sectional try/catch around every source)
+//   - migration phase5b_memory_robustness.sql (placeholder backfill +
+//     orphan-client owner fallback so the RLS path always succeeds)
 // ============================================================
 
 import { SupabaseClient } from '@supabase/supabase-js'
@@ -108,20 +128,19 @@ const PartialRefreshSchema = z.object({
 
 // ─── Constants ──────────────────────────────────────────────
 
-/**
- * Soft minimum interval between refreshes triggered by the same client.
- * Used as a safety net only — the real "should I refresh?" decision is
- * source_versions equality (see runFullRefresh below).
- */
-const MIN_REFRESH_INTERVAL_MS = 60_000 // 1 minute
+const MIN_REFRESH_INTERVAL_MS = 60_000 // 1 minute soft rate limit
+
+const log = {
+  info: (clientId: string, msg: string, extra?: Record<string, unknown>) =>
+    console.log(`[Memory ✓] ${clientId} ${msg}`, extra ?? ''),
+  warn: (clientId: string, msg: string, extra?: Record<string, unknown>) =>
+    console.warn(`[Memory ⚠] ${clientId} ${msg}`, extra ?? ''),
+  error: (clientId: string, msg: string, extra?: unknown) =>
+    console.error(`[Memory ✗] ${clientId} ${msg}`, extra ?? ''),
+}
 
 // ─── Helpers ────────────────────────────────────────────────
 
-/**
- * Compares two source_versions blobs by JSON equality. Used to short-circuit
- * a refresh when none of the underlying data sources have changed since the
- * last successful run.
- */
 function sourceVersionsEqual(
   a: Record<string, unknown> | null | undefined,
   b: Record<string, unknown> | null | undefined
@@ -135,9 +154,14 @@ function sourceVersionsEqual(
 }
 
 /**
- * Update only the lifecycle fields (status / current_phase / error) of an
- * existing memory row. Used during the refresh to give the client realtime
- * progress visibility (Phase 5D will subscribe to these updates).
+ * Persist a status / phase / error update for a client_memory row.
+ *
+ * IMPORTANT: this MUST be an UPSERT, not an UPDATE. The previous version
+ * used UPDATE, which silently no-op'd when the row didn't exist yet —
+ * meaning the catch handler at the end of refreshClientMemory could never
+ * actually persist a 'failed' status for a client whose memory had never
+ * been built before. Result: the user saw "Not initialized" instead of the
+ * real error.
  */
 async function setRefreshPhase(
   supabase: SupabaseClient,
@@ -147,19 +171,23 @@ async function setRefreshPhase(
     current_phase?: string | null
     error_message?: string | null
   }
-): Promise<void> {
-  await supabase
+): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase
     .from('client_memory')
-    .update({ ...patch, updated_at: new Date().toISOString() })
-    .eq('client_id', clientId)
+    .upsert(
+      { client_id: clientId, ...patch, updated_at: new Date().toISOString() },
+      { onConflict: 'client_id' }
+    )
+  if (error) {
+    log.error(clientId, `setRefreshPhase failed: ${error.message}`, {
+      patch,
+      error,
+    })
+    return { ok: false, error: error.message }
+  }
+  return { ok: true }
 }
 
-/**
- * Archive the facts that are about to be replaced into the
- * client_memory_facts_history table. Append-only audit log. Best-effort:
- * we don't fail the refresh if the history insert fails (it's not critical
- * for runtime correctness, just for the audit trail).
- */
 async function archiveFacts(
   supabase: SupabaseClient,
   clientId: string,
@@ -174,9 +202,17 @@ async function archiveFacts(
       fact_data: f as unknown as Record<string, unknown>,
       refresh_id: refreshId,
     }))
-    await supabase.from('client_memory_facts_history').insert(rows)
+    const { error } = await supabase
+      .from('client_memory_facts_history')
+      .insert(rows)
+    if (error) {
+      log.warn(clientId, `facts history archive failed (non-fatal)`, {
+        count: rows.length,
+        error: error.message,
+      })
+    }
   } catch (err) {
-    console.warn('[Memory] facts history archive failed (non-fatal)', err)
+    log.warn(clientId, `facts history archive threw (non-fatal)`, { err })
   }
 }
 
@@ -199,6 +235,9 @@ export interface RefreshResult {
 /**
  * Perform a full memory refresh for a client.
  * Gathers ALL data sources, sends to Claude, saves structured memory.
+ *
+ * Returns a structured result so the caller can distinguish skipped (200),
+ * rate_limited (429), permission_denied (403), and failed (500).
  */
 export async function refreshClientMemory(
   clientId: string,
@@ -206,26 +245,39 @@ export async function refreshClientMemory(
   supabase: SupabaseClient,
   options: RefreshOptions = {}
 ): Promise<RefreshResult> {
+  const startedAt = Date.now()
   const now = new Date().toISOString()
   const refreshId =
     typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2)}`
 
-  // 1. Look up existing memory (if any). maybeSingle so a missing row
-  // doesn't throw — we just treat it as a first-time build.
-  const { data: existing } = await supabase
+  log.info(clientId, `refresh started`, { refreshId, force: options.force })
+
+  // ─── 1. Look up existing memory (if any) ─────────────────────────────
+  const { data: existing, error: lookupError } = await supabase
     .from('client_memory')
     .select('id, status, last_refreshed_at, source_versions, facts, answers')
     .eq('client_id', clientId)
     .maybeSingle()
 
-  // 2. Soft rate limit: don't allow more than one refresh per minute per
-  // client. The real "should I refresh?" check is the source_versions diff
-  // below; this is just a guard against accidental rapid clicks.
+  if (lookupError) {
+    log.error(clientId, `lookup failed: ${lookupError.message}`, lookupError)
+    return {
+      success: false,
+      reason: 'lookup_failed',
+      error:
+        `Failed to read client_memory row: ${lookupError.message}. ` +
+        `Most likely the Phase 5A migration (client_memory table) hasn't ` +
+        `been applied to this database. Apply _phase4_plus_5_combined.sql.`,
+    }
+  }
+
+  // ─── 2. Soft rate limit ──────────────────────────────────────────────
   if (existing?.last_refreshed_at && !options.force) {
     const elapsed = Date.now() - new Date(existing.last_refreshed_at).getTime()
     if (elapsed < MIN_REFRESH_INTERVAL_MS) {
+      log.info(clientId, `rate limited`, { elapsed_ms: elapsed })
       return {
         success: false,
         reason: 'rate_limited',
@@ -236,52 +288,53 @@ export async function refreshClientMemory(
     }
   }
 
-  const existingAnswers: MemoryAnswer[] = existing
-    ? ((existing.answers as MemoryAnswer[]) || [])
-    : []
-  const existingFacts: MemoryFact[] = existing
-    ? ((existing.facts as MemoryFact[]) || [])
-    : []
+  const existingAnswers: MemoryAnswer[] =
+    (existing?.answers as MemoryAnswer[]) || []
+  const existingFacts: MemoryFact[] =
+    (existing?.facts as MemoryFact[]) || []
   const existingSourceVersions: Record<string, unknown> | null = existing
     ? ((existing.source_versions as Record<string, unknown>) || {})
     : null
 
-  // 3. Move into the building/refreshing state immediately so the UI gets
-  // realtime feedback. If the row doesn't exist yet, insert a placeholder.
-  if (existing) {
-    await setRefreshPhase(supabase, clientId, {
-      status: 'refreshing',
-      current_phase: 'assembling_sources',
-      error_message: null,
-    })
-  } else {
-    await supabase.from('client_memory').upsert(
-      {
-        client_id: clientId,
-        status: 'building',
-        current_phase: 'assembling_sources',
-        error_message: null,
-      },
-      { onConflict: 'client_id' }
-    )
+  // ─── 3. Move into building/refreshing state immediately ──────────────
+  // Critical: if this fails (most commonly because the caller doesn't have
+  // edit permission via client_members), we ABORT here with a clear error.
+  // Previously this UPSERT was unchecked, so the flow continued, paid for
+  // a Claude call, and then failed the save anyway with no visible error.
+  const transitioning: ClientMemory['status'] = existing ? 'refreshing' : 'building'
+  const phaseResult = await setRefreshPhase(supabase, clientId, {
+    status: transitioning,
+    current_phase: 'assembling_sources',
+    error_message: null,
+  })
+  if (!phaseResult.ok) {
+    const msg =
+      phaseResult.error?.includes('row-level security') ||
+      phaseResult.error?.toLowerCase().includes('permission')
+        ? `Permission denied. Your user does not have editor access on this client. ` +
+          `Check that you're listed in client_members with role owner or editor, ` +
+          `or that you're a global admin in profiles.role.`
+        : `Could not initialize memory row: ${phaseResult.error}`
+    log.error(clientId, `placeholder upsert failed — aborting`, phaseResult)
+    return { success: false, reason: 'permission_denied', error: msg }
   }
+  log.info(clientId, `placeholder set, status=${transitioning}`)
 
   try {
-    // 4. Assemble all data sources.
-    const { inputText, sourceVersions } = await assembleClientData(
-      clientId,
-      supabase,
-      existingAnswers
-    )
+    // ─── 4. Assemble all data sources ──────────────────────────────────
+    const assembled = await assembleClientData(clientId, supabase, existingAnswers)
+    log.info(clientId, `assembled sources`, {
+      chars: assembled.inputText.length,
+      sources: Object.keys(assembled.sourceVersions),
+    })
 
-    // 5. Short-circuit: if nothing changed since the last successful run,
-    // skip the LLM call and bring the row back to 'ready' without spending
-    // tokens. force=true bypasses this.
+    // ─── 5. source_versions short-circuit ──────────────────────────────
     if (
       !options.force &&
       existing?.status === 'ready' &&
-      sourceVersionsEqual(existingSourceVersions, sourceVersions)
+      sourceVersionsEqual(existingSourceVersions, assembled.sourceVersions)
     ) {
+      log.info(clientId, `skipped (no source changes)`)
       await setRefreshPhase(supabase, clientId, {
         status: 'ready',
         current_phase: null,
@@ -294,37 +347,45 @@ export async function refreshClientMemory(
       }
     }
 
-    console.log(
-      `[Memory Refresh] Assembled ${inputText.length} chars for client ${clientId}`
-    )
+    // ─── 6. Call Claude for memory synthesis ───────────────────────────
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new Error(
+        `ANTHROPIC_API_KEY is not set in the server environment. ` +
+        `Set it on Vercel under Project Settings → Environment Variables.`
+      )
+    }
 
-    await setRefreshPhase(supabase, clientId, {
-      current_phase: 'synthesizing',
-    })
+    await setRefreshPhase(supabase, clientId, { current_phase: 'synthesizing' })
+    log.info(clientId, `calling Claude (sonnet-4)`)
 
-    // 6. Call Claude for memory synthesis.
     const result = await generateObject({
       model: anthropic('claude-sonnet-4-20250514'),
       schema: FullMemorySchema,
       system: MEMORY_SYNTHESIS_SYSTEM_PROMPT,
-      prompt: `Analizza i seguenti dati del cliente e genera la memoria strutturata.\n\n${inputText}`,
+      prompt: `Analizza i seguenti dati del cliente e genera la memoria strutturata.\n\n${assembled.inputText}`,
       temperature: 0.3,
       maxTokens: 8192,
     })
 
     const memory = result.object
+    log.info(clientId, `Claude returned`, {
+      facts: memory.facts.length,
+      gaps: memory.gaps.length,
+      completeness: memory.completeness,
+      input_tokens: result.usage?.promptTokens,
+      output_tokens: result.usage?.completionTokens,
+    })
 
-    // Add extracted_at to facts.
     const factsWithDates: MemoryFact[] = memory.facts.map(f => ({
       ...f,
       extracted_at: now,
     }))
 
-    // 7. Archive previous facts before overwriting (best-effort).
+    // ─── 7. Archive previous facts (best-effort) ───────────────────────
     await setRefreshPhase(supabase, clientId, { current_phase: 'saving' })
     await archiveFacts(supabase, clientId, existingFacts, refreshId)
 
-    // 8. Save the full memory atomically with upsert.
+    // ─── 8. Save the full memory ───────────────────────────────────────
     const upsertData = {
       client_id: clientId,
       profile: memory.profile as unknown as Record<string, unknown>,
@@ -334,7 +395,7 @@ export async function refreshClientMemory(
       answers: existingAnswers as unknown as Record<string, unknown>[],
       status: 'ready' as const,
       completeness: Math.round(memory.completeness),
-      source_versions: sourceVersions,
+      source_versions: assembled.sourceVersions,
       current_phase: null,
       error_message: null,
       last_refreshed_at: now,
@@ -346,10 +407,10 @@ export async function refreshClientMemory(
       .upsert(upsertData, { onConflict: 'client_id' })
 
     if (saveError) {
-      throw saveError
+      throw new Error(`save failed: ${saveError.message}`)
     }
 
-    // 9. Track LLM usage (non-blocking).
+    // ─── 9. Track LLM usage (non-blocking) ─────────────────────────────
     trackLlmUsage({
       userId,
       clientId,
@@ -364,24 +425,25 @@ export async function refreshClientMemory(
         facts_archived: existingFacts.length,
         source_versions_changed: !sourceVersionsEqual(
           existingSourceVersions,
-          sourceVersions
+          assembled.sourceVersions
         ),
+        duration_ms: Date.now() - startedAt,
       },
     }).catch(() => {})
 
-    console.log(
-      `[Memory Refresh] Complete for client ${clientId}: ` +
-        `completeness=${memory.completeness}%, ` +
-        `facts=${memory.facts.length}, gaps=${memory.gaps.length}`
-    )
+    log.info(clientId, `refresh complete`, {
+      duration_ms: Date.now() - startedAt,
+      completeness: memory.completeness,
+    })
 
     return { success: true }
   } catch (err) {
-    console.error(`[Memory Refresh] Failed for client ${clientId}:`, err)
-
     const message = err instanceof Error ? err.message : 'Unknown error'
+    log.error(clientId, `refresh failed`, { message, err })
 
     // Surface the error to the row so the GET endpoint can show it.
+    // Now uses upsert (via setRefreshPhase) so it persists even if the
+    // placeholder insert had failed.
     await setRefreshPhase(supabase, clientId, {
       status: 'failed',
       current_phase: null,
@@ -394,10 +456,6 @@ export async function refreshClientMemory(
 
 // ─── Partial Refresh (after gap answer) ─────────────────────
 
-/**
- * Perform a lightweight partial refresh after a user answers a gap question.
- * Only processes the new answer, not all sources.
- */
 export async function partialRefreshMemory(
   clientId: string,
   userId: string,
@@ -414,6 +472,10 @@ export async function partialRefreshMemory(
       business_goals: currentMemory.profile.business_goals,
     })
 
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new Error('ANTHROPIC_API_KEY is not set in the server environment.')
+    }
+
     const result = await generateObject({
       model: anthropic('claude-sonnet-4-20250514'),
       schema: PartialRefreshSchema,
@@ -426,7 +488,6 @@ export async function partialRefreshMemory(
     const update = result.object
     const now = new Date().toISOString()
 
-    // Merge new facts.
     const newFacts: MemoryFact[] = update.new_facts.map(f => ({
       ...f,
       source: 'user_answer' as const,
@@ -434,25 +495,22 @@ export async function partialRefreshMemory(
     }))
     const mergedFacts = [...currentMemory.facts, ...newFacts]
 
-    // Merge profile updates.
     const mergedProfile = {
       ...currentMemory.profile,
       ...(update.profile_updates as Partial<MemoryProfile>),
     }
 
-    // Add new gaps.
     const mergedGaps = [
       ...currentMemory.gaps,
       ...(update.new_gaps as MemoryGap[]),
     ]
 
-    // Update completeness.
     const newCompleteness = Math.min(
       100,
       Math.max(0, currentMemory.completeness + update.completeness_delta)
     )
 
-    await supabase
+    const { error: updateError } = await supabase
       .from('client_memory')
       .update({
         profile: mergedProfile as unknown as Record<string, unknown>,
@@ -463,7 +521,10 @@ export async function partialRefreshMemory(
       })
       .eq('client_id', clientId)
 
-    // Track usage.
+    if (updateError) {
+      throw new Error(`partial save failed: ${updateError.message}`)
+    }
+
     trackLlmUsage({
       userId,
       clientId,
@@ -477,7 +538,7 @@ export async function partialRefreshMemory(
 
     return { success: true }
   } catch (err) {
-    console.error('[Memory Partial Refresh] Failed:', err)
+    log.error(clientId, `partial refresh failed`, err)
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Unknown error',

@@ -1,10 +1,15 @@
 // ============================================================
 // JBoost — Client Memory: data assembler
-// Gathers all client data sources with token budgets
+// Gathers all client data sources with token budgets.
 //
-// Phase 5B: knowledge retrieval now goes through assembleKnowledgeViaRAG
-// (semantic search over knowledge_chunks). The legacy client_files path
-// is kept as a fallback for clients that still have only legacy uploads.
+// Phase 5C robustness pass: every source-table fetch is wrapped in its
+// own try/catch and degrades gracefully. A missing optional table or an
+// RLS rejection on one source no longer kills the entire memory build —
+// the memory is just built from whatever sources DID work, and a warning
+// is logged. Previously a single missing column or table would throw all
+// the way out of the assembler, into refreshClientMemory's catch block,
+// and (because of the setRefreshPhase UPDATE no-op bug) leave the user
+// staring at "Not initialized" with no clue why.
 // ============================================================
 
 import { SupabaseClient } from '@supabase/supabase-js'
@@ -18,6 +23,13 @@ const BUDGET_EXEC_SUMMARY = 3_000
 const BUDGET_CONVERSATIONS = 8_000
 const BUDGET_COMPANY_CONTEXT = 2_000
 
+const log = {
+  info: (clientId: string, section: string, msg: string, extra?: Record<string, unknown>) =>
+    console.log(`[Assembler ✓] ${clientId} ${section}: ${msg}`, extra ?? ''),
+  warn: (clientId: string, section: string, msg: string, extra?: unknown) =>
+    console.warn(`[Assembler ⚠] ${clientId} ${section}: ${msg}`, extra ?? ''),
+}
+
 export interface AssembledData {
   /** Formatted text block ready for the LLM prompt */
   inputText: string
@@ -26,8 +38,29 @@ export interface AssembledData {
 }
 
 /**
+ * Helper: run a database fetch wrapped in try/catch, swallow errors
+ * (logging a warning), and return a fallback. Used to ensure no single
+ * missing table or RLS rejection can kill the entire memory build.
+ */
+async function safeFetch<T>(
+  clientId: string,
+  section: string,
+  fn: () => Promise<T>,
+  fallback: T
+): Promise<T> {
+  try {
+    return await fn()
+  } catch (err) {
+    log.warn(clientId, section, `fetch failed (degraded)`, err)
+    return fallback
+  }
+}
+
+/**
  * Assemble ALL data sources for a client into a structured text block.
- * Applies token budgets to stay within LLM context limits.
+ * Applies token budgets to stay within LLM context limits. Each section
+ * is independent: if one fails (missing table, RLS rejection, schema
+ * drift), the others still contribute.
  */
 export async function assembleClientData(
   clientId: string,
@@ -37,14 +70,22 @@ export async function assembleClientData(
   const lines: string[] = []
   const sourceVersions: Record<string, unknown> = {}
 
-  // ── 1. Client Info (always included) ──────────────────────
-  const { data: client } = await supabase
+  // ── 1. Client Info (REQUIRED) ─────────────────────────────
+  // This is the only section that can hard-fail the assembler — if the
+  // client itself isn't readable, we have nothing to build a memory FROM.
+  const { data: client, error: clientError } = await supabase
     .from('clients')
     .select('*')
     .eq('id', clientId)
     .single()
 
-  if (!client) throw new Error('Client not found')
+  if (clientError || !client) {
+    throw new Error(
+      `Client ${clientId} not found or not readable. ` +
+        `Check that your user has access to this client via client_members ` +
+        `(error: ${clientError?.message ?? 'no row returned'}).`
+    )
+  }
 
   sourceVersions.client_updated_at = client.updated_at
 
@@ -58,33 +99,64 @@ export async function assembleClientData(
   if (client.contact_phone) lines.push(`Telefono: ${client.contact_phone}`)
   if (client.notes) lines.push(`Note: ${client.notes}`)
   lines.push('')
+  log.info(clientId, 'client', 'loaded')
 
-  // ── 2. Analyses + Driver Results ──────────────────────────
-  const { data: analyses } = await supabase
-    .from('analyses')
-    .select('id, overall_score, completed_at, domain, company_context, status')
-    .eq('client_id', clientId)
-    .eq('status', 'completed')
-    .order('completed_at', { ascending: false })
-    .limit(3)
+  // ── 2. Analyses + Driver Results (optional, sectional) ────
+  // Two-step query: first try with company_context (the modern schema),
+  // fallback to the schema without that column if it's missing in this
+  // environment.
+  const analyses = await safeFetch(clientId, 'analyses', async () => {
+    const withCC = await supabase
+      .from('analyses')
+      .select('id, overall_score, completed_at, domain, company_context, status')
+      .eq('client_id', clientId)
+      .eq('status', 'completed')
+      .order('completed_at', { ascending: false })
+      .limit(3)
+
+    if (!withCC.error) return withCC.data ?? []
+
+    // Retry without the column if it doesn't exist.
+    if (withCC.error.message?.toLowerCase().includes('company_context')) {
+      log.warn(clientId, 'analyses', 'company_context missing, retrying without it')
+      const noCC = await supabase
+        .from('analyses')
+        .select('id, overall_score, completed_at, domain, status')
+        .eq('client_id', clientId)
+        .eq('status', 'completed')
+        .order('completed_at', { ascending: false })
+        .limit(3)
+      if (noCC.error) throw noCC.error
+      return (noCC.data ?? []).map(a => ({ ...a, company_context: null }))
+    }
+    throw withCC.error
+  }, [] as Array<{
+    id: string
+    overall_score: number | null
+    completed_at: string | null
+    domain: string | null
+    company_context: Record<string, unknown> | null
+    status: string
+  }>)
 
   const analysisIds: string[] = []
 
-  if (analyses && analyses.length > 0) {
+  if (analyses.length > 0) {
     lines.push('# ANALISI SEO')
 
     for (const analysis of analyses) {
       analysisIds.push(analysis.id)
       const date = analysis.completed_at
         ? new Date(analysis.completed_at).toLocaleDateString('it-IT', {
-            day: '2-digit', month: 'long', year: 'numeric',
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric',
           })
         : 'N/A'
 
       lines.push(`## Analisi ${date} — Score: ${analysis.overall_score ?? 'N/A'}/100`)
       lines.push(`Dominio: ${analysis.domain}`)
 
-      // Company context (budget)
       if (analysis.company_context) {
         const cc = analysis.company_context as Record<string, unknown>
         let ccText = ''
@@ -102,13 +174,17 @@ export async function assembleClientData(
         }
       }
 
-      // Driver results
-      const { data: drivers } = await supabase
-        .from('driver_results')
-        .select('driver_name, score, status, issues, solutions')
-        .eq('analysis_id', analysis.id)
+      // Driver results — optional, fall back to empty
+      const drivers = await safeFetch(clientId, 'driver_results', async () => {
+        const { data, error } = await supabase
+          .from('driver_results')
+          .select('driver_name, score, status, issues, solutions')
+          .eq('analysis_id', analysis.id)
+        if (error) throw error
+        return data ?? []
+      }, [] as Array<{ driver_name: string; score: number | null; status: string; issues: unknown; solutions: unknown }>)
 
-      if (drivers && drivers.length > 0) {
+      if (drivers.length > 0) {
         const sorted = [...drivers].sort((a, b) => (a.score ?? 0) - (b.score ?? 0))
         for (const d of sorted) {
           const band = d.score !== null
@@ -140,16 +216,23 @@ export async function assembleClientData(
 
     sourceVersions.analyses_ids = analysisIds
     sourceVersions.analyses_latest_at = analyses[0].completed_at
+    log.info(clientId, 'analyses', `${analyses.length} loaded`)
+  } else {
+    log.info(clientId, 'analyses', 'none')
   }
 
   // ── 3. Competitor Results ─────────────────────────────────
   if (analysisIds.length > 0) {
-    const { data: competitors } = await supabase
-      .from('competitor_results')
-      .select('competitor_domain, scores')
-      .eq('analysis_id', analysisIds[0])
+    const competitors = await safeFetch(clientId, 'competitor_results', async () => {
+      const { data, error } = await supabase
+        .from('competitor_results')
+        .select('competitor_domain, scores')
+        .eq('analysis_id', analysisIds[0])
+      if (error) throw error
+      return data ?? []
+    }, [] as Array<{ competitor_domain: string; scores: Record<string, number | null> }>)
 
-    if (competitors && competitors.length > 0) {
+    if (competitors.length > 0) {
       lines.push('# BENCHMARK COMPETITIVO')
       for (const c of competitors) {
         const scores = c.scores as Record<string, number | null>
@@ -159,16 +242,21 @@ export async function assembleClientData(
         lines.push(`- ${c.competitor_domain}: ${entries}`)
       }
       lines.push('')
+      log.info(clientId, 'competitors', `${competitors.length} loaded`)
     }
   }
 
   // ── 4. MarTech Stack ──────────────────────────────────────
-  const { data: martech } = await supabase
-    .from('client_martech')
-    .select('category, tool_name, confidence')
-    .eq('client_id', clientId)
+  const martech = await safeFetch(clientId, 'client_martech', async () => {
+    const { data, error } = await supabase
+      .from('client_martech')
+      .select('category, tool_name, confidence')
+      .eq('client_id', clientId)
+    if (error) throw error
+    return data ?? []
+  }, [] as Array<{ category: string; tool_name: string; confidence: number }>)
 
-  if (martech && martech.length > 0) {
+  if (martech.length > 0) {
     lines.push('# STACK MARTECH')
     const grouped: Record<string, string[]> = {}
     for (const t of martech) {
@@ -180,13 +268,10 @@ export async function assembleClientData(
     }
     lines.push('')
     sourceVersions.martech_count = martech.length
+    log.info(clientId, 'martech', `${martech.length} tools`)
   }
 
-  // ── 5. Knowledge — semantic RAG over knowledge_chunks (Phase 5B) ──
-  // Tries the modern Phase 3 vector index first; falls back to the
-  // legacy client_files.extracted_text path if RAG can't run (no
-  // OpenAI key, knowledge_documents table missing, no chunks
-  // embedded yet, or no documents at all).
+  // ── 5. Knowledge — semantic RAG over knowledge_chunks ─────
   let ragWorked = false
   try {
     const ragResult = await assembleKnowledgeViaRAG(clientId, supabase)
@@ -199,26 +284,36 @@ export async function assembleClientData(
         chars: ragResult.totalChars,
       }
       ragWorked = true
+      log.info(clientId, 'knowledge_rag', `${ragResult.chunkIds.length} chunks from ${ragResult.documentIds.length} docs`)
     } else if (ragResult.error) {
-      console.log('[memory assembler] RAG skipped:', ragResult.error)
+      log.warn(clientId, 'knowledge_rag', `skipped: ${ragResult.error}`)
     }
   } catch (err) {
-    console.warn('[memory assembler] RAG threw, falling back to legacy:', err)
+    log.warn(clientId, 'knowledge_rag', 'RAG threw, falling back to legacy', err)
   }
 
-  // Legacy fallback: client_files.extracted_text. Only run if RAG produced
-  // nothing — otherwise we'd duplicate context for clients that have both.
+  // Legacy fallback: client_files.extracted_text
   if (!ragWorked) {
-    const { data: files } = await supabase
-      .from('client_files')
-      .select('id, file_name, file_type, extracted_text, created_at')
-      .eq('client_id', clientId)
-      .in('extraction_status', ['completed', 'unsupported'])
-      .order('created_at', { ascending: false })
+    const files = await safeFetch(clientId, 'client_files', async () => {
+      const { data, error } = await supabase
+        .from('client_files')
+        .select('id, file_name, file_type, extracted_text, created_at')
+        .eq('client_id', clientId)
+        .in('extraction_status', ['completed', 'unsupported'])
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      return data ?? []
+    }, [] as Array<{
+      id: string
+      file_name: string
+      file_type: string | null
+      extracted_text: string | null
+      created_at: string
+    }>)
 
     const fileIds: string[] = []
 
-    if (files && files.length > 0) {
+    if (files.length > 0) {
       lines.push('# KNOWLEDGE BASE — DOCUMENTI CARICATI (legacy)')
       let totalChars = 0
 
@@ -258,47 +353,61 @@ export async function assembleClientData(
 
       sourceVersions.legacy_files_ids = fileIds
       sourceVersions.legacy_files_latest_at = files[0].created_at
+      log.info(clientId, 'client_files', `${files.length} legacy files`)
     }
   }
 
-  // ── 6. Executive Summary (with budget) ────────────────────
-  const { data: summaries } = await supabase
-    .from('executive_summaries')
-    .select('id, content, generated_at')
-    .eq('client_id', clientId)
-    .order('generated_at', { ascending: false })
-    .limit(1)
+  // ── 6. Executive Summary ──────────────────────────────────
+  const summaries = await safeFetch(clientId, 'executive_summaries', async () => {
+    const { data, error } = await supabase
+      .from('executive_summaries')
+      .select('id, content, generated_at')
+      .eq('client_id', clientId)
+      .order('generated_at', { ascending: false })
+      .limit(1)
+    if (error) throw error
+    return data ?? []
+  }, [] as Array<{ id: string; content: string | null; generated_at: string }>)
 
-  if (summaries && summaries.length > 0 && summaries[0].content) {
+  if (summaries.length > 0 && summaries[0].content) {
     lines.push('# EXECUTIVE SUMMARY PIU\' RECENTE')
     lines.push(truncate(summaries[0].content, BUDGET_EXEC_SUMMARY))
     lines.push('')
     sourceVersions.summaries_ids = [summaries[0].id]
+    log.info(clientId, 'executive_summaries', '1 loaded')
   }
 
-  // ── 7. Conversation Insights (with budget) ────────────────
-  const { data: conversations } = await supabase
-    .from('conversations')
-    .select('id')
-    .eq('client_id', clientId)
-    .eq('mode', 'contextual')
-    .order('updated_at', { ascending: false })
-    .limit(5)
+  // ── 7. Conversation Insights ──────────────────────────────
+  const conversations = await safeFetch(clientId, 'conversations', async () => {
+    const { data, error } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('client_id', clientId)
+      .eq('mode', 'contextual')
+      .order('updated_at', { ascending: false })
+      .limit(5)
+    if (error) throw error
+    return data ?? []
+  }, [] as Array<{ id: string }>)
 
   const convIds: string[] = []
 
-  if (conversations && conversations.length > 0) {
+  if (conversations.length > 0) {
     const cIds = conversations.map(c => c.id)
 
-    const { data: messages } = await supabase
-      .from('conversation_messages')
-      .select('conversation_id, role, content, created_at')
-      .in('conversation_id', cIds)
-      .eq('role', 'user')
-      .order('created_at', { ascending: false })
-      .limit(30)
+    const messages = await safeFetch(clientId, 'conversation_messages', async () => {
+      const { data, error } = await supabase
+        .from('conversation_messages')
+        .select('conversation_id, role, content, created_at')
+        .in('conversation_id', cIds)
+        .eq('role', 'user')
+        .order('created_at', { ascending: false })
+        .limit(30)
+      if (error) throw error
+      return data ?? []
+    }, [] as Array<{ conversation_id: string; role: string; content: string; created_at: string }>)
 
-    if (messages && messages.length > 0) {
+    if (messages.length > 0) {
       lines.push('# INSIGHT DA CONVERSAZIONI PRECEDENTI')
       let totalConvChars = 0
 
@@ -310,11 +419,10 @@ export async function assembleClientData(
         if (!convIds.includes(m.conversation_id)) convIds.push(m.conversation_id)
       }
       lines.push('')
-    }
 
-    sourceVersions.conversations_ids = convIds
-    if (messages && messages.length > 0) {
+      sourceVersions.conversations_ids = convIds
       sourceVersions.conversations_latest_at = messages[0].created_at
+      log.info(clientId, 'conversations', `${messages.length} messages from ${convIds.length} convs`)
     }
   }
 

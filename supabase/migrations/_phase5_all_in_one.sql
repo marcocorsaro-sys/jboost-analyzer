@@ -68,23 +68,23 @@ DROP POLICY IF EXISTS "client_memory_delete" ON public.client_memory;
 CREATE POLICY "client_memory_select"
   ON public.client_memory FOR SELECT
   TO authenticated
-  USING (public.user_has_client_access(client_id) OR public.is_admin());
+  USING (public.user_has_client_access(client_id) OR public.jboost_is_admin());
 
 CREATE POLICY "client_memory_insert"
   ON public.client_memory FOR INSERT
   TO authenticated
-  WITH CHECK (public.user_can_edit_client(client_id) OR public.is_admin());
+  WITH CHECK (public.user_can_edit_client(client_id) OR public.jboost_is_admin());
 
 CREATE POLICY "client_memory_update"
   ON public.client_memory FOR UPDATE
   TO authenticated
-  USING (public.user_can_edit_client(client_id) OR public.is_admin())
-  WITH CHECK (public.user_can_edit_client(client_id) OR public.is_admin());
+  USING (public.user_can_edit_client(client_id) OR public.jboost_is_admin())
+  WITH CHECK (public.user_can_edit_client(client_id) OR public.jboost_is_admin());
 
 CREATE POLICY "client_memory_delete"
   ON public.client_memory FOR DELETE
   TO authenticated
-  USING (public.user_is_client_owner(client_id) OR public.is_admin());
+  USING (public.user_is_client_owner(client_id) OR public.jboost_is_admin());
 
 -- client_memory_facts_history: append-only fact audit log
 CREATE TABLE IF NOT EXISTS public.client_memory_facts_history (
@@ -107,7 +107,7 @@ DROP POLICY IF EXISTS "facts_history_select" ON public.client_memory_facts_histo
 CREATE POLICY "facts_history_select"
   ON public.client_memory_facts_history FOR SELECT
   TO authenticated
-  USING (public.user_has_client_access(client_id) OR public.is_admin());
+  USING (public.user_has_client_access(client_id) OR public.jboost_is_admin());
 
 -- Auto-stale marker helper + triggers
 CREATE OR REPLACE FUNCTION public.mark_client_memory_stale(p_client_id UUID)
@@ -209,6 +209,55 @@ BEGIN
     ';
   END IF;
 END $$;
+
+
+-- ============================================================================
+-- PHASE 5B — Memory robustness backfill (added by hotfix)
+-- Promotes a fallback owner for orphaned clients + pre-creates client_memory
+-- placeholder rows so the first refresh always finds a row to UPDATE.
+-- ============================================================================
+
+DO $$
+DECLARE
+  fallback_owner UUID;
+BEGIN
+  SELECT id INTO fallback_owner
+  FROM public.profiles
+  WHERE role = 'admin' AND is_active = TRUE
+  ORDER BY created_at ASC
+  LIMIT 1;
+
+  IF fallback_owner IS NULL THEN
+    SELECT id INTO fallback_owner
+    FROM public.profiles
+    WHERE is_active = TRUE
+    ORDER BY created_at ASC
+    LIMIT 1;
+  END IF;
+
+  IF fallback_owner IS NULL THEN
+    SELECT id INTO fallback_owner
+    FROM auth.users
+    ORDER BY created_at ASC
+    LIMIT 1;
+  END IF;
+
+  IF fallback_owner IS NOT NULL THEN
+    INSERT INTO public.client_members (client_id, user_id, role, added_by)
+    SELECT c.id, fallback_owner, 'owner', fallback_owner
+    FROM public.clients c
+    LEFT JOIN public.client_members m
+      ON m.client_id = c.id AND m.role = 'owner'
+    WHERE m.id IS NULL
+    ON CONFLICT (client_id, user_id) DO NOTHING;
+  END IF;
+END $$;
+
+INSERT INTO public.client_memory (client_id, status)
+SELECT id, 'empty'
+FROM public.clients
+ON CONFLICT (client_id) DO NOTHING;
+
 
 COMMIT;
 
