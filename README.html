@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JBoost Analyzer - Documentation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 60px 40px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 40px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .content::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .content::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        
+        .content::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 4px;
+        }
+        
+        h2 {
+            color: #667eea;
+            margin: 30px 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+            font-size: 1.8em;
+        }
+        
+        h3 {
+            color: #764ba2;
+            margin: 20px 0 10px 0;
+            font-size: 1.3em;
+        }
+        
+        h4 {
+            color: #555;
+            margin: 15px 0 8px 0;
+            font-size: 1.1em;
+        }
+        
+        ul, ol {
+            margin-left: 25px;
+            margin-bottom: 15px;
+        }
+        
+        li {
+            margin-bottom: 8px;
+        }
+        
+        code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #d63384;
+        }
+        
+        pre {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+        
+        .feature-box {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        
+        .feature-box strong {
+            color: #667eea;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        th {
+            background: #667eea;
+            color: white;
+        }
+        
+        tr:hover {
+            background: #f5f5f5;
+        }
+        
+        .badge {
+            display: inline-block;
+            background: #28a745;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 0.85em;
+        }
+        
+        .section-divider {
+            border-top: 2px solid #f0f0f0;
+            margin: 40px 0;
+        }
+        
+        .toc {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .toc h3 {
+            margin-top: 0;
+        }
+        
+        .toc ul {
+            list-style: none;
+            margin-left: 0;
+        }
+        
+        .toc li {
+            margin-bottom: 8px;
+        }
+        
+        .toc a {
+            color: #667eea;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        
+        .toc a:hover {
+            color: #764ba2;
+            text-decoration: underline;
+        }
+        
+        .footer {
+            background: #f8f9fa;
+            padding: 20px 40px;
+            border-top: 1px solid #ddd;
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 JBoost Analyzer</h1>
+            <p>Piattaforma SEO/GEO Analysis — 9 Driver Framework</p>
+        </div>
+        
+        <div class="content">
+            <p style="font-size: 1.1em; margin-bottom: 20px;">
+                Una piattaforma <strong>Next.js + Supabase</strong> per analizzare e monitorare la performance SEO di siti web attraverso il framework dei 9 driver. Include gestione clienti, knowledge base RAG, memory v2 (profili aziendali intelligenti), monitoring automatico, e AI chat contextuale.
+            </p>
+            
+            <div class="toc">
+                <h3>📑 Indice</h3>
+                <ul>
+                    <li><a href="#features">🎯 Caratteristiche Principali</a></li>
+                    <li><a href="#stack">🏗️ Stack Tecnologico</a></li>
+                    <li><a href="#structure">📁 Struttura Cartelle</a></li>
+                    <li><a href="#setup">🚀 Setup & Sviluppo</a></li>
+                    <li><a href="#database">📊 Database Schema</a></li>
+                    <li><a href="#security">🔐 Security & RLS</a></li>
+                    <li><a href="#workflows">📝 Development Workflows</a></li>
+                    <li><a href="#deployment">🚢 Deployment</a></li>
+                    <li><a href="#api">📚 API Documentation</a></li>
+                </ul>
+            </div>
+            
+            <section id="features">
+                <h2>🎯 Caratteristiche Principali</h2>
+                
+                <h3>1. <strong>9 Driver Framework</strong></h3>
+                <p>Analizza la performance tramite 9 metriche indipendenti:</p>
+                <ul>
+                    <li><strong>Compliance</strong> — Salute tecnica del sito (SEMrush Site Audit)</li>
+                    <li><strong>Experience</strong> — Performance pagina (Google PageSpeed Insights)</li>
+                    <li><strong>Discoverability</strong> — Visibilità organica (SEMrush ranking)</li>
+                    <li><strong>Content</strong> — Qualità contenuto (densità errori audit)</li>
+                    <li><strong>Accessibility</strong> — Conformità WCAG (Lighthouse accessibility)</li>
+                    <li><strong>Authority</strong> — Domain authority (Ahrefs Domain Rating 0-100)</li>
+                    <li><strong>ASO Visibility</strong> — Presence su paid search (SEMrush Adwords)</li>
+                    <li><strong>AI Relevance</strong> — Presence in AI Overviews (Ahrefs)</li>
+                    <li><strong>Awareness</strong> — Brand awareness (trend di ricerca)</li>
+                </ul>
+                <p><em>Ogni driver produce un score 0-100 assoluto (NON relativo ai competitor). L'overall score è la media dei driver con status 'ok'.</em></p>
+                
+                <h3>2. <strong>Gestione Clienti Multi-tenant</strong></h3>
+                <ul>
+                    <li><strong>Lifecycle pipeline</strong>: prospect → active → churned → archived</li>
+                    <li><strong>Team & Sharing</strong>: owner/editor/viewer roles via <code>client_members</code></li>
+                    <li><strong>RLS enforced</strong>: accesso ai clienti solo se in <code>client_members</code></li>
+                    <li><strong>Monitoring</strong>: sottoscrizioni automatiche con cron per analisi periodiche</li>
+                    <li><strong>MarTech detection</strong>: scoperta automatica dello stack tecnologico del cliente</li>
+                </ul>
+                
+                <h3>3. <strong>Client Memory v2 (Phase 5)</strong></h3>
+                <p>Profilo intelligente del cliente che si auto-aggiorna:</p>
+                <ul>
+                    <li><strong>Profile</strong>: nome azienda, industria, contatti, timeline, budget, competitors</li>
+                    <li><strong>Facts</strong>: informazioni estratte da analisi, knowledge base, conversazioni, user input</li>
+                    <li><strong>Gaps</strong>: domande critiche non ancora risposte</li>
+                    <li><strong>Answers</strong>: storia delle risposte fornite dagli utenti</li>
+                    <li><strong>Refresh automation</strong>: stato (empty → building → ready → stale → refreshing)</li>
+                    <li><strong>RAG-driven</strong>: ricerca nella knowledge base durante il refresh</li>
+                    <li><strong>Active learning loop</strong>: suggerimenti intelligenti di fatti mancanti</li>
+                </ul>
+                
+                <h3>4. <strong>Knowledge Base + Ingestion</strong></h3>
+                <p>Upload di documenti (PDF, DOCX, XLSX, PPTX, transcripts Teams, TXT):</p>
+                <ul>
+                    <li><strong>Parsing</strong>: estrazione testo intelligente per ogni formato</li>
+                    <li><strong>Chunking</strong>: divisione in chunk ottimali (max 1024 token)</li>
+                    <li><strong>Embedding</strong>: vettorizzazione con OpenAI + pgvector</li>
+                    <li><strong>Search</strong>: RAG vector search per contesto nel memory + chat</li>
+                    <li><strong>Batch extract</strong>: endpoint per processare in massa</li>
+                </ul>
+            </section>
+            
+            <section id="stack">
+                <div class="section-divider"></div>
+                <h2>🏗️ Stack Tecnologico</h2>
+                
+                <h3>Frontend</h3>
+                <ul>
+                    <li><strong>Next.js 14</strong> — App Router, SSR/SSG, middleware auth</li>
+                    <li><strong>React 18</strong> — UI components</li>
+                    <li><strong>shadcn/ui</strong> — Radix UI + Tailwind CSS</li>
+                    <li><strong>Tailwind CSS</strong> — utility-first styling</li>
+                    <li><strong>Recharts</strong> — grafici (spider, priority matrix, gantt, trends)</li>
+                </ul>
+                
+                <h3>Backend</h3>
+                <ul>
+                    <li><strong>Next.js API Routes</strong> — handler per REST API</li>
+                    <li><strong>Supabase</strong> — Postgres + realtime + Auth + Storage</li>
+                    <li><strong>pgvector</strong> — embedding search (Knowledge)</li>
+                    <li><strong>Edge Functions</strong> — run-analysis, refresh cronjob</li>
+                    <li><strong>RLS (Row Level Security)</strong> — enforced on all tables</li>
+                </ul>
+                
+                <h3>LLM & AI</h3>
+                <ul>
+                    <li><strong>Anthropic SDK</strong> — per Claude (memory synthesis)</li>
+                    <li><strong>OpenAI SDK</strong> — per GPT-4 (chat, solutions, priority matrix)</li>
+                    <li><strong>Perplexity API</strong> — fallback per chat</li>
+                    <li><strong>ai SDK</strong> — wrapper unificato</li>
+                </ul>
+            </section>
+            
+            <section id="setup">
+                <div class="section-divider"></div>
+                <h2>🚀 Setup & Sviluppo</h2>
+                
+                <h3>Prerequisites</h3>
+                <ul>
+                    <li><strong>Node.js 18+</strong> e <strong>npm</strong></li>
+                    <li><strong>Supabase account</strong></li>
+                    <li><strong>Vercel account</strong></li>
+                    <li><strong>API keys</strong>: OpenAI, SEMrush, Ahrefs, Google PageSpeed</li>
+                </ul>
+                
+                <h3>1. Clone & Install</h3>
+                <pre>git clone https://github.com/marcocorsaro-sys/jboost-analyzer.git
+cd jboost-analyzer
+npm install</pre>
+                
+                <h3>2. Environment Variables</h3>
+                <pre>cp .env.local.example .env.local</pre>
+                
+                <h3>3. Database Setup</h3>
+                <pre>supabase login
+supabase link --project-ref your-project-ref
+supabase migration up</pre>
+                
+                <h3>4. Run Dev Server</h3>
+                <pre>npm run dev</pre>
+                <p>Accedi a <strong>http://localhost:3000</strong></p>
+            </section>
+            
+            <section id="database">
+                <div class="section-divider"></div>
+                <h2>📊 Database Schema Highlights</h2>
+                
+                <h3>Core Tables</h3>
+                <div class="feature-box">
+                    <strong>clients</strong><br/>
+                    id, user_id, name, domain, industry, lifecycle_stage, created_at, updated_at
+                </div>
+                
+                <div class="feature-box">
+                    <strong>client_members</strong><br/>
+                    id, client_id, user_id, role (owner|editor|viewer)
+                </div>
+                
+                <div class="feature-box">
+                    <strong>analyses</strong><br/>
+                    id, client_id, domain, overall_score, status, results (JSON), source, created_at
+                </div>
+                
+                <div class="feature-box">
+                    <strong>knowledge_documents & knowledge_chunks</strong><br/>
+                    documents: id, client_id, source_type, raw_content, ingestion_status<br/>
+                    chunks: id, document_id, content, embedding (pgvector)
+                </div>
+                
+                <div class="feature-box">
+                    <strong>client_memories</strong><br/>
+                    id, client_id, profile (JSON), facts (JSON), gaps (JSON), status, completeness
+                </div>
+            </section>
+            
+            <section id="security">
+                <div class="section-divider"></div>
+                <h2>🔐 Security & RLS</h2>
+                
+                <h3>Authentication</h3>
+                <ul>
+                    <li>Supabase Auth (Magic Link + Password)</li>
+                    <li>Session refresh via middleware.ts</li>
+                </ul>
+                
+                <h3>Row Level Security (RLS)</h3>
+                <ul>
+                    <li><strong>clients</strong>: accesso solo se owner via <code>user_has_client_access()</code></li>
+                    <li><strong>analyses</strong>: eredita accesso da client</li>
+                    <li><strong>knowledge</strong>: RLS su client_id</li>
+                    <li><strong>Helper functions</strong>: SECURITY DEFINER per bypass RLS controllatamente</li>
+                </ul>
+            </section>
+            
+            <section id="api">
+                <div class="section-divider"></div>
+                <h2>📚 API Documentation</h2>
+                
+                <h3>GET /api/clients</h3>
+                <p>Elenco clienti per user (con RLS via client_members).</p>
+                <pre>{
+  "clients": [
+    {
+      "id": "uuid",
+      "name": "Acme Corp",
+      "domain": "acme.com",
+      "lifecycle_stage": "active",
+      "latest_score": 78,
+      "analyses_count": 5
+    }
+  ]
+}</pre>
+                
+                <h3>POST /api/clients</h3>
+                <p>Crea nuovo cliente (default lifecycle_stage='prospect').</p>
+                
+                <h3>POST /api/clients/[id]/memory/refresh</h3>
+                <p>Trigger async memory refresh.</p>
+                
+                <h3>POST /api/knowledge/ingest</h3>
+                <p>Upload & ingest documento (PDF, DOCX, XLSX, ecc.).</p>
+                
+                <h3>POST /api/chat</h3>
+                <p>Chat endpoint con streaming response (SSE).</p>
+                
+                <h3>GET /api/admin/memory-health</h3>
+                <p>(Admin only) Status di tutti i memory per debug.</p>
+            </section>
+            
+            <section id="deployment">
+                <div class="section-divider"></div>
+                <h2>🚢 Deployment</h2>
+                
+                <h3>Option 1: Deploy Script</h3>
+                <pre>bash deploy.sh</pre>
+                
+                <h3>Option 2: Manual Vercel</h3>
+                <pre>npm i -g vercel
+vercel
+vercel --prod</pre>
+                
+                <h3>Vercel Cron Jobs</h3>
+                <p>Configurati in <code>vercel.json</code> per refresh giornaliero dei clienti.</p>
+            </section>
+            
+        </div>
+        
+        <div class="footer">
+            <p><strong>Last Updated:</strong> April 2026 | <strong>Maintained by:</strong> Marco Corsaro Systems</p>
+            <p>Repository: <a href="https://github.com/marcocorsaro-sys/jboost-analyzer" style="color: #667eea;">github.com/marcocorsaro-sys/jboost-analyzer</a></p>
+        </div>
+    </div>
+</body>
+</html>
