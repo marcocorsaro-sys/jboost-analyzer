@@ -13,7 +13,7 @@
 // ============================================================
 
 import { SupabaseClient } from '@supabase/supabase-js'
-import type { MemoryAnswer } from '@/lib/types/client'
+import type { MemoryAnswer, MemoryProfile } from '@/lib/types/client'
 import { assembleKnowledgeViaRAG } from './knowledge-rag'
 
 // ─── Token budgets (approximate chars, ~4 chars per token) ───
@@ -65,7 +65,8 @@ async function safeFetch<T>(
 export async function assembleClientData(
   clientId: string,
   supabase: SupabaseClient,
-  existingAnswers: MemoryAnswer[] = []
+  existingAnswers: MemoryAnswer[] = [],
+  existingProfile?: MemoryProfile | null
 ): Promise<AssembledData> {
   const lines: string[] = []
   const sourceVersions: Record<string, unknown> = {}
@@ -426,7 +427,33 @@ export async function assembleClientData(
     }
   }
 
-  // ── 8. Existing Answers (always included, authoritative) ──
+  // ── 8. Onboarding seed (Phase 5D, AUTHORITATIVE) ──────────
+  // The structured onboarding wizard populates `profile.brand`, `.markets`,
+  // `.stakeholders`, `.access`, `.seo_foundation`, `.geo`, `.content_strategy`,
+  // `.goals_kpis`, `.compliance` directly on client_memory.profile. Re-feed
+  // those sections to the synthesizer as an authoritative user_answer-level
+  // source so they survive each full refresh and drive gap detection.
+  if (existingProfile) {
+    const seed = serializeOnboardingSeed(existingProfile)
+    if (seed) {
+      lines.push('# ONBOARDING PROFILE (AUTHORITATIVE SEED — user_answer level)')
+      lines.push('Questi dati provengono dal wizard di onboarding compilato dal consulente.')
+      lines.push('Hanno priorita\' massima e devono essere preservati nel profilo di output.')
+      lines.push('')
+      lines.push(seed)
+      lines.push('')
+      const ob = existingProfile.onboarding
+      sourceVersions.onboarding = {
+        version: ob?.version ?? 0,
+        status: ob?.status ?? 'not_started',
+        completed_sections: ob?.completed_sections ?? [],
+        completed_at: ob?.completed_at ?? null,
+      }
+      log.info(clientId, 'onboarding', `seed included (status=${ob?.status ?? 'n/a'})`)
+    }
+  }
+
+  // ── 9. Existing Answers (always included, authoritative) ──
   if (existingAnswers.length > 0) {
     lines.push('# RISPOSTE DELL\'UTENTE (AUTORITATIVE)')
     lines.push('Queste risposte sono state fornite direttamente dall\'utente e hanno la massima priorita\'.')
@@ -451,4 +478,168 @@ export async function assembleClientData(
 function truncate(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text
   return text.substring(0, maxChars) + '\n[... troncato]'
+}
+
+/**
+ * Serialize the Phase 5D onboarding seed sections of MemoryProfile into
+ * a human-readable block for the LLM. Returns an empty string if no
+ * onboarding data is present so the caller can skip the whole section.
+ */
+function serializeOnboardingSeed(profile: MemoryProfile): string {
+  const parts: string[] = []
+
+  const pushList = (label: string, arr?: string[] | null) => {
+    if (arr && arr.length > 0) parts.push(`- ${label}: ${arr.join(', ')}`)
+  }
+  const pushStr = (label: string, v?: string | null) => {
+    if (v && v.trim()) parts.push(`- ${label}: ${v.trim()}`)
+  }
+  const pushBool = (label: string, v?: boolean) => {
+    if (typeof v === 'boolean') parts.push(`- ${label}: ${v ? 'si' : 'no'}`)
+  }
+
+  if (profile.brand) {
+    const b = profile.brand
+    parts.push('## BRAND & AZIENDA')
+    pushStr('Legal name', b.legal_name)
+    pushStr('Tagline', b.tagline)
+    pushStr('UVP', b.uvp)
+    pushStr('Mission', b.mission)
+    pushList('Values', b.values)
+    pushStr('Voice', b.voice)
+    pushStr('Tone', b.tone)
+    pushList('Do not say', b.do_not_say)
+    parts.push('')
+  }
+
+  if (profile.markets) {
+    const m = profile.markets
+    parts.push('## MERCATI & TARGET')
+    pushList('Primary regions', m.primary_regions)
+    pushList('Secondary regions', m.secondary_regions)
+    pushList('Languages', m.languages)
+    pushStr('B2B/B2C', m.b2b_b2c)
+    pushStr('ICP', m.icp)
+    if (m.personas && m.personas.length > 0) {
+      parts.push('- Personas:')
+      for (const p of m.personas) {
+        const pains = p.pain_points?.length ? ` — pain: ${p.pain_points.join(', ')}` : ''
+        parts.push(`  • ${p.name}: ${p.description}${pains}`)
+      }
+    }
+    parts.push('')
+  }
+
+  if (profile.stakeholders && profile.stakeholders.length > 0) {
+    parts.push('## STAKEHOLDERS')
+    for (const s of profile.stakeholders) {
+      const dm = s.is_decision_maker ? ' [DECISION MAKER]' : ''
+      const dept = s.department ? ` (${s.department})` : ''
+      const email = s.email ? ` <${s.email}>` : ''
+      const approval = s.approval_scope ? ` — approval: ${s.approval_scope}` : ''
+      parts.push(`- ${s.name}, ${s.role}${dept}${email}${dm}${approval}`)
+    }
+    parts.push('')
+  }
+
+  if (profile.access) {
+    const a = profile.access
+    parts.push('## ACCESSI & ASSET')
+    if (a.cms?.platform) parts.push(`- CMS: ${a.cms.platform}`)
+    if (a.analytics?.ga4_property_id) parts.push(`- GA4: ${a.analytics.ga4_property_id}`)
+    pushBool('GSC verified', a.analytics?.gsc_verified)
+    pushBool('SEMrush', a.seo_tools?.semrush)
+    pushBool('Ahrefs', a.seo_tools?.ahrefs)
+    pushStr('SEO tools notes', a.seo_tools?.notes)
+    pushList('Asset repos', a.asset_repos)
+    pushStr('Brand guidelines', a.brand_guidelines_url)
+    parts.push('')
+  }
+
+  if (profile.seo_foundation) {
+    const s = profile.seo_foundation
+    parts.push('## SEO FOUNDATION')
+    pushStr('Maturity level', s.maturity_level)
+    pushList('Priority keywords', s.priority_keywords)
+    pushList('Priority topics', s.priority_topics)
+    pushList('Priority pages', s.priority_pages)
+    pushList('Current issues', s.current_issues)
+    pushStr('Historical context', s.historical_context)
+    parts.push('')
+  }
+
+  if (profile.geo) {
+    const g = profile.geo
+    parts.push('## GEO — GENERATIVE ENGINE OPTIMIZATION')
+    pushList('Target engines', g.target_engines)
+    pushBool('Wikipedia entity', g.entity_status?.wikipedia)
+    pushBool('Knowledge panel', g.entity_status?.knowledge_panel)
+    pushBool('llms.txt', g.entity_status?.llms_txt)
+    pushStr('Schema maturity', g.schema_maturity)
+    pushList('E-E-A-T signals', g.eeat_signals)
+    if (g.author_entities && g.author_entities.length > 0) {
+      parts.push(`- Author entities: ${g.author_entities.map(a => a.credentials ? `${a.name} (${a.credentials})` : a.name).join('; ')}`)
+    }
+    pushStr('Current mentions', g.current_mentions)
+    pushList('GEO goals', g.geo_goals)
+    parts.push('')
+  }
+
+  if (profile.content_strategy) {
+    const c = profile.content_strategy
+    parts.push('## CONTENT STRATEGY')
+    pushList('Pillars', c.pillars)
+    pushList('Topic clusters', c.topic_clusters)
+    pushStr('Editorial calendar', c.editorial_calendar_url)
+    pushList('Formats', c.formats)
+    pushStr('Publishing cadence', c.publishing_cadence)
+    pushBool('Multilingual', c.multilingual)
+    pushList('Distribution channels', c.distribution_channels)
+    pushStr('Inventory size', c.content_inventory_size)
+    parts.push('')
+  }
+
+  if (profile.goals_kpis) {
+    const g = profile.goals_kpis
+    parts.push('## OBIETTIVI & KPI')
+    pushList('Short term (90d)', g.short_term)
+    pushList('Medium term (6m)', g.medium_term)
+    pushList('Long term (12m+)', g.long_term)
+    pushStr('Primary KPI', g.primary_kpi)
+    pushStr('Success criteria', g.success_criteria)
+    if (g.baselines && Object.keys(g.baselines).length > 0) {
+      parts.push('- Baselines:')
+      for (const [k, v] of Object.entries(g.baselines)) {
+        parts.push(`  • ${k}: ${v}`)
+      }
+    }
+    parts.push('')
+  }
+
+  if (profile.compliance) {
+    const c = profile.compliance
+    parts.push('## COMPLIANCE & VINCOLI')
+    pushList('Regulations', c.regulations)
+    pushStr('Approval workflow', c.approval_workflow)
+    pushList('Embargo topics', c.embargo_topics)
+    pushBool('Legal review required', c.legal_review_required)
+    pushStr('Trademark notes', c.trademark_notes)
+    parts.push('')
+  }
+
+  if (profile.onboarding) {
+    const o = profile.onboarding
+    parts.push('## ONBOARDING STATE')
+    parts.push(`- Status: ${o.status}`)
+    parts.push(`- Version: ${o.version}`)
+    if (o.completed_sections.length > 0) {
+      parts.push(`- Completed sections: ${o.completed_sections.join(', ')}`)
+    }
+    if (o.skipped_fields.length > 0) {
+      parts.push(`- Skipped fields (should drive gap questions): ${o.skipped_fields.join(', ')}`)
+    }
+    parts.push('')
+  }
+
+  return parts.join('\n').trim()
 }

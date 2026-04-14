@@ -6,10 +6,13 @@ import Link from 'next/link'
 import ClientOverviewTrend from '@/components/clients/ClientOverviewTrend'
 import LifecycleActions from '@/components/clients/LifecycleActions'
 import MonitoringPanel from '@/components/clients/MonitoringPanel'
+import MonitoringLockedCard from '@/components/clients/MonitoringLockedCard'
 import TeamPanel from '@/components/clients/TeamPanel'
 import MemoryMainCard from '@/components/memory/MemoryMainCard'
+import OnboardingCTA from '@/components/onboarding/OnboardingCTA'
 import T from '@/components/ui/T'
-import type { ClientLifecycleStage } from '@/lib/types/client'
+import { ONBOARDING_SECTIONS } from '@/lib/onboarding/sections'
+import type { ClientLifecycleStage, MemoryProfile } from '@/lib/types/client'
 import type { TranslationKey } from '@/lib/i18n'
 
 const STAGE_COLORS: Record<ClientLifecycleStage, { bg: string; fg: string; border: string }> = {
@@ -175,6 +178,20 @@ export default async function ClientOverviewPage({
     .select('*', { count: 'exact', head: true })
     .eq('client_id', params.id)
 
+  // Phase 5D — onboarding status for the CTA card.
+  const { data: memoryRow } = await supabase
+    .from('client_memory')
+    .select('profile')
+    .eq('client_id', params.id)
+    .maybeSingle()
+  const onboardingState =
+    ((memoryRow?.profile as MemoryProfile | null)?.onboarding) ?? {
+      version: 1,
+      status: 'not_started' as const,
+      completed_sections: [] as string[],
+      skipped_fields: [] as string[],
+    }
+
   const overallScore = latestAnalysis?.overall_score ?? null
   const band = overallScore !== null ? getScoreBand(overallScore) : null
   const color = band ? BAND_COLORS[band.color] ?? '#6b7280' : '#6b7280'
@@ -229,6 +246,14 @@ export default async function ClientOverviewPage({
           canManageOwners={canManageOwners}
         />
       </div>
+
+      {/* Phase 5D — onboarding CTA (hidden once completed) */}
+      <OnboardingCTA
+        clientId={params.id}
+        status={onboardingState.status}
+        completedSections={onboardingState.completed_sections.length}
+        totalSections={ONBOARDING_SECTIONS.length}
+      />
 
       {/* Quick stats grid */}
       <div className="grid grid-cols-4 gap-4 mb-6">
@@ -358,7 +383,10 @@ export default async function ClientOverviewPage({
       {/* Client Memory (Phase 5D) — compact view always visible */}
       <MemoryMainCard clientId={params.id} />
 
-      {/* Monitoring (Phase 4C) — only meaningful when there's an active engagement */}
+      {/* Monitoring (Phase 4C) — visible for every non-archived stage.
+          Prospects see a locked informative card pointing at the Activate
+          CTA; active/churned clients see the full scheduling panel. */}
+      {lifecycleStage === 'prospect' && <MonitoringLockedCard />}
       {(lifecycleStage === 'active' || lifecycleStage === 'churned') && (
         <MonitoringPanel clientId={params.id} canEdit={canEdit} />
       )}

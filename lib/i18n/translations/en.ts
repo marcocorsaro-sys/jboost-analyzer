@@ -149,6 +149,7 @@ const en = {
   'clients.monitoring_run_started': 'Run started, results will appear in the trend chart.',
   'clients.monitoring_loading': 'Loading...',
   'clients.monitoring_no_subscription': 'No subscription yet — save to enable.',
+  'clients.monitoring_locked_prospect': 'Scheduling becomes available once the client is activated. Use the "Activate" button at the top to enable weekly, biweekly or monthly refreshes.',
   'clients.search_placeholder': 'Search clients...',
   'clients.filter_all': 'All',
   'clients.filter_active': 'Active',
@@ -314,6 +315,23 @@ const en = {
   'knowledge.deleteError': 'Deletion error',
   'knowledge.refreshFailed': 'Refresh failed',
   'knowledge.memoryRefreshError': 'Memory refresh error',
+
+  // Knowledge base — phase 6 (modern pipeline + legacy migration)
+  'knowledge.kb_status': 'Status',
+  'knowledge.kb_tokens': 'Tokens',
+  'knowledge.kb_migrated': 'In KB',
+  'knowledge.kb_migrated_yes': 'migrated',
+  'knowledge.legacy_title': 'Legacy files',
+  'knowledge.legacy_pending_migration': 'pending migration to the knowledge base',
+  'knowledge.legacy_all_migrated': 'All migrated to the modern knowledge base.',
+  'knowledge.legacy_extract_all': 'Extract all',
+  'knowledge.legacy_extract_all_title': 'Extract text from every legacy file that has not been processed yet',
+  'knowledge.migrate_one': 'Migrate',
+  'knowledge.migrate_one_title': 'Migrate this legacy file to the modern knowledge base (chunking + embedding)',
+  'knowledge.migrate_all': 'Migrate all',
+  'knowledge.migrate_all_title': 'Migrate every legacy file with ready text into the modern knowledge base',
+  'knowledge.migrate_all_confirm': 'Migrate {count} legacy files to the modern knowledge base?',
+  'knowledge.migrate_nothing_to_do': 'Nothing to migrate: every eligible legacy file is already in the knowledge base.',
 
   // Executive Summary
   'execSummary.title': 'Executive Summary',
@@ -517,6 +535,30 @@ const en = {
   'chat.sugAssistant3': 'Compare GA4 vs Matomo',
   'chat.sugAssistant4': 'Technical SEO checklist',
 
+  // Chat — save to memory (Phase 5C UI wiring)
+  'chat.saveToMemory': 'Save to memory',
+  'chat.saveToMemoryTitle': 'Pin to client memory',
+  'chat.saveToMemorySubtitle': 'Save this excerpt as a new fact in the client memory. It will be usable immediately in future answers without waiting for a full refresh.',
+  'chat.saveToMemorySuccess': 'Saved to memory.',
+  'chat.saveToMemoryError': 'Could not save to memory.',
+  'chat.selectCategory': 'Category',
+  'chat.factLabel': 'Fact',
+  'chat.factPlaceholder': 'e.g. The client prefers monthly reports in Italian.',
+  'chat.factTooLong': 'Fact must be 500 characters or fewer.',
+  'chat.cancel': 'Cancel',
+  'chat.saving': 'Saving…',
+  'memory.category.seo_performance': 'SEO performance',
+  'memory.category.business': 'Business',
+  'memory.category.technical': 'Technical',
+  'memory.category.content': 'Content',
+  'memory.category.competitor': 'Competitor',
+  'memory.category.martech': 'MarTech',
+  'memory.category.contact': 'Contact',
+  'memory.category.timeline': 'Timeline',
+  'memory.category.budget': 'Budget',
+  'memory.category.preference': 'Preference',
+  'memory.category.conversation_insight': 'Conversation insight',
+
   // Clients extra
   'clients.analysisCount': 'analyses',
   'clients.lastAnalysis': 'Last',
@@ -537,6 +579,172 @@ const en = {
   'common.name': 'Name',
   'common.email': 'Email',
   'common.askJ': 'Ask J',
+
+  // ─── Phase 5D — Onboarding wizard ──────────────────────────
+  'onboarding.wizard.client': 'Client',
+  'onboarding.wizard.progress': 'Progress',
+  'onboarding.wizard.saving': 'Saving…',
+  'onboarding.wizard.next': 'Save and next',
+  'onboarding.wizard.back': 'Back',
+  'onboarding.wizard.skip_section': 'Skip section',
+  'onboarding.wizard.save_exit': 'Save and continue later',
+  'onboarding.wizard.discovery': 'Discovery chat',
+  'onboarding.wizard.complete': 'Complete onboarding',
+  'onboarding.wizard.completing': 'Finalizing…',
+
+  'onboarding.cta.label': 'First step',
+  'onboarding.cta.start_title': 'Start client onboarding',
+  'onboarding.cta.resume_title': 'Resume client onboarding',
+  'onboarding.cta.description':
+    'Seed the client memory with brand, stakeholders, SEO, Generative Engine Optimization, content strategy and compliance. Any question can be answered, skipped, or revisited later.',
+  'onboarding.cta.start_button': 'Start',
+  'onboarding.cta.resume_button': 'Resume',
+
+  'onboarding.discovery.title': 'Discovery chat',
+  'onboarding.discovery.description':
+    'Qualitative follow-up with Claude: brand voice, unspoken priorities, past failures, authentic differentiators. Claude pins insights to client memory automatically.',
+  'onboarding.discovery.placeholder': 'Type your answer…',
+  'onboarding.discovery.send': 'Send',
+  'onboarding.discovery.end': 'End discovery and lock the session',
+
+  // Sections
+  'onboarding.sections.brand.title': '1. Brand & Company',
+  'onboarding.sections.brand.description': 'Identity, mission and tone of voice that will drive every piece of content.',
+  'onboarding.sections.markets.title': '2. Markets & Target',
+  'onboarding.sections.markets.description': 'Geographies, languages and ideal customer profile.',
+  'onboarding.sections.stakeholders.title': '3. Stakeholders',
+  'onboarding.sections.stakeholders.description': 'Decision makers, approvers and key contacts on the client side.',
+  'onboarding.sections.access.title': '4. Access & Assets',
+  'onboarding.sections.access.description': 'CMS, analytics, SEO tools and creative repositories.',
+  'onboarding.sections.seo_foundation.title': '5. SEO Foundation',
+  'onboarding.sections.seo_foundation.description': 'Current maturity, priority keywords, pages and known technical issues.',
+  'onboarding.sections.geo.title': '6. GEO — Generative Engine Optimization',
+  'onboarding.sections.geo.description': 'Visibility on ChatGPT, Perplexity, Google AI Overviews, Gemini: E-E-A-T, entities, schema, llms.txt.',
+  'onboarding.sections.content_strategy.title': '7. Content Strategy',
+  'onboarding.sections.content_strategy.description': 'Pillars, topic clusters, formats, editorial cadence, distribution.',
+  'onboarding.sections.goals_kpis.title': '8. Goals & KPIs',
+  'onboarding.sections.goals_kpis.description': 'Success criteria at 90 days, 6 months, 12 months.',
+  'onboarding.sections.compliance.title': '9. Compliance & Constraints',
+  'onboarding.sections.compliance.description': 'Regulations, approval workflow, embargo topics, trademarks.',
+  'onboarding.sections.engagement.title': '10. Engagement',
+  'onboarding.sections.engagement.description': 'Contract, services, communication preferences.',
+
+  // Brand fields
+  'onboarding.fields.brand.legal_name': 'Legal company name',
+  'onboarding.fields.brand.tagline': 'Tagline / payoff',
+  'onboarding.fields.brand.uvp': 'Unique Value Proposition',
+  'onboarding.fields.brand.uvp_help': 'One sentence: why should a customer choose this brand over the alternatives?',
+  'onboarding.fields.brand.mission': 'Mission',
+  'onboarding.fields.brand.values': 'Values',
+  'onboarding.fields.brand.voice': 'Brand voice',
+  'onboarding.fields.brand.voice_help': 'Examples: authoritative, friendly, technical, irreverent.',
+  'onboarding.fields.brand.tone': 'Tone',
+  'onboarding.fields.brand.do_not_say': 'Do-not-say list',
+  'onboarding.fields.brand.do_not_say_help': 'Words, claims or topics the brand must never use.',
+
+  // Markets fields
+  'onboarding.fields.markets.primary_regions': 'Primary regions',
+  'onboarding.fields.markets.secondary_regions': 'Secondary regions',
+  'onboarding.fields.markets.languages': 'Communication languages',
+  'onboarding.fields.markets.b2b_b2c': 'Business model',
+  'onboarding.fields.markets.icp': 'Ideal Customer Profile',
+  'onboarding.fields.markets.icp_help': 'Describe in 2-3 sentences the ideal customer: size, role, pains, budget.',
+  'onboarding.fields.markets.personas': 'Buyer personas',
+
+  'onboarding.options.b2b_b2c.b2b': 'B2B',
+  'onboarding.options.b2b_b2c.b2c': 'B2C',
+  'onboarding.options.b2b_b2c.b2b2c': 'B2B2C',
+  'onboarding.options.b2b_b2c.mixed': 'Mixed',
+
+  // Stakeholders
+  'onboarding.fields.stakeholders.list': 'Key stakeholders',
+  'onboarding.fields.stakeholders.help':
+    'Add every key contact: decision makers, marketing, content approvers, technical, legal, agency.',
+
+  // Access
+  'onboarding.fields.access.cms_platform': 'CMS / platform',
+  'onboarding.fields.access.cms_credentials_location': 'Credentials location',
+  'onboarding.fields.access.ga4_property_id': 'GA4 property ID',
+  'onboarding.fields.access.gsc_verified': 'Google Search Console verified',
+  'onboarding.fields.access.semrush': 'SEMrush account active',
+  'onboarding.fields.access.ahrefs': 'Ahrefs account active',
+  'onboarding.fields.access.seo_tools_notes': 'Notes on SEO tools and historical data',
+  'onboarding.fields.access.asset_repos': 'Asset repositories (Drive, Figma, DAM)',
+  'onboarding.fields.access.brand_guidelines_url': 'Brand guidelines URL',
+
+  // SEO foundation
+  'onboarding.fields.seo_foundation.maturity_level': 'SEO maturity level',
+  'onboarding.fields.seo_foundation.priority_keywords': 'Priority keywords',
+  'onboarding.fields.seo_foundation.priority_keywords_help': 'The 5-10 keywords that matter most to the client right now.',
+  'onboarding.fields.seo_foundation.priority_topics': 'Priority topics',
+  'onboarding.fields.seo_foundation.priority_pages': 'Priority pages',
+  'onboarding.fields.seo_foundation.current_issues': 'Known current issues',
+  'onboarding.fields.seo_foundation.historical_context': 'SEO history / past actions',
+
+  'onboarding.options.maturity.none': 'None',
+  'onboarding.options.maturity.basic': 'Basic',
+  'onboarding.options.maturity.intermediate': 'Intermediate',
+  'onboarding.options.maturity.advanced': 'Advanced',
+
+  // GEO
+  'onboarding.fields.geo.target_engines': 'Target generative engines',
+  'onboarding.fields.geo.target_engines_help': 'Where the client wants to be visible and cited.',
+  'onboarding.fields.geo.wikipedia': 'Wikipedia entity present',
+  'onboarding.fields.geo.knowledge_panel': 'Knowledge panel present',
+  'onboarding.fields.geo.llms_txt': 'llms.txt published',
+  'onboarding.fields.geo.schema_maturity': 'schema.org maturity',
+  'onboarding.fields.geo.eeat_signals': 'E-E-A-T signals present on site',
+  'onboarding.fields.geo.eeat_signals_help': 'Experience, Expertise, Authoritativeness, Trustworthiness.',
+  'onboarding.fields.geo.author_entities': 'Recognized authors',
+  'onboarding.fields.geo.current_mentions': 'Current AI engine mentions',
+  'onboarding.fields.geo.current_mentions_help': 'What do ChatGPT / Perplexity / AI Overviews say about the brand today?',
+  'onboarding.fields.geo.geo_goals': 'GEO goals',
+
+  'onboarding.options.engines.chatgpt': 'ChatGPT',
+  'onboarding.options.engines.perplexity': 'Perplexity',
+  'onboarding.options.engines.claude': 'Claude',
+  'onboarding.options.engines.google_aio': 'Google AI Overviews',
+  'onboarding.options.engines.gemini': 'Gemini',
+  'onboarding.options.engines.copilot': 'Copilot',
+
+  'onboarding.options.schema.none': 'None',
+  'onboarding.options.schema.basic': 'Basic',
+  'onboarding.options.schema.advanced': 'Advanced',
+
+  // Content strategy
+  'onboarding.fields.content.pillars': 'Content pillars',
+  'onboarding.fields.content.topic_clusters': 'Topic clusters',
+  'onboarding.fields.content.editorial_calendar_url': 'Editorial calendar URL',
+  'onboarding.fields.content.formats': 'Content formats',
+  'onboarding.fields.content.publishing_cadence': 'Publishing cadence',
+  'onboarding.fields.content.multilingual': 'Multilingual strategy',
+  'onboarding.fields.content.distribution_channels': 'Distribution channels',
+  'onboarding.fields.content.content_inventory_size': 'Content inventory size',
+
+  // Goals / KPI
+  'onboarding.fields.goals.short_term': 'Short-term goals (90d)',
+  'onboarding.fields.goals.medium_term': 'Medium-term goals (6m)',
+  'onboarding.fields.goals.long_term': 'Long-term goals (12m+)',
+  'onboarding.fields.goals.primary_kpi': 'Primary KPI',
+  'onboarding.fields.goals.baselines': 'Current baselines',
+  'onboarding.fields.goals.baselines_help': 'Metric → current value (e.g. "organic traffic → 12k/month").',
+  'onboarding.fields.goals.success_criteria': 'Success criteria',
+
+  // Compliance
+  'onboarding.fields.compliance.regulations': 'Applicable regulations',
+  'onboarding.fields.compliance.regulations_help': 'GDPR, HIPAA, MiFID, ESMA, ...',
+  'onboarding.fields.compliance.approval_workflow': 'Content approval workflow',
+  'onboarding.fields.compliance.embargo_topics': 'Embargo topics',
+  'onboarding.fields.compliance.legal_review_required': 'Legal review required for every piece',
+  'onboarding.fields.compliance.trademark_notes': 'Trademark / competitive claims notes',
+
+  // Engagement
+  'onboarding.fields.engagement.type': 'Engagement type',
+  'onboarding.fields.engagement.contract_type': 'Contract type',
+  'onboarding.fields.engagement.services': 'Services in scope',
+  'onboarding.fields.engagement.communication_language': 'Communication language',
+  'onboarding.fields.engagement.report_frequency': 'Report frequency',
+  'onboarding.fields.engagement.preferred_contact': 'Preferred contact channel',
 } as const
 
 export type TranslationKey = keyof typeof en
