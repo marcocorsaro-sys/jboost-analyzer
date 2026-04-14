@@ -149,6 +149,7 @@ const es = {
   'clients.monitoring_run_started': 'Ejecución iniciada, los resultados aparecerán en el gráfico.',
   'clients.monitoring_loading': 'Cargando...',
   'clients.monitoring_no_subscription': 'Sin suscripción — guarda para activar.',
+  'clients.monitoring_locked_prospect': 'La planificación estará disponible una vez que el cliente sea activado. Usa el botón "Activar" arriba para habilitar actualizaciones semanales, quincenales o mensuales.',
   'clients.search_placeholder': 'Buscar clientes...',
   'clients.filter_all': 'Todos',
   'clients.filter_active': 'Activos',

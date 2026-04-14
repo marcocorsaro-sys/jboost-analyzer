@@ -149,6 +149,7 @@ const it = {
   'clients.monitoring_run_started': 'Esecuzione avviata, i risultati appariranno nel grafico.',
   'clients.monitoring_loading': 'Caricamento...',
   'clients.monitoring_no_subscription': 'Nessuna subscription — salva per attivare.',
+  'clients.monitoring_locked_prospect': 'Pianificazione disponibile dopo l\u2019attivazione del cliente. Usa il pulsante "Attiva" in alto per abilitare aggiornamenti settimanali, bisettimanali o mensili.',
   'clients.search_placeholder': 'Cerca clienti...',
   'clients.filter_all': 'Tutti',
   'clients.filter_active': 'Attivi',

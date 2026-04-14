@@ -149,6 +149,7 @@ const en = {
   'clients.monitoring_run_started': 'Run started, results will appear in the trend chart.',
   'clients.monitoring_loading': 'Loading...',
   'clients.monitoring_no_subscription': 'No subscription yet — save to enable.',
+  'clients.monitoring_locked_prospect': 'Scheduling becomes available once the client is activated. Use the "Activate" button at the top to enable weekly, biweekly or monthly refreshes.',
   'clients.search_placeholder': 'Search clients...',
   'clients.filter_all': 'All',
   'clients.filter_active': 'Active',

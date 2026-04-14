@@ -149,6 +149,7 @@ const fr = {
   'clients.monitoring_run_started': 'Exécution démarrée, les résultats apparaîtront dans le graphique.',
   'clients.monitoring_loading': 'Chargement...',
   'clients.monitoring_no_subscription': 'Aucun abonnement — enregistrer pour activer.',
+  'clients.monitoring_locked_prospect': 'La planification sera disponible une fois le client activé. Utilisez le bouton « Activer » en haut pour activer les mises à jour hebdomadaires, bimensuelles ou mensuelles.',
   'clients.search_placeholder': 'Rechercher des clients...',
   'clients.filter_all': 'Tous',
   'clients.filter_active': 'Actifs',

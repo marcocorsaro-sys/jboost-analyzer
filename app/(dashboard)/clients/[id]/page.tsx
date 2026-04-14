@@ -6,6 +6,7 @@ import Link from 'next/link'
 import ClientOverviewTrend from '@/components/clients/ClientOverviewTrend'
 import LifecycleActions from '@/components/clients/LifecycleActions'
 import MonitoringPanel from '@/components/clients/MonitoringPanel'
+import MonitoringLockedCard from '@/components/clients/MonitoringLockedCard'
 import TeamPanel from '@/components/clients/TeamPanel'
 import MemoryMainCard from '@/components/memory/MemoryMainCard'
 import T from '@/components/ui/T'
@@ -358,7 +359,10 @@ export default async function ClientOverviewPage({
       {/* Client Memory (Phase 5D) — compact view always visible */}
       <MemoryMainCard clientId={params.id} />
 
-      {/* Monitoring (Phase 4C) — only meaningful when there's an active engagement */}
+      {/* Monitoring (Phase 4C) — visible for every non-archived stage.
+          Prospects see a locked informative card pointing at the Activate
+          CTA; active/churned clients see the full scheduling panel. */}
+      {lifecycleStage === 'prospect' && <MonitoringLockedCard />}
       {(lifecycleStage === 'active' || lifecycleStage === 'churned') && (
         <MonitoringPanel clientId={params.id} canEdit={canEdit} />
       )}
