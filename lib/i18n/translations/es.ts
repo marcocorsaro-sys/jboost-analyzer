@@ -315,6 +315,23 @@ const es = {
   'knowledge.anyFileMaxSize': 'Cualquier tipo de archivo, máx 50MB por archivo',
   'knowledge.noDocumentsDesc': 'Carga reportes, documentos, presentaciones o cualquier archivo para construir la knowledge base de este cliente. Estos archivos se usarán como contexto para los análisis IA.',
 
+  // Knowledge base — phase 6 (pipeline moderna + migración legacy)
+  'knowledge.kb_status': 'Estado',
+  'knowledge.kb_tokens': 'Tokens',
+  'knowledge.kb_migrated': 'En KB',
+  'knowledge.kb_migrated_yes': 'migrado',
+  'knowledge.legacy_title': 'Archivos legacy',
+  'knowledge.legacy_pending_migration': 'pendientes de migración a la knowledge base',
+  'knowledge.legacy_all_migrated': 'Todos los archivos legacy ya están migrados a la knowledge base moderna.',
+  'knowledge.legacy_extract_all': 'Extraer todo',
+  'knowledge.legacy_extract_all_title': 'Extrae el texto de cada archivo legacy aún no procesado',
+  'knowledge.migrate_one': 'Migrar',
+  'knowledge.migrate_one_title': 'Migra este archivo legacy a la knowledge base moderna (chunking + embedding)',
+  'knowledge.migrate_all': 'Migrar todo',
+  'knowledge.migrate_all_title': 'Migra cada archivo legacy listo a la knowledge base moderna',
+  'knowledge.migrate_all_confirm': '¿Migrar {count} archivos legacy a la knowledge base moderna?',
+  'knowledge.migrate_nothing_to_do': 'Nada que migrar: cada archivo legacy elegible ya está en la knowledge base.',
+
   // Executive Summary
   'execSummary.title': 'Executive Summary',
   'execSummary.generate': 'Generar Executive Summary',

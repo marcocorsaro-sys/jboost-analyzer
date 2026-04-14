@@ -315,6 +315,23 @@ const en = {
   'knowledge.refreshFailed': 'Refresh failed',
   'knowledge.memoryRefreshError': 'Memory refresh error',
 
+  // Knowledge base — phase 6 (modern pipeline + legacy migration)
+  'knowledge.kb_status': 'Status',
+  'knowledge.kb_tokens': 'Tokens',
+  'knowledge.kb_migrated': 'In KB',
+  'knowledge.kb_migrated_yes': 'migrated',
+  'knowledge.legacy_title': 'Legacy files',
+  'knowledge.legacy_pending_migration': 'pending migration to the knowledge base',
+  'knowledge.legacy_all_migrated': 'All migrated to the modern knowledge base.',
+  'knowledge.legacy_extract_all': 'Extract all',
+  'knowledge.legacy_extract_all_title': 'Extract text from every legacy file that has not been processed yet',
+  'knowledge.migrate_one': 'Migrate',
+  'knowledge.migrate_one_title': 'Migrate this legacy file to the modern knowledge base (chunking + embedding)',
+  'knowledge.migrate_all': 'Migrate all',
+  'knowledge.migrate_all_title': 'Migrate every legacy file with ready text into the modern knowledge base',
+  'knowledge.migrate_all_confirm': 'Migrate {count} legacy files to the modern knowledge base?',
+  'knowledge.migrate_nothing_to_do': 'Nothing to migrate: every eligible legacy file is already in the knowledge base.',
+
   // Executive Summary
   'execSummary.title': 'Executive Summary',
   'execSummary.generate': 'Generate Executive Summary',
