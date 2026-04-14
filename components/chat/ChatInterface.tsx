@@ -383,6 +383,8 @@ export default function ChatInterface({ clientId: initialClientId, clientName: i
               key={m.id}
               role={m.role as 'user' | 'assistant'}
               content={m.content}
+              messageId={m.id}
+              clientId={activeClientId || null}
             />
           ))
         )}
