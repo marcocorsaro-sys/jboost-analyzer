@@ -295,20 +295,34 @@ cp .env.local.example .env.local
 Compila i valori:
 
 ```env
-# Supabase
+# Supabase (client + server)
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...           # server-only, used by /api/admin/*, /api/cron/*, /api/admin/memory-health
 
 # LLM
-OPENAI_API_KEY=sk-proj-...
-PPLX_API_KEY=pplx-...
+OPENAI_API_KEY=sk-proj-...                     # chat + embeddings (knowledge pipeline)
+ANTHROPIC_API_KEY=sk-ant-...                   # required by memory refresh (Claude Sonnet 4 synthesis)
+PPLX_API_KEY=pplx-...                          # chat fallback
 
-# SEO APIs (stored on Supabase, non in .env.local)
-# Vedi: Supabase Dashboard > Edge Functions > Secrets
-# SEMRUSH_API_KEY
-# AHREFS_API_KEY
-# GOOGLE_PSI_API_KEY
+# Cron / monitoring
+CRON_SECRET=<long-random-string>               # Vercel injects Authorization: Bearer $CRON_SECRET into the daily cron
+NEXT_PUBLIC_SITE_URL=https://your-deploy.com   # used by password-recovery redirect
+
+# SEO APIs — consumed by Supabase Edge Functions (run-analysis).
+# The Next.js app itself does NOT read these, so in local dev you only
+# need them if you run the edge functions locally. In production they
+# live in Supabase Dashboard > Edge Functions > Secrets:
+#   SEMRUSH_API_KEY
+#   AHREFS_API_KEY
+#   GOOGLE_PSI_API_KEY
 ```
+
+> **Nota**: le env vars `ANTHROPIC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
+> `CRON_SECRET` e `NEXT_PUBLIC_SITE_URL` sono referenziate dal codice
+> (memory refresh, admin API, cron orchestrator, auth recovery) ma non
+> compaiono ancora in `.env.local.example`. Aggiungile manualmente al
+> tuo `.env.local` finché il file di esempio non viene aggiornato.
 
 ### 3. Database Setup
 
@@ -395,23 +409,31 @@ content_tokens, embedding (vector), metadata, created_at
 -- embedding: pgvector type per RAG search
 ```
 
-#### `client_memories`
+#### `client_memory`
 ```sql
-id, client_id, profile (JSON), facts (JSON array),
-gaps (JSON array), answers (JSON array),
+id, client_id, profile (JSONB), facts (JSONB array),
+gaps (JSONB array), answers (JSONB array),
 narrative, status (empty|building|ready|stale|refreshing|failed),
-completeness (0-100), source_versions (JSON),
+current_phase, completeness (0-100), source_versions (JSONB),
 error_message, last_refreshed_at, created_at, updated_at
+-- Singleton per client (unique on client_id), RLS via client_members
 ```
 
-#### `memory_facts` / `memory_gaps` / `memory_answers`
-Tabelle denormalizzate per tracciare history e conflicts
+#### `client_memory_facts_history`
+```sql
+id, client_id, refresh_id, facts (JSONB), superseded_at
+-- Append-only audit log: every successful refresh archives the
+-- soon-to-be-replaced facts here, so the UI can later show how
+-- Claude's understanding of the client has drifted over time.
+```
 
 #### `client_update_subscriptions`
 ```sql
-id, client_id, frequency (daily|weekly|monthly),
-frequency_days, is_active, paused_until,
-last_run_at, next_run_at, created_at
+id, client_id, frequency (weekly|biweekly|monthly),
+frequency_days (SMALLINT, custom override 1..365),
+is_active, paused_until (TIMESTAMPTZ),
+last_run_at, next_run_at, enabled_drivers,
+martech_scan, pagespeed_scan, created_at
 ```
 
 #### `client_martech`
@@ -438,7 +460,7 @@ details (JSON), created_at
 - **clients**: accesso solo se owner via `user_has_client_access()`
 - **analyses**: eredita accesso da client
 - **knowledge_documents/chunks**: RLS su client_id
-- **client_memories**: RLS su client_id + role check
+- **client_memory**: RLS su client_id + role check
 - Helper functions SECURITY DEFINER:
   - `user_has_client_access(client_id)`
   - `user_is_client_owner(client_id)`
@@ -473,7 +495,7 @@ details (JSON), created_at
 2. POST `/api/clients/[id]/memory/refresh` (async)
 3. Assembler raccoglie dati da: analyses, knowledge, martech, conversazioni
 4. LLM sintetizza profilo + facts + gaps
-5. Salva in `client_memories` con status='ready'
+5. Salva in `client_memory` con status='ready'
 6. Stale quando sources cambiano (trigger on analyses/files/martech)
 
 ### Chat Contextuale
@@ -511,17 +533,20 @@ Componenti UI usano `<T key="nav.home" />` per localizzazione automatica.
 | 1A | Lifecycle stages, client_members RLS, pgvector | ✅ |
 | 1B | Knowledge schema, documents, chunks, subscriptions | ✅ |
 | 1C | Advisor fixes, indexes | ✅ |
-| 3 | Vector search RPC, embedding pipeline | ✅ |
-| 4A | Multi-tenant RLS via members, lifecycle UI | ✅ |
+| 2  | Prospects vs active clients UI split | ✅ |
+| 3  | Knowledge ingestion pipeline + vector search RPC | ✅ |
+| 4A | Multi-tenant RLS via members, Team panel UI | ✅ |
 | 4B | Lifecycle state machine (prospect→active→churned→archived) | ✅ |
-| 4C | Monitoring engine, cron, snapshots, trend charts | ✅ |
+| 4C | Monitoring engine, cron orchestrator, snapshots via analyses | ✅ |
+| 4D | Admin user CRUD (list/edit/reset-pw/soft-delete/purge) | ✅ |
 | 4E | DB guardrails (last owner, last admin) | ✅ |
-| 5A | Client Memory foundation, auto-refresh on source change | ✅ |
-| 5B | Memory robustness (UPSERT, error handling, logging) | ✅ |
-| 5C | Active learning, conflict resolution gaps, smart prioritization | ✅ |
+| 5A | Client Memory foundation, stale triggers, refresh rewrite | ✅ |
+| 5B | RAG-driven retrieval over knowledge_chunks | ✅ |
+| 5C | Active learning, conflict-resolution gaps, save-fact API | ✅ |
 | 5D | Realtime UX, memory card on main client page | ✅ |
 | 5E | Facts freshness coloring, admin Memory Health tab | ✅ |
-| 7 | Files batch extract endpoint + UI button | ✅ |
+| 5C-fix | Hotfix "Not initialized" silent failure (UPSERT + owner backfill) | ✅ |
+| Follow-up | Files batch extract-all endpoint + UI button | ✅ |
 
 ---
 
@@ -529,13 +554,14 @@ Componenti UI usano `<T key="nav.home" />` per localizzazione automatica.
 
 ### Test Knowledge Ingestion
 ```bash
-node scripts/test-ingest.ts
+npx tsx scripts/test-ingest.ts
 ```
 Carica un PDF di test e verifica parsing → chunking → embedding.
+Richiede un loader TypeScript (`tsx` o `ts-node`) perché il file è `.ts`.
 
 ### Test MarTech Detection
 ```bash
-node scripts/test-martech.ts
+npx tsx scripts/test-martech.ts
 ```
 Test pattern matching per MarTech stack detection.
 
@@ -543,7 +569,10 @@ Test pattern matching per MarTech stack detection.
 ```bash
 node scripts/test-memory-refresh.mjs
 ```
-Simula refresh completo (assembly + synthesis).
+Simula refresh completo (assembly + synthesis). Unico script
+direttamente eseguibile con `node` perché è `.mjs` puro — 7 test che
+dimostrano il bug originale `setRefreshPhase UPDATE no-op` e il fix
+`UPSERT` (Phase 5C hotfix).
 
 ---
 
@@ -592,12 +621,15 @@ Configurati in `vercel.json`:
   "crons": [
     {
       "path": "/api/cron/refresh-clients",
-      "schedule": "0 2 * * *"
+      "schedule": "0 4 * * *"
     }
   ]
 }
 ```
-Runs daily at 2 AM UTC.
+Runs daily at 04:00 UTC. The schedule is intentionally compatible with
+**Vercel Hobby**'s 1-daily-cron limit; per-client cadence is enforced by
+the `next_run_at` column in `client_update_subscriptions` so weekly
+clients are still touched only once a week.
 
 ---
 
