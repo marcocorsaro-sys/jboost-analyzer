@@ -745,6 +745,59 @@ const it = {
   'onboarding.fields.engagement.communication_language': 'Lingua di comunicazione',
   'onboarding.fields.engagement.report_frequency': 'Frequenza dei report',
   'onboarding.fields.engagement.preferred_contact': 'Canale di contatto preferito',
+
+  // ─── Horizon 1 Stage 2 — nuove aree del guscio ─────────────
+  'common.coming_soon': 'Prossimamente',
+
+  // Home feed (Horizon 1 Stage 2)
+  'home.title': 'Home',
+  'home.subtitle': 'La tua cabina di regia quotidiana su prospect, clienti e segnali.',
+  'home.today_section': 'Oggi',
+  'home.my_work_section': 'Il mio lavoro',
+  'home.team_pulse_section': 'Team Pulse',
+  'home.alerts_card': 'Alert',
+  'home.alerts_empty': 'Tutto a posto — nessun alert da leggere.',
+  'home.weekly_updates_card': 'Update settimanali pronti',
+  'home.action_items_card': 'Action item pendenti',
+  'home.my_prospects': 'I miei prospect',
+  'home.my_active_clients': 'I miei clienti attivi',
+  'home.recent_analyses': 'Analisi recenti',
+  'home.analyses_today': 'Analisi di oggi',
+  'home.llm_spend_month': 'Spesa LLM di questo mese',
+  'home.top_health': 'Clienti in forma migliore',
+  'home.no_data': 'Nessun dato ancora.',
+
+  // Pre-Sales workspace
+  'pre_sales.title': 'Pre-Sales',
+  'pre_sales.subtitle': 'Gestisci la pipeline, genera pitch deck e confronta opportunità.',
+  'pre_sales.new_prospect': 'Nuovo Prospect',
+  'pre_sales.pipeline_tab': 'Pipeline',
+  'pre_sales.pitch_generator_tab': 'Pitch Generator',
+  'pre_sales.benchmarks_tab': 'Benchmark',
+  'pre_sales.search_placeholder': 'Cerca prospect...',
+  'pre_sales.empty_title': 'Nessun prospect nella tua pipeline',
+  'pre_sales.empty_description': 'Crea il tuo primo prospect per iniziare a tracciare opportunità.',
+  'pre_sales.pitch_generator_hero_title': 'Pitch Generator',
+  'pre_sales.pitch_generator_hero_description': 'Genera un pitch deck completo in pochi secondi.',
+  'pre_sales.pitch_generator_coming_soon': 'Genera Pitch — In arrivo nello Stage 3',
+  'pre_sales.pitch_generator_features_title': 'Cosa otterrai',
+  'pre_sales.feature_competitor_title': 'Competitor auto-rilevati',
+  'pre_sales.feature_competitor_desc': 'Identifichiamo e confrontiamo i competitor rilevanti in automatico.',
+  'pre_sales.feature_nine_drivers_title': 'Analisi sui 9 driver',
+  'pre_sales.feature_nine_drivers_desc': 'Audit completo sul framework JBoost con un click.',
+  'pre_sales.feature_talking_points_title': 'Talking point generati dall\'AI',
+  'pre_sales.feature_talking_points_desc': 'Una narrativa pronta all\'uso per la call commerciale.',
+  'pre_sales.benchmarks_coming_soon': 'Benchmark di settore e peer in arrivo.',
+
+  // Library
+  'library.title': 'Libreria',
+  'library.subtitle': 'Template, playbook e knowledge in un unico posto.',
+  'library.report_templates': 'Template di report',
+  'library.report_templates_desc': 'Parti da layout di report collaudati e personalizzali per cliente.',
+  'library.playbooks': 'Playbook',
+  'library.playbooks_desc': 'Procedure step-by-step per scenari comuni di pre-sales e delivery.',
+  'library.knowledge_hub': 'Knowledge Hub',
+  'library.knowledge_hub_desc': 'Cerca in ogni documento e insight dei tuoi progetti.',
 } as const
 
 export default it

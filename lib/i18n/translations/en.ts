@@ -745,6 +745,59 @@ const en = {
   'onboarding.fields.engagement.communication_language': 'Communication language',
   'onboarding.fields.engagement.report_frequency': 'Report frequency',
   'onboarding.fields.engagement.preferred_contact': 'Preferred contact channel',
+
+  // ─── Horizon 1 Stage 2 — new shell areas ───────────────────
+  'common.coming_soon': 'Coming soon',
+
+  // Home feed (Horizon 1 Stage 2)
+  'home.title': 'Home',
+  'home.subtitle': 'Your daily mission control across prospects, clients, and signals.',
+  'home.today_section': 'Today',
+  'home.my_work_section': 'My Work',
+  'home.team_pulse_section': 'Team Pulse',
+  'home.alerts_card': 'Alerts',
+  'home.alerts_empty': 'All clear — no unread alerts.',
+  'home.weekly_updates_card': 'Weekly updates ready',
+  'home.action_items_card': 'Pending action items',
+  'home.my_prospects': 'My prospects',
+  'home.my_active_clients': 'My active clients',
+  'home.recent_analyses': 'Recent analyses',
+  'home.analyses_today': 'Analyses today',
+  'home.llm_spend_month': 'LLM spend this month',
+  'home.top_health': 'Top health clients',
+  'home.no_data': 'No data yet.',
+
+  // Pre-Sales workspace
+  'pre_sales.title': 'Pre-Sales',
+  'pre_sales.subtitle': 'Run the pipeline, generate pitch decks and benchmark opportunities.',
+  'pre_sales.new_prospect': 'New Prospect',
+  'pre_sales.pipeline_tab': 'Pipeline',
+  'pre_sales.pitch_generator_tab': 'Pitch Generator',
+  'pre_sales.benchmarks_tab': 'Benchmarks',
+  'pre_sales.search_placeholder': 'Search prospects...',
+  'pre_sales.empty_title': 'No prospects in your pipeline',
+  'pre_sales.empty_description': 'Create your first prospect to start tracking opportunities.',
+  'pre_sales.pitch_generator_hero_title': 'Pitch Generator',
+  'pre_sales.pitch_generator_hero_description': 'Generate a full pre-sales deck in seconds.',
+  'pre_sales.pitch_generator_coming_soon': 'Generate Pitch — Coming in Stage 3',
+  'pre_sales.pitch_generator_features_title': 'What you will get',
+  'pre_sales.feature_competitor_title': 'Auto-competitor detection',
+  'pre_sales.feature_competitor_desc': 'We identify and benchmark the relevant competitors automatically.',
+  'pre_sales.feature_nine_drivers_title': '9-driver analysis',
+  'pre_sales.feature_nine_drivers_desc': 'Complete JBoost framework audit in one click.',
+  'pre_sales.feature_talking_points_title': 'AI-generated talking points',
+  'pre_sales.feature_talking_points_desc': 'Ready-to-use narrative for the sales conversation.',
+  'pre_sales.benchmarks_coming_soon': 'Industry and peer benchmarks arriving soon.',
+
+  // Library
+  'library.title': 'Library',
+  'library.subtitle': 'Templates, playbooks and knowledge in one place.',
+  'library.report_templates': 'Report templates',
+  'library.report_templates_desc': 'Start from proven report layouts and customise them per client.',
+  'library.playbooks': 'Playbooks',
+  'library.playbooks_desc': 'Step-by-step plays for common pre-sales and delivery scenarios.',
+  'library.knowledge_hub': 'Knowledge Hub',
+  'library.knowledge_hub_desc': 'Search every document and insight across your engagements.',
 } as const
 
 export type TranslationKey = keyof typeof en
