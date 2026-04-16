@@ -75,7 +75,7 @@ export default async function HomePage() {
     .from('profiles')
     .select('role')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
   const isAdmin = profile?.role === 'admin'
 
   // ── Overview KPIs (ported from legacy /dashboard so we don't lose the
@@ -99,15 +99,19 @@ export default async function HomePage() {
   )
 
   // Average score across the 6 most recently updated active clients, same
-  // sample set the legacy dashboard used.
-  const { data: topActive } = await supabase
-    .from('clients')
-    .select('id')
-    .eq('lifecycle_stage', 'active')
-    .neq('status', 'archived')
-    .order('updated_at', { ascending: false })
-    .limit(6)
-  const topActiveIds = (topActive ?? []).map((c) => c.id)
+  // sample set the legacy dashboard used. Wrapped in safeList so a missing
+  // lifecycle_stage column (pre-phase-4b env) doesn't crash the whole page.
+  const topActive = await safeList<{ id: string }>(
+    () =>
+      supabase
+        .from('clients')
+        .select('id')
+        .eq('lifecycle_stage', 'active')
+        .neq('status', 'archived')
+        .order('updated_at', { ascending: false })
+        .limit(6) as unknown as PromiseLike<{ data: { id: string }[] | null; error: unknown }>
+  )
+  const topActiveIds = topActive.map((c) => c.id)
   let avgScore: number | null = null
   if (topActiveIds.length > 0) {
     const scores = await Promise.all(
