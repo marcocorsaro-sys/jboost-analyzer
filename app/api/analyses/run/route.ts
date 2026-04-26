@@ -1,7 +1,7 @@
 export const runtime = 'nodejs';
 export const maxDuration = 300; // Vercel Pro: up to 300s
 
-import { NextResponse, unstable_after as after } from 'next/server';
+import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { runAnalysis } from '@/lib/analyses/run-analysis';
@@ -43,18 +43,24 @@ export async function POST(request: Request) {
     }, { status: 409 });
   }
 
-  // 5. Schedule the orchestration in background and return 202 immediately.
-  //    next/after() guarantees the work runs after the response is sent,
-  //    bounded by maxDuration of this route (300s).
-  after(async () => {
-    try {
-      const result = await runAnalysis(analysisId);
+  // 5. Fire the orchestration without awaiting and return 202 immediately.
+  //    The unawaited Promise stays alive in the Vercel invocation until
+  //    completion or until maxDuration (300s) is hit. runAnalysis() is
+  //    self-contained: it marks the analyses row failed on any throw and
+  //    completed on success, so no caller-side error handling is required
+  //    beyond logging here.
+  //
+  //    NB: previous design used next/server `unstable_after`, but that
+  //    export does not exist in Next 14.2.20 (added in 15.0). The plain
+  //    fire-and-forget pattern below is portable across Next versions and
+  //    gives the same observable behavior for our use case.
+  void runAnalysis(analysisId)
+    .then((result) => {
       console.log(`[api/analyses/run] runtime=${result.runtime_ms}ms success=${result.success}`);
-    } catch (err) {
-      // runAnalysis already marks the row failed — this is just defense in depth.
+    })
+    .catch((err) => {
       console.error('[api/analyses/run] unexpected throw:', err);
-    }
-  });
+    });
 
   return NextResponse.json({ status: 'accepted', analysisId }, { status: 202 });
 }
