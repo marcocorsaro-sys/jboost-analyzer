@@ -94,15 +94,28 @@ export async function runMonitoringForClient(
     }
   }
 
-  // 4. Fire-and-forget invocation of the edge function. The function runs
-  // asynchronously on Supabase and writes its results back to the analyses
-  // row. We don't await — the cron orchestrator only needs to bookkeep
-  // last_run_at / next_run_at, not block on completion.
-  supabase.functions
-    .invoke('run-analysis', { body: { analysisId: analysis.id } })
-    .catch(err => {
-      console.error('[monitoring] edge function invoke failed', clientId, err)
-    })
+  // 4. Fire-and-forget trigger of the analysis run. Two paths gated by the
+  // USE_NEXT_RUN_ANALYSIS env flag during the Phase 7 migration:
+  //   - true  → in-process import of lib/analyses/run-analysis (Next.js Node)
+  //   - false → legacy Supabase edge function (default)
+  // Either way the orchestrator only bookkeeps last_run_at / next_run_at and
+  // does not block on completion.
+  if (process.env.USE_NEXT_RUN_ANALYSIS === 'true') {
+    // Dynamic import keeps the 880-line orchestrator out of the cold-start
+    // bundle when the flag is off. Same DB writes as the edge function plus
+    // the Phase 7 race-fix on the global catch.
+    import('@/lib/analyses/run-analysis')
+      .then(mod => mod.runAnalysis(analysis.id))
+      .catch(err => {
+        console.error('[monitoring] runAnalysis (next route) failed', clientId, err)
+      })
+  } else {
+    supabase.functions
+      .invoke('run-analysis', { body: { analysisId: analysis.id } })
+      .catch(err => {
+        console.error('[monitoring] edge function invoke failed', clientId, err)
+      })
+  }
 
   // 5. Bookkeeping: stamp last_run_at and bump next_run_at via the SQL helper.
   const nowIso = new Date().toISOString()

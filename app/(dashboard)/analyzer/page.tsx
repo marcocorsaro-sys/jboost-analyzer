@@ -212,11 +212,36 @@ export default function AnalyzerPage() {
       setAnalysisId(analysis.id)
       setStartedAt(new Date().toISOString())
 
-      // Invoke the run-analysis Edge Function (fire-and-forget)
-      supabase.functions.invoke('run-analysis', {
-        body: { analysisId: analysis.id },
-      }).catch((err) => {
-        console.error('Edge Function invocation error:', err)
+      // Trigger the analysis run (fire-and-forget). Two paths gated by a
+      // feature flag during the Phase 7 migration: the new Next.js Node
+      // route at /api/analyses/run, or the legacy Supabase Edge Function.
+      // Set NEXT_PUBLIC_USE_NEXT_RUN_ANALYSIS=true (Vercel env) to switch
+      // this UI to the new path. Default = legacy edge function.
+      const useNextRoute =
+        process.env.NEXT_PUBLIC_USE_NEXT_RUN_ANALYSIS === 'true'
+
+      const invokePromise: Promise<unknown> = useNextRoute
+        ? fetch('/api/analyses/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ analysisId: analysis.id }),
+            credentials: 'same-origin',
+          }).then(async (res) => {
+            if (!res.ok && res.status !== 202) {
+              const body = await res.text().catch(() => '')
+              throw new Error(`/api/analyses/run failed: HTTP ${res.status} ${body}`)
+            }
+          })
+        : supabase.functions
+            .invoke('run-analysis', {
+              body: { analysisId: analysis.id },
+            })
+            .then(({ error }) => {
+              if (error) throw error
+            })
+
+      invokePromise.catch((err) => {
+        console.error('Run-analysis invocation error:', err)
         setError('Failed to start analysis. Please try again.')
         setIsRunning(false)
       })
