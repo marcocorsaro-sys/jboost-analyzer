@@ -121,7 +121,12 @@ export const FINGERPRINTS: Fingerprint[] = [
   {
     name: 'HubSpot CMS',
     category: 'CMS',
-    htmlPattern: /js\.hs-scripts\.com|hs-analytics\.net/i,
+    metaName: 'generator',
+    metaContentPattern: /HubSpot/i,
+    // fallback signals: hubfs (CDN HubSpot), hs-cos (template engine),
+    // hs/scriptloader (loader concatenato), classic external scripts.
+    htmlPattern: /hubfs\/|hs-cos|\/hs\/scriptloader|js\.hs-scripts\.com|hs-analytics\.net/i,
+    versionFrom: 'meta',
   },
   {
     name: 'Adobe Experience Manager',
@@ -169,7 +174,11 @@ export const FINGERPRINTS: Fingerprint[] = [
   {
     name: 'Google Analytics 4',
     category: 'Analytics',
+    // GA4 può essere caricato sia come script src esterno
+    // (googletagmanager.com/gtag/js?id=G-XXX) sia inline tramite la funzione
+    // gtag('config', 'G-XXX'). Match entrambi.
     scriptPattern: /googletagmanager\.com\/gtag\/js\?id=G-/i,
+    htmlPattern: /gtag\s*\(\s*['"]config['"]\s*,\s*['"]G-[A-Z0-9]+['"]|googletagmanager\.com\/gtag\/js\?id=G-/i,
   },
   {
     name: 'Universal Analytics',
@@ -206,7 +215,11 @@ export const FINGERPRINTS: Fingerprint[] = [
   {
     name: 'Google Tag Manager',
     category: 'Tag Manager',
+    // GTM viene caricato di norma con inline snippet `gtm.js?id=GTM-XXX`
+    // o come <iframe src="...ns.html?id=GTM-XXX"> noscript fallback.
+    // Quindi cerchiamo entrambi i pattern, sia in script src che nel body.
     scriptPattern: /googletagmanager\.com\/(gtm|gtag)\.js/i,
+    htmlPattern: /googletagmanager\.com\/(gtm|ns)\.(?:js|html)\?id=GTM-/i,
   },
   {
     name: 'Adobe Launch',
@@ -378,6 +391,16 @@ export const FINGERPRINTS: Fingerprint[] = [
     name: 'React',
     category: 'JS Library',
     htmlPattern: /data-reactroot|__REACT_DEVTOOLS_GLOBAL_HOOK__/i,
+  },
+  {
+    name: 'Swiper',
+    category: 'JS Library',
+    scriptPattern: /swiper(?:-bundle)?\.(?:min\.)?js/i,
+  },
+  {
+    name: 'GSAP',
+    category: 'JS Library',
+    scriptPattern: /gsap(?:\.min)?\.js|TweenMax|ScrollTrigger/i,
   },
 
   // ---------- Performance / Personalization ----------
