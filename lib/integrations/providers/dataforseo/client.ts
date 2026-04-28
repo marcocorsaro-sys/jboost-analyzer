@@ -16,10 +16,19 @@
  * domain history, ecc.) verranno aggiunti man mano che servono. La filosofia
  * è: una funzione = un endpoint = un caso d'uso del prodotto.
  *
- * Pricing (Live mode, prezzi al 2026-04, indicativi):
- *   - serp/google/organic/live/advanced     ~ $0.0006 per query
- *   - serp/google/ai_mode/live/advanced     ~ $0.0008 per query
- * Quindi una scansione pre-sales di 100 keyword costa ~$0.06.
+ * Pricing reale (verificato con smoke test 2026-04-28, account jakala):
+ *   - serp/google/organic/live/advanced     ~ $0.0155 per query  (full SERP + AI Overview)
+ *   - serp/google/organic/live/regular      ~ $0.0040 per query  (no extra features)
+ *   - serp/google/organic/task_*            ~ $0.0006 per query  (queue mode, async)
+ *   - serp/google/ai_mode/live/advanced     ~ $0.0080 per query
+ *
+ * Quindi 100 keyword:
+ *   - in modalità live/advanced costa ~$1.55  (per pre-sales one-shot, OK)
+ *   - in modalità live/regular costa ~$0.40   (compromesso buono)
+ *   - in modalità task queue costa ~$0.06     (ideale per monitoring weekly)
+ *
+ * Per ora esponiamo solo live/advanced. Le altre modalità verranno aggiunte
+ * quando il volume lo richiederà (es. switch a task queue per il cron).
  *
  * Documentazione provider: https://docs.dataforseo.com/v3/
  */
@@ -28,10 +37,13 @@ import { BaseProviderClient, type CallResult, type BaseProviderClientOptions } f
 
 const BASE_URL = 'https://api.dataforseo.com/v3'
 
-// Costi per chiamata (USD). Aggiornare quando il provider cambia listino.
+// Costi per chiamata (USD), pricing live/advanced verificato 2026-04-28.
+// Il valore reale viene letto da `body.cost` nel `costFromResponse` quando
+// la chiamata risponde 200; questi numeri servono solo come stima a priori
+// per UI / cost preview, non per billing.
 const COST_PER_CALL: Record<string, number> = {
-  'serp:google:organic:live': 0.0006,
-  'serp:google:ai_mode:live': 0.0008,
+  'serp:google:organic:live': 0.0155,
+  'serp:google:ai_mode:live': 0.0080,
 }
 
 export interface DataForSEOCredentials {
