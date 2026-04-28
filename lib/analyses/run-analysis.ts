@@ -140,6 +140,56 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
       await supabase.from('analyses').update({ company_context: apiDataMap.company_context }).eq('id', analysisId);
     }
 
+    // ============================
+    // PHASE 1.5: DataForSEO AI Overview scan (Phase 7B, optional)
+    // ============================
+    // Quando il flag USE_DATAFORSEO_AI_RELEVANCE è 'true' E le credenziali
+    // DataForSEO sono in env, scansiona le top N keyword del dominio
+    // (default 100, configurabile via DATAFORSEO_AI_KEYWORDS_LIMIT) e
+    // popola apiDataMap.dataforseo_ai_overview. Il driver calcAiRelevance
+    // darà priorità a questi dati rispetto al fallback Ahrefs.
+    //
+    // Costo (Deep 100kw, live/advanced): ~$1.55 per analisi.
+    // Tempo: ~15-25s con concurrency 5.
+    if (
+      process.env.USE_DATAFORSEO_AI_RELEVANCE === 'true' &&
+      process.env.DATAFORSEO_LOGIN &&
+      process.env.DATAFORSEO_PASSWORD &&
+      hasTime(60000) &&
+      SEMRUSH_API_KEY
+    ) {
+      try {
+        const limit = Math.max(5, Math.min(Number(process.env.DATAFORSEO_AI_KEYWORDS_LIMIT || '100'), 200));
+        const keywords = await fetchSemrushTopOrganicKeywords(domain, country, SEMRUSH_API_KEY, limit);
+        if (keywords.length > 0) {
+          await updatePhase('fetching_apis', `DataForSEO scan on ${keywords.length} keywords...`);
+          const { scanAIOverviewVisibility } = await import('@/lib/integrations/providers/dataforseo');
+          const summary = await scanAIOverviewVisibility({
+            supabase,
+            keywords,
+            location: countryToDataForSEOLocation(country),
+            language: analysis.language || 'it',
+            clientDomain: domain,
+            clientId: analysis.client_id || undefined,
+            analysisId,
+            userId: analysis.user_id || undefined,
+            concurrency: 5,
+          });
+          apiDataMap.dataforseo_ai_overview = summary as unknown as Record<string, any>;
+          await supabase.from('api_data').upsert({
+            analysis_id: analysisId,
+            source_name: 'dataforseo_ai_overview',
+            data: summary,
+            is_mock: false,
+          }, { onConflict: 'analysis_id,source_name' });
+          console.log(`[dataforseo_ai_overview] scanned ${summary.successCount}/${summary.totalKeywords}, AI=${summary.aiOverviewPercentage}%, cost=$${summary.totalCostUsd}`);
+        }
+      } catch (err) {
+        console.error('[dataforseo_ai_overview] scan failed:', err);
+        // soft-fail: il driver userà il fallback Ahrefs
+      }
+    }
+
     // Time check after Phase 1
     if (!hasTime(20000)) {
       await markFailed('Timeout: API data fetching took too long');
@@ -155,6 +205,7 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
       semrush_site_health: apiDataMap.semrush_site_health,
       ahrefs_domain_rating: apiDataMap.ahrefs_domain_rating,
       ahrefs_ai_relevance: apiDataMap.ahrefs_ai_relevance,
+      dataforseo_ai_overview: apiDataMap.dataforseo_ai_overview,
       psi_mobile: apiDataMap.pagespeed_mobile,
       trends_brand_awareness: apiDataMap.semrush_brand_awareness,
     };
@@ -781,7 +832,7 @@ function calculateAllDrivers(apiData: Record<string, any>): Record<string, Drive
     accessibility: calcAccessibility(apiData.psi_mobile),
     authority: calcAuthority(apiData.ahrefs_domain_rating),
     aso_visibility: calcAso(apiData.semrush_domain_rank),
-    ai_relevance: calcAiRelevance(apiData.ahrefs_ai_relevance),
+    ai_relevance: calcAiRelevance(apiData.ahrefs_ai_relevance, apiData.dataforseo_ai_overview),
     awareness: calcAwareness(apiData.trends_brand_awareness),
   };
 }
@@ -844,7 +895,28 @@ function calcAso(data: any): DriverResult {
   if (rank > 0) { const s = clampScore((100 - Math.min(90, Math.log10(rank) * 20)) * 0.6); return s !== null ? { score: s, status: 'ok', details: { method: 'rank_fallback' } } : { score: null, status: 'no_results' }; }
   return { score: null, status: 'no_results' };
 }
-function calcAiRelevance(data: any): DriverResult { if (!data) return { score: null, status: 'failed' }; const s = clampScore(data.ai_relevance_score); return s !== null ? { score: s, status: 'ok', details: { ai_overview: data.ai_overview_keywords, featured_snippet: data.featured_snippet_keywords, paa: data.people_also_ask_keywords, total: data.total_keywords } } : { score: null, status: 'no_results' }; }
+function calcAiRelevance(ahrefsData: any, dataforseoData?: any): DriverResult {
+  // Phase 7B: prefer DataForSEO live SERP scan se presente e con dati validi
+  if (dataforseoData && typeof dataforseoData.aiOverviewPercentage === 'number' && dataforseoData.successCount > 0) {
+    const s = clampScore(dataforseoData.aiOverviewPercentage);
+    return s !== null
+      ? { score: s, status: 'ok', details: {
+          ai_overview: dataforseoData.aiOverviewCount,
+          featured_snippet: dataforseoData.featuredSnippetCount,
+          paa: dataforseoData.peopleAlsoAskCount,
+          total: dataforseoData.totalKeywords,
+          successful: dataforseoData.successCount,
+          client_top10: dataforseoData.clientTop10Count,
+          cost_usd: dataforseoData.totalCostUsd,
+          source: 'dataforseo_serp_live',
+        } }
+      : { score: null, status: 'no_results' };
+  }
+  // Fallback Ahrefs (legacy)
+  if (!ahrefsData) return { score: null, status: 'failed' };
+  const s = clampScore(ahrefsData.ai_relevance_score);
+  return s !== null ? { score: s, status: 'ok', details: { ai_overview: ahrefsData.ai_overview_keywords, featured_snippet: ahrefsData.featured_snippet_keywords, paa: ahrefsData.people_also_ask_keywords, total: ahrefsData.total_keywords, source: 'ahrefs_organic_keywords' } } : { score: null, status: 'no_results' };
+}
 function calcAwareness(data: any): DriverResult {
   if (!data || (Array.isArray(data) && data.length === 0)) return { score: null, status: 'no_results' };
   const items = Array.isArray(data) ? data : [data]; const latest = items[items.length - 1];
@@ -959,4 +1031,65 @@ async function analyzeCompetitor(domain: string, country: string, semrushKey: st
   const result: Record<string, number | null> = {};
   for (const [name, dr] of Object.entries(scores)) { result[name] = dr.score; }
   return result;
+}
+
+// =========================================================================
+// Phase 7B helpers — DataForSEO AI Overview integration
+// =========================================================================
+
+/**
+ * Recupera le top N keyword organic del dominio da SEMrush, ordinate per
+ * traffico decrescente. Usato come input per il scan AI Overview di DataForSEO.
+ *
+ * Endpoint: SEMrush domain_organic con `display_sort=tr_desc` (traffic desc).
+ * Ritorna l'array dei keyword string, già deduplicato. Se SEMrush non risponde
+ * o l'API key è assente, ritorna [] (il caller skippa il scan DataForSEO).
+ */
+async function fetchSemrushTopOrganicKeywords(
+  domain: string,
+  country: string,
+  apiKey: string,
+  limit: number = 100,
+): Promise<string[]> {
+  if (!apiKey) return [];
+  try {
+    const url = `https://api.semrush.com/?type=domain_organic&key=${apiKey}&export_columns=Ph,Po,Nq,Tr&domain=${domain}&database=${country}&display_sort=tr_desc&display_limit=${limit}`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const rows = parseSemrushCsv(await res.text());
+    const keywords: string[] = [];
+    const seen = new Set<string>();
+    for (const r of rows) {
+      const kw = (r['Keyword'] || r['Ph'] || '').trim();
+      if (kw && !seen.has(kw.toLowerCase())) {
+        seen.add(kw.toLowerCase());
+        keywords.push(kw);
+      }
+    }
+    return keywords;
+  } catch (err) {
+    console.error('[fetchSemrushTopOrganicKeywords] error:', err);
+    return [];
+  }
+}
+
+/**
+ * Mappa i country code SEMrush (ISO 2-char lowercase, es. 'us', 'it', 'de')
+ * sul nome di location atteso da DataForSEO (es. 'United States', 'Italy').
+ * DataForSEO accetta anche city-level ma noi rimaniamo a country-level per
+ * consistency con SEMrush. Per country non mappati, fallback ad 'Italy'
+ * (il nostro mercato principale Jakala) — il caller può comunque override.
+ */
+function countryToDataForSEOLocation(country: string): string {
+  const map: Record<string, string> = {
+    us: 'United States', uk: 'United Kingdom', gb: 'United Kingdom',
+    it: 'Italy', fr: 'France', de: 'Germany', es: 'Spain',
+    nl: 'Netherlands', be: 'Belgium', pt: 'Portugal', at: 'Austria',
+    ch: 'Switzerland', se: 'Sweden', no: 'Norway', dk: 'Denmark',
+    fi: 'Finland', pl: 'Poland', cz: 'Czechia', gr: 'Greece',
+    ie: 'Ireland', ca: 'Canada', au: 'Australia', nz: 'New Zealand',
+    br: 'Brazil', mx: 'Mexico', ar: 'Argentina', jp: 'Japan',
+    in: 'India', sg: 'Singapore', tr: 'Turkey', ae: 'United Arab Emirates',
+  };
+  return map[country.toLowerCase()] ?? 'Italy';
 }
