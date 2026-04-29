@@ -10,9 +10,8 @@
  * Performance: l'orchestrator può prendere 10–40s; @react-pdf/renderer
  * il pdfStream è veloce (~1-2s). Settiamo maxDuration=90 per stare larghi.
  *
- * Nota: questo endpoint NON cacha lo snapshot a livello pagina. Per
- * generare PDF "fresh" sempre. Caching cross-call dei provider è già a
- * livello integration_cache (Phase 7E future-work).
+ * NB: estensione `.tsx` (non `.ts`) perché contiene JSX inline per il
+ * rendering React-PDF. SWC di Next 14 non accetta JSX in file `.ts` puro.
  */
 
 import { NextResponse } from 'next/server'
