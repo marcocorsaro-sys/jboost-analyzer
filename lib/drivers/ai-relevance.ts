@@ -2,14 +2,54 @@ import { clampScore, type DriverResult } from './utils'
 
 /**
  * AI Relevance Driver
- * Source: Ahrefs organic-keywords with SERP features analysis
- * Formula:
- *   For each keyword:
- *     - If serp_features includes 'ai_overview' → aiOverviewCount++
- *     - If serp_features includes 'featured_snippet' → featuredSnippetCount++
- *   score = ((aiOverviewCount + featuredSnippetCount) / totalKeywords) × 100
+ *
+ * Two-source design (Phase 7B):
+ *
+ * 1. **DataForSEO** (preferred, when available): live SERP scan of N keyword
+ *    of the client to detect actual AI Overview / Featured Snippet / People
+ *    Also Ask presence. Provides accurate, real-time data.
+ *    Source key: `apiData.dataforseo_ai_overview` (output di
+ *    `scanAIOverviewVisibility` in `lib/integrations/providers/dataforseo`).
+ *    Score = aiOverviewPercentage del summary.
+ *
+ * 2. **Ahrefs organic-keywords** (fallback, legacy): SERP features metadata
+ *    statici da Ahrefs. Meno preciso ma già cablato dal Phase 4. Usato
+ *    quando DataForSEO non è disponibile o il summary è vuoto.
+ *    Score = ((aiOverviewCount + featuredSnippetCount) / totalKeywords) * 100
+ *
+ * Il secondo argomento `dataforseoAiData` è opzionale e additive — i call
+ * site che non lo passano continuano a funzionare invariati.
  */
-export function calculateAiRelevance(ahrefsAiData: Record<string, unknown> | null): DriverResult {
+export function calculateAiRelevance(
+  ahrefsAiData: Record<string, unknown> | null,
+  dataforseoAiData: Record<string, unknown> | null = null,
+): DriverResult {
+  // Preferred path: DataForSEO live SERP scan
+  if (dataforseoAiData) {
+    const dfsScore = dataforseoAiData.aiOverviewPercentage as number | undefined
+    const dfsTotal = dataforseoAiData.totalKeywords as number | undefined
+    const dfsSuccess = dataforseoAiData.successCount as number | undefined
+    if (typeof dfsScore === 'number' && dfsTotal && dfsSuccess && dfsSuccess > 0) {
+      const score = clampScore(dfsScore)
+      return {
+        score,
+        status: score !== null ? 'ok' : 'failed',
+        details: {
+          ai_relevance_score: dfsScore,
+          ai_overview_keywords: dataforseoAiData.aiOverviewCount,
+          featured_snippet_keywords: dataforseoAiData.featuredSnippetCount,
+          people_also_ask_keywords: dataforseoAiData.peopleAlsoAskCount,
+          total_keywords: dfsTotal,
+          successful_keywords: dfsSuccess,
+          client_top10_count: dataforseoAiData.clientTop10Count,
+          total_cost_usd: dataforseoAiData.totalCostUsd,
+          source: 'dataforseo_serp_live',
+        },
+      }
+    }
+  }
+
+  // Fallback: Ahrefs organic-keywords (legacy path)
   if (!ahrefsAiData) {
     return { score: null, status: 'no_results' }
   }

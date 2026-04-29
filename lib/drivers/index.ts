@@ -28,6 +28,12 @@ export interface ApiDataMap {
   ahrefs_ai_relevance?: Record<string, unknown>
   psi_mobile?: Record<string, unknown>
   trends_brand_awareness?: Record<string, unknown>
+  /**
+   * Phase 7B: output di `scanAIOverviewVisibility` da DataForSEO. Se
+   * presente, ha precedenza sul fallback Ahrefs nel driver
+   * `calculateAiRelevance`. Vedi lib/integrations/providers/dataforseo.
+   */
+  dataforseo_ai_overview?: Record<string, unknown>
 }
 
 /**
@@ -43,7 +49,10 @@ export function calculateAllDrivers(apiData: ApiDataMap): Record<string, DriverR
     accessibility: calculateAccessibility(apiData.psi_mobile ?? null),
     authority: calculateAuthority(apiData.ahrefs_domain_rating ?? null),
     aso_visibility: calculateAsoVisibility(apiData.semrush_domain_rank ?? null),
-    ai_relevance: calculateAiRelevance(apiData.ahrefs_ai_relevance ?? null),
+    ai_relevance: calculateAiRelevance(
+      apiData.ahrefs_ai_relevance ?? null,
+      apiData.dataforseo_ai_overview ?? null,
+    ),
     awareness: calculateAwareness(apiData.trends_brand_awareness ?? null),
   }
 }
