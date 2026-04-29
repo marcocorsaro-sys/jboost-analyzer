@@ -39,6 +39,7 @@ export function SnapshotReport({ snapshot }: Props) {
 function HeroScore({ snapshot }: Props) {
   const score = snapshot.presalesScore
   const tone = scoreTone(score)
+  const pdfHref = `/api/pre-sales/snapshot/${encodeURIComponent(snapshot.domain)}/pdf`
   return (
     <div className="rounded-lg border bg-card text-card-foreground p-6">
       <div className="flex items-start justify-between gap-6 flex-wrap">
@@ -51,6 +52,12 @@ function HeroScore({ snapshot }: Props) {
             {fmtDate(snapshot.startedAt)} · {(snapshot.elapsedMs / 1000).toFixed(1)}s · {snapshot.errors.length} provider error
             {snapshot.errors.length === 1 ? '' : 's'}
           </p>
+          <a
+            href={pdfHref}
+            className="inline-block mt-4 text-xs px-3 py-1.5 rounded border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+          >
+            ↓ Download PDF report
+          </a>
         </div>
         <div className="text-right">
           <div className={`text-6xl font-black leading-none ${tone}`}>
