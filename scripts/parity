@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Wrapper per il parity test su jakala.com — il dominio e il client_id
+# sono hard-coded qui (e non passati come argomenti) per evitare
+# problemi di macOS Smart Links / Smart Substitutions che convertono
+# 'jakala.com' in un markdown link al momento del paste in Terminal.
+#
+# Pre-requisito: file .env.local con
+#   NEXT_PUBLIC_SUPABASE_URL=https://falzsvwvmiaerbenwpgs.supabase.co
+#   SUPABASE_SERVICE_ROLE_KEY=<service-role-jwt>
+#
+# Usage:
+#   bash scripts/parity
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+if [ ! -f .env.local ]; then
+  echo "ERRORE: .env.local mancante."
+  echo "Lancia prima: bash scripts/setup-env"
+  exit 1
+fi
+
+set -a
+# shellcheck disable=SC1091
+source .env.local
+set +a
+
+if [ -z "${NEXT_PUBLIC_SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+  echo "ERRORE: mancano NEXT_PUBLIC_SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY in .env.local."
+  echo "Rigenera con: bash scripts/setup-env"
+  exit 1
+fi
+
+echo "URL: $NEXT_PUBLIC_SUPABASE_URL"
+echo "KEY: ${SUPABASE_SERVICE_ROLE_KEY:0:11}... (length: ${#SUPABASE_SERVICE_ROLE_KEY})"
+echo
+
+exec npx tsx scripts/parity-run-analysis.ts \
+  --client=490affda-faea-44ab-82db-98f62750fa29 \
+  --domain=jakala.com

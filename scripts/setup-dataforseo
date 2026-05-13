@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Ripara .env.local + aggiunge le credenziali DataForSEO.
+#
+# Cosa fa:
+#   1. Backup di .env.local in .env.local.bak (se non esiste già)
+#   2. Filtra .env.local tenendo SOLO righe ben formate KEY=VALUE
+#      (rimuove qualunque shell garbage finito dentro per via di paste rotti)
+#   3. Aggiunge DATAFORSEO_LOGIN=marco.corsaro@jakala.com (hard-coded qui)
+#   4. Legge dalla clipboard la API password DataForSEO e la aggiunge
+#      (la clipboard non viene loggata in shell history)
+#
+# Pre-req: aver copiato la API password dalla dashboard DataForSEO
+#   (https://app.dataforseo.com/api-access) prima di lanciare lo script.
+#
+# Usage:
+#   bash scripts/setup-dataforseo
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+ENV_FILE=".env.local"
+BAK_FILE=".env.local.bak.$(date +%s)"
+
+# 1. Backup, sempre
+if [ -f "$ENV_FILE" ]; then
+  cp "$ENV_FILE" "$BAK_FILE"
+  echo "Backup creato: $BAK_FILE"
+fi
+
+# 2. Pulisci tenendo solo righe KEY=VALUE valide (KEY = parola, niente
+# caratteri speciali shell). Tutto il resto viene scartato.
+TMP_FILE="$(mktemp)"
+if [ -f "$ENV_FILE" ]; then
+  grep -E '^[A-Z][A-Z0-9_]*=' "$ENV_FILE" \
+    | grep -v 'DATAFORSEO_LOGIN=' \
+    | grep -v 'DATAFORSEO_PASSWORD=' \
+    > "$TMP_FILE" || true
+fi
+mv "$TMP_FILE" "$ENV_FILE"
+
+# 3. Aggiungi LOGIN
+echo "DATAFORSEO_LOGIN=marco.corsaro@jakala.com" >> "$ENV_FILE"
+
+# 4. Aggiungi PASSWORD dalla clipboard
+PWD_VALUE="$(pbpaste | tr -d '[:space:]')"
+if [ -z "$PWD_VALUE" ]; then
+  echo "ERRORE: clipboard vuota."
+  echo "1) Apri https://app.dataforseo.com/api-access"
+  echo "2) Copia la API Password (Cmd+C)"
+  echo "3) Rilancia: bash scripts/setup-dataforseo"
+  exit 1
+fi
+echo "DATAFORSEO_PASSWORD=$PWD_VALUE" >> "$ENV_FILE"
+
+# Verifica
+echo
+echo "=== .env.local ricostruito ==="
+echo "Righe totali: $(wc -l < "$ENV_FILE")"
+echo "Variabili presenti:"
+awk -F= '{print "  " $1 " (length=" length($2) ")"}' "$ENV_FILE"
+echo
+echo "Prossimo passo: bash scripts/dataforseo-smoke"
