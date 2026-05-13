@@ -7,6 +7,27 @@ export interface RunAnalysisResult {
   runtime_ms: number;
 }
 
+// Ordered phase list for pause/resume bookkeeping. Indexes match the
+// inline PHASE N comments below. Phase 7 (finalizing) is never a pause
+// point — finalizing flips status to 'completed'.
+const PHASES: Array<{ name: string; index: number }> = [
+  { name: 'fetching_apis',          index: 1 },
+  { name: 'generating_issues',      index: 3 },
+  { name: 'generating_solutions',   index: 4 },
+  { name: 'analyzing_competitors',  index: 5 },
+  { name: 'generating_matrix',      index: 6 },
+];
+
+// Thrown to short-circuit out of runAnalysis when the user has opted into
+// step-by-step review. Caught at the top of the function and turned into
+// a successful return — status is already 'paused' in the DB.
+class PauseSignal extends Error {
+  constructor(public phase: string) {
+    super(`paused at ${phase}`);
+    this.name = 'PauseSignal';
+  }
+}
+
 // Global timeout guard: 140s (Vercel maxDuration is 300s on Pro, but we keep
 // the original Supabase ceiling as a defensive cap for the orchestration body).
 const MAX_RUNTIME_MS = 140_000;
@@ -63,6 +84,16 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
     const country = analysis.country || 'us';
     const competitors: string[] = analysis.competitors || [];
     const targetTopic = analysis.target_topic || '';
+    const pauseBetweenPhases: boolean = !!analysis.pause_between_phases;
+
+    // If we're being invoked on a paused analysis, figure out the index to
+    // resume from. The resume endpoint has already flipped status back to
+    // 'running' and recorded user_decision='continue' on the checkpoint, so
+    // here we just need to know how many phases to skip.
+    const resumeFromPhase: string | null = analysis.paused_at_phase || null;
+    const resumeFromIdx: number = resumeFromPhase
+      ? (PHASES.find(p => p.name === resumeFromPhase)?.index ?? 0)
+      : 0;
 
     async function updatePhase(phase: string, detail?: string) {
       await supabase.from('analyses')
@@ -77,19 +108,91 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
       }).eq('id', analysisId);
     }
 
+    // Records a checkpoint row for the just-completed phase. If the user
+    // opted into step-by-step review AND hasn't already approved this phase,
+    // flips the analysis to 'paused' and throws PauseSignal to exit the
+    // orchestrator cleanly. Re-invocation via /api/analyses/[id]/resume
+    // marks user_decision='continue' on the checkpoint, after which this
+    // function becomes a no-op for that phase.
+    async function checkpoint(phase: string, phaseIndex: number, payload: Record<string, unknown>) {
+      await supabase.from('analysis_checkpoints').upsert(
+        {
+          analysis_id: analysisId,
+          phase,
+          phase_index: phaseIndex,
+          payload,
+        },
+        { onConflict: 'analysis_id,phase' },
+      );
+
+      if (!pauseBetweenPhases) return;
+
+      const { data: existing } = await supabase
+        .from('analysis_checkpoints')
+        .select('user_decision')
+        .eq('analysis_id', analysisId)
+        .eq('phase', phase)
+        .maybeSingle();
+      if (existing?.user_decision === 'continue') return;
+
+      await supabase.from('analyses').update({
+        status: 'paused',
+        paused_at_phase: phase,
+        phase_detail: `Paused after ${phase}. Click Continue to resume.`,
+        updated_at: new Date().toISOString(),
+      }).eq('id', analysisId);
+
+      throw new PauseSignal(phase);
+    }
+
+    // Rehydrate apiDataMap from api_data when resuming past phase 1, so
+    // downstream phases (which read this map) see the same inputs as the
+    // original run. Driver scores and issues below are recomputed
+    // deterministically from this map.
+    async function loadApiData(): Promise<Record<string, any>> {
+      const { data: rows } = await supabase
+        .from('api_data')
+        .select('source_name, data')
+        .eq('analysis_id', analysisId);
+      const map: Record<string, any> = {};
+      for (const r of rows || []) {
+        const stored = r.data ?? null;
+        // Real fetchers persist the full { data, _meta } wrapper; the
+        // in-memory orchestrator map holds just the inner .data. Mock + the
+        // dataforseo branch persist raw payloads (no wrapper). Unwrap only
+        // when both marker fields are present.
+        map[r.source_name] = stored && typeof stored === 'object'
+          && 'data' in stored && '_meta' in stored
+          ? (stored as any).data
+          : stored;
+      }
+      return map;
+    }
+
     await supabase.from('analyses')
-      .update({ status: 'running', started_at: new Date().toISOString(), current_phase: 'initializing' })
+      .update({
+        status: 'running',
+        started_at: analysis.started_at || new Date().toISOString(),
+        current_phase: resumeFromPhase ? `resuming_from_${resumeFromPhase}` : 'initializing',
+        paused_at_phase: null,
+      })
       .eq('id', analysisId);
 
     // ============================
     // PHASE 1: Fetch all API data
     // ============================
-    await updatePhase('fetching_apis', 'Fetching SEO data from multiple sources...');
-
     const SEMRUSH_API_KEY = dbKeys['SEMRUSH_API_KEY'] || process.env.SEMRUSH_API_KEY || '';
     const AHREFS_API_KEY = dbKeys['AHREFS_API_KEY'] || process.env.AHREFS_API_KEY || '';
     const GOOGLE_PSI_API_KEY = dbKeys['GOOGLE_PSI_API_KEY'] || process.env.GOOGLE_PSI_API_KEY || '';
     const hasAnyApiKey = !!(SEMRUSH_API_KEY || AHREFS_API_KEY || GOOGLE_PSI_API_KEY);
+
+    const apiDataMap: Record<string, any> = {};
+
+    if (resumeFromIdx >= 1) {
+      // Skip the network calls; rehydrate from api_data table.
+      Object.assign(apiDataMap, await loadApiData());
+    } else {
+      await updatePhase('fetching_apis', 'Fetching SEO data from multiple sources...');
 
     const apiNames = [
       'semrush_domain_overview', 'semrush_site_health', 'semrush_organic_losing',
@@ -97,8 +200,6 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
       'ahrefs_domain_rating', 'ahrefs_ai_relevance', 'ahrefs_broken_backlinks', 'ahrefs_refdomains_history',
       'pagespeed_mobile', 'pagespeed_failed_audits', 'company_context',
     ];
-
-    const apiDataMap: Record<string, any> = {};
 
     if (hasAnyApiKey) {
       const apiResults = await Promise.allSettled([
@@ -190,11 +291,18 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
       }
     }
 
-    // Time check after Phase 1
-    if (!hasTime(20000)) {
-      await markFailed('Timeout: API data fetching took too long');
-      return { success: false, analysisId, error: 'Timeout after API fetching', runtime_ms: Date.now() - startTime };
-    }
+      // Time check after Phase 1
+      if (!hasTime(20000)) {
+        await markFailed('Timeout: API data fetching took too long');
+        return { success: false, analysisId, error: 'Timeout after API fetching', runtime_ms: Date.now() - startTime };
+      }
+    } // end of "fetch APIs" branch (rehydrate vs fetch)
+
+    await checkpoint('fetching_apis', 1, {
+      sources_fetched: Object.keys(apiDataMap).length,
+      had_real_keys: hasAnyApiKey,
+      company_context_present: !!apiDataMap.company_context,
+    });
 
     // ============================
     // PHASE 2: Calculate scores
@@ -214,47 +322,61 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
     // ============================
     // PHASE 3: Generate issues
     // ============================
-    await updatePhase('generating_issues', 'Identifying problems...');
+    // allIssues is recomputed every run (deterministic from apiDataMap) so
+    // it's available for phase 4 even when resuming past phase 3.
     const allIssues = generateAllDriverIssues(apiDataMap);
 
-    for (const [driverName, result] of Object.entries(driverScores)) {
-      const issues = allIssues[driverName] || allIssues[driverName.replace('_', '-')] || [];
-      await supabase.from('driver_results').upsert({
-        analysis_id: analysisId, driver_name: driverName, score: result.score, status: result.status,
-        issues: issues, solutions: [], raw_data: result.details || {},
-      }, { onConflict: 'analysis_id,driver_name' });
+    if (resumeFromIdx < 3) {
+      await updatePhase('generating_issues', 'Identifying problems...');
+      for (const [driverName, result] of Object.entries(driverScores)) {
+        const issues = allIssues[driverName] || allIssues[driverName.replace('_', '-')] || [];
+        await supabase.from('driver_results').upsert({
+          analysis_id: analysisId, driver_name: driverName, score: result.score, status: result.status,
+          issues: issues, solutions: [], raw_data: result.details || {},
+        }, { onConflict: 'analysis_id,driver_name' });
+      }
     }
+
+    await checkpoint('generating_issues', 3, {
+      driver_count: Object.keys(driverScores).length,
+      total_issues: Object.values(allIssues).reduce((acc, arr) => acc + (arr?.length || 0), 0),
+    });
 
     // ============================
     // PHASE 4: Generate solutions
     // ============================
-    await updatePhase('generating_solutions', 'Generating AI-powered solutions...');
+    // LLM keys are needed by phase 6 as well, so we read them here regardless.
     const OPENAI_API_KEY = dbKeys['OPENAI_API_KEY'] || process.env.OPENAI_API_KEY || process.env.OPEN_AI_API_KEY || '';
     const ANTHROPIC_API_KEY_VAL = dbKeys['ANTHROPIC_API_KEY'] || process.env.ANTHROPIC_API_KEY || '';
     const PPLX_API_KEY = dbKeys['PPLX_API_KEY'] || process.env.PPLX_API_KEY || '';
     const hasLLMKey = !!(OPENAI_API_KEY || PPLX_API_KEY || ANTHROPIC_API_KEY_VAL);
 
-    for (const [driverName, result] of Object.entries(driverScores)) {
-      if (!hasTime(15000)) { console.warn('[solutions] Skipping remaining drivers - running low on time'); break; }
-      const issues = allIssues[driverName] || allIssues[driverName.replace('_', '-')] || [];
-      if (issues.length === 0 || result.score === null) continue;
-      await updatePhase('generating_solutions', `Generating solutions for ${driverName}...`);
-      try {
-        const numSolutions = Math.min(issues.length, 3);
-        let solutions: any[];
-        if (hasLLMKey) {
-          solutions = await generateDriverSolutions(driverName, domain, result.score, issues, numSolutions, OPENAI_API_KEY, PPLX_API_KEY, ANTHROPIC_API_KEY_VAL);
-        } else {
-          solutions = generateMockSolutions(driverName, domain, result.score, issues, numSolutions);
-        }
-        await supabase.from('driver_results').update({ solutions }).eq('analysis_id', analysisId).eq('driver_name', driverName);
-      } catch (err) { console.error(`[solutions:${driverName}]`, err); }
+    if (resumeFromIdx < 4) {
+      await updatePhase('generating_solutions', 'Generating AI-powered solutions...');
+      for (const [driverName, result] of Object.entries(driverScores)) {
+        if (!hasTime(15000)) { console.warn('[solutions] Skipping remaining drivers - running low on time'); break; }
+        const issues = allIssues[driverName] || allIssues[driverName.replace('_', '-')] || [];
+        if (issues.length === 0 || result.score === null) continue;
+        await updatePhase('generating_solutions', `Generating solutions for ${driverName}...`);
+        try {
+          const numSolutions = Math.min(issues.length, 3);
+          let solutions: any[];
+          if (hasLLMKey) {
+            solutions = await generateDriverSolutions(driverName, domain, result.score, issues, numSolutions, OPENAI_API_KEY, PPLX_API_KEY, ANTHROPIC_API_KEY_VAL);
+          } else {
+            solutions = generateMockSolutions(driverName, domain, result.score, issues, numSolutions);
+          }
+          await supabase.from('driver_results').update({ solutions }).eq('analysis_id', analysisId).eq('driver_name', driverName);
+        } catch (err) { console.error(`[solutions:${driverName}]`, err); }
+      }
     }
+
+    await checkpoint('generating_solutions', 4, { used_llm: hasLLMKey });
 
     // ============================
     // PHASE 5: Competitor analysis (PARALLEL)
     // ============================
-    if (competitors.length > 0 && hasTime(20000)) {
+    if (resumeFromIdx < 5 && competitors.length > 0 && hasTime(20000)) {
       await updatePhase('analyzing_competitors', `Analyzing ${competitors.length} competitors in parallel...`);
 
       // Run ALL competitors in parallel instead of serial
@@ -285,15 +407,17 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
       const competitorResults = await Promise.allSettled(competitorPromises);
       const completed = competitorResults.filter(r => r.status === 'fulfilled' && (r.value as any).success).length;
       console.log(`[competitors] ${completed}/${competitors.length} analyzed successfully`);
-    } else if (competitors.length > 0) {
+    } else if (resumeFromIdx < 5 && competitors.length > 0) {
       console.warn('[competitors] Skipped - running low on time');
       await updatePhase('analyzing_competitors', 'Skipped competitors (time constraint)');
     }
 
+    await checkpoint('analyzing_competitors', 5, { competitor_count: competitors.length });
+
     // ============================
     // PHASE 6: Priority matrix
     // ============================
-    if (hasTime(15000)) {
+    if (resumeFromIdx < 6 && hasTime(15000)) {
       await updatePhase('generating_matrix', 'Classifying solutions into priority matrix...');
       try {
         const { data: driverResultsRows } = await supabase
@@ -356,9 +480,11 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
           }, { onConflict: 'analysis_id' });
         }
       } catch (err) { console.error('[priority_matrix]', err); }
-    } else {
+    } else if (resumeFromIdx < 6) {
       console.warn('[priority_matrix] Skipped - running low on time');
     }
+
+    await checkpoint('generating_matrix', 6, {});
 
     // ============================
     // PHASE 7: Finalize
@@ -377,6 +503,12 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
     return { success: true, analysisId, runtime_ms: Date.now() - startTime };
 
   } catch (error) {
+    if (error instanceof PauseSignal) {
+      // Expected exit: the analysis is parked at a checkpoint waiting for the
+      // user's decision. status='paused' was already written inside checkpoint().
+      console.log(`[runAnalysis] Paused at ${error.phase} for ${analysisId}`);
+      return { success: true, analysisId, runtime_ms: Date.now() - startTime };
+    }
     console.error('[runAnalysis] Fatal error for', analysisId, ':', error);
     try {
       await supabase.from('analyses')
