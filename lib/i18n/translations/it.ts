@@ -277,6 +277,13 @@ const it = {
   'analyzer.driversPreview': '9 Driver da analizzare',
   'analyzer.startAnalysis': 'Avvia Analisi Completa',
   'analyzer.new': '+ Nuovo',
+  'analyzer.pauseBetweenPhases': 'Pausa tra le fasi',
+  'analyzer.pauseBetweenPhasesHelp': 'Ferma la pipeline dopo ogni fase per consentirti di rivedere l\'output prima di continuare. Utile per ispezione e debug. L\'analisi resterà in stato "in pausa" finché non clicchi Continua.',
+  'analyzer.analysisPaused': 'Analisi in pausa',
+  'analyzer.pausedAfter': 'In pausa dopo la fase',
+  'analyzer.reviewCheckpoint': 'Rivedi l\'output di questa fase prima di proseguire.',
+  'analyzer.continueAnalysis': 'Continua',
+  'analyzer.stopAnalysis': 'Interrompi',
 
   // Knowledge
   'knowledge.title': 'Knowledge Base',

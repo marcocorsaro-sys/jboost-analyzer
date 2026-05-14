@@ -27,7 +27,10 @@ export default function AnalyzerPage() {
   const [language, setLanguage] = useState('en')
   const [competitors, setCompetitors] = useState<string[]>([''])
   const [targetTopic, setTargetTopic] = useState('')
+  const [pauseBetweenPhases, setPauseBetweenPhases] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
+  const [pausedAtPhase, setPausedAtPhase] = useState<string | null>(null)
+  const [isResuming, setIsResuming] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [analysisId, setAnalysisId] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
@@ -83,7 +86,7 @@ export default function AnalyzerPage() {
     const pollInterval = setInterval(async () => {
       const { data } = await supabase
         .from('analyses')
-        .select('status, current_phase, phase_detail, started_at, error_message')
+        .select('status, current_phase, phase_detail, started_at, error_message, paused_at_phase')
         .eq('id', analysisId)
         .single()
 
@@ -95,12 +98,17 @@ export default function AnalyzerPage() {
 
         if (data.status === 'completed') {
           setIsRunning(false)
+          setPausedAtPhase(null)
           clearInterval(pollInterval)
           window.location.href = `/results/${analysisId}`
         } else if (data.status === 'failed') {
           setIsRunning(false)
+          setPausedAtPhase(null)
           clearInterval(pollInterval)
           setError(data.error_message || 'Analysis failed. Please try again.')
+        } else if (data.status === 'paused') {
+          setIsRunning(false)
+          setPausedAtPhase(data.paused_at_phase || data.current_phase || null)
         }
       }
     }, 2000)
@@ -125,12 +133,17 @@ export default function AnalyzerPage() {
 
           if (row.status === 'completed') {
             setIsRunning(false)
+            setPausedAtPhase(null)
             clearInterval(pollInterval)
             window.location.href = `/results/${analysisId}`
           } else if (row.status === 'failed') {
             setIsRunning(false)
+            setPausedAtPhase(null)
             clearInterval(pollInterval)
             setError(row.error_message as string || 'Analysis failed. Please try again.')
+          } else if (row.status === 'paused') {
+            setIsRunning(false)
+            setPausedAtPhase((row.paused_at_phase as string) || (row.current_phase as string) || null)
           }
         }
       )
@@ -202,6 +215,7 @@ export default function AnalyzerPage() {
           target_topic: targetTopic || null,
           competitors: cleanCompetitors,
           status: 'running',
+          pause_between_phases: pauseBetweenPhases,
           ...(selectedClientId ? { client_id: selectedClientId } : {}),
         })
         .select()
@@ -265,6 +279,37 @@ export default function AnalyzerPage() {
     }
   }
 
+  const handleResume = async (decision: 'continue' | 'stop') => {
+    if (!analysisId) return
+    setIsResuming(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/analyses/${analysisId}/resume`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision }),
+        credentials: 'same-origin',
+      })
+      if (!res.ok && res.status !== 202) {
+        const body = await res.text().catch(() => '')
+        throw new Error(`Resume failed: HTTP ${res.status} ${body}`)
+      }
+      if (decision === 'continue') {
+        setIsRunning(true)
+        setPausedAtPhase(null)
+        setStatus('running')
+      } else {
+        setStatus('failed')
+        setPausedAtPhase(null)
+      }
+    } catch (err) {
+      console.error('Resume error:', err)
+      setError(err instanceof Error ? err.message : 'Resume failed')
+    } finally {
+      setIsResuming(false)
+    }
+  }
+
   const selectedClient = clients.find(c => c.id === selectedClientId)
 
   return (
@@ -292,8 +337,59 @@ export default function AnalyzerPage() {
         </div>
       )}
 
+      {/* Paused state — checkpoint review (Continue / Stop) */}
+      {!isRunning && status === 'paused' && analysisId && (
+        <div
+          className="mb-8 p-5 rounded-lg"
+          style={{
+            background: 'rgba(245, 158, 11, 0.08)',
+            border: '1px solid rgba(245, 158, 11, 0.25)',
+          }}
+        >
+          <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--amber, #f59e0b)' }}>
+            {t('analyzer.analysisPaused')}
+          </div>
+          <div className="text-sm mb-1" style={{ color: 'var(--white)' }}>
+            <span style={{ color: 'var(--gray)' }}>{t('analyzer.pausedAfter')}: </span>
+            <span style={{ fontFamily: 'monospace' }}>{pausedAtPhase || currentPhase || '—'}</span>
+          </div>
+          <p className="text-xs mb-4" style={{ color: 'var(--gray)' }}>
+            {t('analyzer.reviewCheckpoint')}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleResume('continue')}
+              disabled={isResuming}
+              className="px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-widest"
+              style={{
+                background: 'var(--lime)',
+                color: 'var(--bg)',
+                cursor: isResuming ? 'not-allowed' : 'pointer',
+                opacity: isResuming ? 0.6 : 1,
+              }}
+            >
+              {t('analyzer.continueAnalysis')}
+            </button>
+            <button
+              onClick={() => handleResume('stop')}
+              disabled={isResuming}
+              className="px-4 py-2 rounded-lg text-sm font-semibold uppercase tracking-widest"
+              style={{
+                background: 'hsl(var(--card))',
+                border: '1px solid hsl(var(--border))',
+                color: 'var(--red)',
+                cursor: isResuming ? 'not-allowed' : 'pointer',
+                opacity: isResuming ? 0.6 : 1,
+              }}
+            >
+              {t('analyzer.stopAnalysis')}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Analysis Form */}
-      {!isRunning && (
+      {!isRunning && status !== 'paused' && (
         <div className="space-y-6">
 
           {/* Client Picker */}
@@ -479,6 +575,27 @@ export default function AnalyzerPage() {
             <p className="mt-1 text-xs" style={{ color: 'var(--gray)' }}>
               {t('analyzer.targetTopicHelp')}
             </p>
+          </div>
+
+          {/* Pause between phases (debug / step-by-step review) */}
+          <div className="p-4 rounded-lg" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <label style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={pauseBetweenPhases}
+                onChange={e => setPauseBetweenPhases(e.target.checked)}
+                disabled={isRunning}
+                style={{ marginTop: '3px', accentColor: 'var(--lime)' }}
+              />
+              <span>
+                <span className="text-sm font-semibold" style={{ color: 'var(--white)' }}>
+                  {t('analyzer.pauseBetweenPhases')}
+                </span>
+                <p className="mt-1 text-xs" style={{ color: 'var(--gray)' }}>
+                  {t('analyzer.pauseBetweenPhasesHelp')}
+                </p>
+              </span>
+            </label>
           </div>
 
           {/* Drivers Preview */}

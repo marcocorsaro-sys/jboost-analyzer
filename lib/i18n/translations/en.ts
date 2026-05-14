@@ -277,6 +277,13 @@ const en = {
   'analyzer.driversPreview': '9 Drivers to be analyzed',
   'analyzer.startAnalysis': 'Start Complete Analysis',
   'analyzer.new': '+ New',
+  'analyzer.pauseBetweenPhases': 'Pause between phases',
+  'analyzer.pauseBetweenPhasesHelp': 'Stop the pipeline after each phase so you can review the output before continuing. Useful for inspection and debugging. The analysis will stay in "paused" state until you click Continue.',
+  'analyzer.analysisPaused': 'Analysis paused',
+  'analyzer.pausedAfter': 'Paused after phase',
+  'analyzer.reviewCheckpoint': 'Review the output of this phase before continuing.',
+  'analyzer.continueAnalysis': 'Continue',
+  'analyzer.stopAnalysis': 'Stop',
 
   // Knowledge
   'knowledge.title': 'Knowledge Base',
