@@ -8,6 +8,9 @@ import { runAnalysis } from '@/lib/analyses/run-analysis';
 
 const Body = z.object({
   decision: z.enum(['continue', 'stop']),
+  // Map of question id -> user's answer (free text). Merged into
+  // analyses.user_clarifications so the next phase's prompts can use it.
+  answers: z.record(z.string()).optional(),
 });
 
 export async function POST(
@@ -31,12 +34,12 @@ export async function POST(
   catch (e: any) {
     return NextResponse.json({ error: 'invalid body', details: String(e?.message ?? e) }, { status: 400 });
   }
-  const { decision } = parsed;
+  const { decision, answers } = parsed;
 
   // RLS gates access: if the user can't SELECT the row, they can't resume it.
   const { data: analysis, error: fetchErr } = await supabase
     .from('analyses')
-    .select('id, status, paused_at_phase')
+    .select('id, status, paused_at_phase, user_clarifications')
     .eq('id', analysisId)
     .single();
   if (fetchErr || !analysis) {
@@ -70,6 +73,24 @@ export async function POST(
       { error: 'failed to record decision', details: ckptErr.message },
       { status: 500 },
     );
+  }
+
+  // Merge any user-provided answers into analyses.user_clarifications so
+  // downstream phases' prompts can pick them up. We merge rather than
+  // replace so answers accumulate across multiple paused checkpoints.
+  if (answers && Object.keys(answers).length > 0) {
+    const prior = (analysis.user_clarifications && typeof analysis.user_clarifications === 'object')
+      ? analysis.user_clarifications as Record<string, string>
+      : {};
+    const merged = { ...prior, ...answers };
+    const { error: clarErr } = await supabase
+      .from('analyses')
+      .update({ user_clarifications: merged })
+      .eq('id', analysisId);
+    if (clarErr) {
+      console.warn('[resume] failed to persist clarifications:', clarErr.message);
+      // Soft fail — the analysis can still resume without the answers.
+    }
   }
 
   if (decision === 'stop') {

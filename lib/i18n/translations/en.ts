@@ -284,6 +284,9 @@ const en = {
   'analyzer.reviewCheckpoint': 'Review the output of this phase before continuing.',
   'analyzer.continueAnalysis': 'Continue',
   'analyzer.stopAnalysis': 'Stop',
+  'analyzer.criticAnomalies': 'Critic agent — flagged anomalies',
+  'analyzer.criticQuestions': 'Context questions',
+  'analyzer.answerPlaceholder': 'Your answer (will be used by the next phases)…',
 
   // Knowledge
   'knowledge.title': 'Knowledge Base',
