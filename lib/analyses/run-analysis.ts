@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { criticAgent, shouldForcePause, type CriticVerdict } from './critic-agent';
 
 export interface RunAnalysisResult {
   success: boolean;
@@ -82,9 +83,14 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
 
     const domain = analysis.domain;
     const country = analysis.country || 'us';
+    const language = analysis.language || 'en';
     const competitors: string[] = analysis.competitors || [];
     const targetTopic = analysis.target_topic || '';
     const pauseBetweenPhases: boolean = !!analysis.pause_between_phases;
+    const userClarifications: Record<string, string> =
+      (analysis.user_clarifications && typeof analysis.user_clarifications === 'object')
+        ? analysis.user_clarifications as Record<string, string>
+        : {};
 
     // If we're being invoked on a paused analysis, figure out the index to
     // resume from. The resume endpoint has already flipped status back to
@@ -108,37 +114,87 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
       }).eq('id', analysisId);
     }
 
-    // Records a checkpoint row for the just-completed phase. If the user
-    // opted into step-by-step review AND hasn't already approved this phase,
-    // flips the analysis to 'paused' and throws PauseSignal to exit the
-    // orchestrator cleanly. Re-invocation via /api/analyses/[id]/resume
-    // marks user_decision='continue' on the checkpoint, after which this
-    // function becomes a no-op for that phase.
-    async function checkpoint(phase: string, phaseIndex: number, payload: Record<string, unknown>) {
+    // After each phase boundary: invoke the critic agent, persist the
+    // checkpoint with both the phase summary and the critic's verdict, then
+    // decide whether to pause. Pause triggers:
+    //   - user opted into step-by-step review (pauseBetweenPhases=true), OR
+    //   - critic found critical anomalies or asked questions
+    //       (shouldForcePause(verdict) === true)
+    // When a checkpoint already carries user_decision='continue', we treat
+    // it as resumed and skip both the critic call and the pause check.
+    async function phaseGate(
+      phase: string,
+      phaseIndex: number,
+      output: Record<string, unknown>,
+    ) {
+      // Skip critic + pause if the user already approved this checkpoint
+      // (this is what happens on the resumed pass after Continue).
+      const { data: existing } = await supabase
+        .from('analysis_checkpoints')
+        .select('user_decision, payload')
+        .eq('analysis_id', analysisId)
+        .eq('phase', phase)
+        .maybeSingle();
+      if (existing?.user_decision === 'continue') {
+        // Refresh the payload's "output" key in case re-run produced new
+        // numbers, but preserve the prior critic verdict for traceability.
+        await supabase.from('analysis_checkpoints').upsert(
+          {
+            analysis_id: analysisId,
+            phase,
+            phase_index: phaseIndex,
+            payload: { ...(existing.payload as object || {}), output },
+          },
+          { onConflict: 'analysis_id,phase' },
+        );
+        return;
+      }
+
+      let verdict: CriticVerdict;
+      try {
+        verdict = await criticAgent({
+          phase,
+          output,
+          context: {
+            domain,
+            country,
+            language,
+            targetTopic: targetTopic || undefined,
+            competitors,
+            priorClarifications: userClarifications,
+          },
+          anthropicKey: dbKeys['ANTHROPIC_API_KEY'] || process.env.ANTHROPIC_API_KEY || '',
+        });
+      } catch (err) {
+        // Belt + suspenders: critic should never throw, but if it does we
+        // still want the pipeline to continue.
+        console.warn('[phaseGate] critic threw, continuing:', err);
+        verdict = { ok: true, anomalies: [], questions: [], skipped: true, skipped_reason: 'thrown' };
+      }
+
       await supabase.from('analysis_checkpoints').upsert(
         {
           analysis_id: analysisId,
           phase,
           phase_index: phaseIndex,
-          payload,
+          payload: { output, critic: verdict },
         },
         { onConflict: 'analysis_id,phase' },
       );
 
-      if (!pauseBetweenPhases) return;
+      const forcedByCritic = shouldForcePause(verdict);
+      if (!pauseBetweenPhases && !forcedByCritic) return;
 
-      const { data: existing } = await supabase
-        .from('analysis_checkpoints')
-        .select('user_decision')
-        .eq('analysis_id', analysisId)
-        .eq('phase', phase)
-        .maybeSingle();
-      if (existing?.user_decision === 'continue') return;
+      const reason = forcedByCritic
+        ? (verdict.questions.length > 0
+            ? `Paused after ${phase}: critic has ${verdict.questions.length} question(s).`
+            : `Paused after ${phase}: critic flagged critical anomalies.`)
+        : `Paused after ${phase}. Click Continue to resume.`;
 
       await supabase.from('analyses').update({
         status: 'paused',
         paused_at_phase: phase,
-        phase_detail: `Paused after ${phase}. Click Continue to resume.`,
+        phase_detail: reason,
         updated_at: new Date().toISOString(),
       }).eq('id', analysisId);
 
@@ -298,10 +354,16 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
       }
     } // end of "fetch APIs" branch (rehydrate vs fetch)
 
-    await checkpoint('fetching_apis', 1, {
+    await phaseGate('fetching_apis', 1, {
       sources_fetched: Object.keys(apiDataMap).length,
       had_real_keys: hasAnyApiKey,
-      company_context_present: !!apiDataMap.company_context,
+      semrush_domain_overview: apiDataMap.semrush_domain_overview ?? null,
+      semrush_site_health_score: apiDataMap.semrush_site_health?.site_health_score ?? null,
+      ahrefs_domain_rating: apiDataMap.ahrefs_domain_rating?.domain_rating ?? null,
+      ahrefs_ai_relevance: apiDataMap.ahrefs_ai_relevance ?? null,
+      pagespeed_mobile: apiDataMap.pagespeed_mobile ?? null,
+      company_profile: apiDataMap.company_context?.company_profile ?? null,
+      market_scenario: apiDataMap.company_context?.market_scenario ?? null,
     });
 
     // ============================
@@ -337,9 +399,13 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
       }
     }
 
-    await checkpoint('generating_issues', 3, {
-      driver_count: Object.keys(driverScores).length,
-      total_issues: Object.values(allIssues).reduce((acc, arr) => acc + (arr?.length || 0), 0),
+    await phaseGate('generating_issues', 3, {
+      driver_scores: Object.fromEntries(
+        Object.entries(driverScores).map(([k, v]) => [k, { score: v.score, status: v.status }]),
+      ),
+      issues_per_driver: Object.fromEntries(
+        Object.entries(allIssues).map(([k, v]) => [k, (v as any[])?.length || 0]),
+      ),
     });
 
     // ============================
@@ -362,7 +428,7 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
           const numSolutions = Math.min(issues.length, 3);
           let solutions: any[];
           if (hasLLMKey) {
-            solutions = await generateDriverSolutions(driverName, domain, result.score, issues, numSolutions, OPENAI_API_KEY, PPLX_API_KEY, ANTHROPIC_API_KEY_VAL);
+            solutions = await generateDriverSolutions(driverName, domain, result.score, issues, numSolutions, OPENAI_API_KEY, PPLX_API_KEY, ANTHROPIC_API_KEY_VAL, userClarifications);
           } else {
             solutions = generateMockSolutions(driverName, domain, result.score, issues, numSolutions);
           }
@@ -371,7 +437,23 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
       }
     }
 
-    await checkpoint('generating_solutions', 4, { used_llm: hasLLMKey });
+    // Compact solutions summary for the critic (one entry per driver with
+    // counts + a single example title to keep the payload small).
+    const { data: solutionRows } = await supabase
+      .from('driver_results')
+      .select('driver_name, solutions')
+      .eq('analysis_id', analysisId);
+    const solutionsSummary = (solutionRows || []).map(r => ({
+      driver: r.driver_name,
+      count: Array.isArray(r.solutions) ? r.solutions.length : 0,
+      sample_title: Array.isArray(r.solutions) && r.solutions.length > 0
+        ? (r.solutions[0] as any)?.title ?? null
+        : null,
+    }));
+    await phaseGate('generating_solutions', 4, {
+      used_llm: hasLLMKey,
+      solutions: solutionsSummary,
+    });
 
     // ============================
     // PHASE 5: Competitor analysis (PARALLEL)
@@ -412,7 +494,17 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
       await updatePhase('analyzing_competitors', 'Skipped competitors (time constraint)');
     }
 
-    await checkpoint('analyzing_competitors', 5, { competitor_count: competitors.length });
+    const { data: competitorRows } = await supabase
+      .from('competitor_results')
+      .select('competitor_domain, scores')
+      .eq('analysis_id', analysisId);
+    await phaseGate('analyzing_competitors', 5, {
+      competitor_count: competitors.length,
+      competitors_analyzed: (competitorRows || []).map(r => ({
+        domain: r.competitor_domain,
+        scores: r.scores,
+      })),
+    });
 
     // ============================
     // PHASE 6: Priority matrix
@@ -448,7 +540,7 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
         if (allSolutions.length > 0) {
           let matrix: any;
           if (hasLLMKey) {
-            matrix = await generatePriorityMatrix(allSolutions, OPENAI_API_KEY, PPLX_API_KEY, ANTHROPIC_API_KEY_VAL);
+            matrix = await generatePriorityMatrix(allSolutions, OPENAI_API_KEY, PPLX_API_KEY, ANTHROPIC_API_KEY_VAL, userClarifications);
           } else {
             matrix = generateMockPriorityMatrix(allSolutions);
           }
@@ -484,7 +576,17 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
       console.warn('[priority_matrix] Skipped - running low on time');
     }
 
-    await checkpoint('generating_matrix', 6, {});
+    const { data: matrixRow } = await supabase
+      .from('priority_matrix')
+      .select('opportunities, issues, improvements, suggestions')
+      .eq('analysis_id', analysisId)
+      .maybeSingle();
+    await phaseGate('generating_matrix', 6, {
+      opportunities_count: (matrixRow?.opportunities as any[])?.length || 0,
+      issues_count: (matrixRow?.issues as any[])?.length || 0,
+      improvements_count: (matrixRow?.improvements as any[])?.length || 0,
+      suggestions_count: (matrixRow?.suggestions as any[])?.length || 0,
+    });
 
     // ============================
     // PHASE 7: Finalize
@@ -1130,16 +1232,22 @@ async function callLLM(prompt: string, jsonSchema: boolean, openaiKey: string, p
   throw new Error('No LLM key');
 }
 
-async function generateDriverSolutions(driverName: string, domain: string, score: number, issues: any[], numSolutions: number, openaiKey: string, pplxKey: string, anthropicKey: string = '') {
+function clarificationsBlock(clarifications?: Record<string, string>): string {
+  if (!clarifications || Object.keys(clarifications).length === 0) return '';
+  const lines = Object.entries(clarifications).map(([k, v]) => `- ${k}: ${v}`).join('\n');
+  return `\n\nUser-provided context (use this to refine your output):\n${lines}\n`;
+}
+
+async function generateDriverSolutions(driverName: string, domain: string, score: number, issues: any[], numSolutions: number, openaiKey: string, pplxKey: string, anthropicKey: string = '', clarifications?: Record<string, string>) {
   const issuesList = issues.map((i: any, idx: number) => `${idx+1}. [${(i.severity||'medium').toUpperCase()}] ${i.title}: ${i.description}`).join('\n');
-  const prompt = `You are an SEO expert analyzing "${driverName}" for "${domain}". Score: ${score}/100.\n\nIssues:\n${issuesList}\n\nGenerate exactly ${numSolutions} solutions as JSON: { "solutions": [{ "title": string (max 50 chars), "description": string (100-200 words), "impact": "high"|"medium"|"low", "effort_level": "high"|"medium"|"low", "estimated_improvement": number 1-20, "timeframe": "quick_win"|"short_term"|"medium_term"|"long_term" }] }`;
+  const prompt = `You are an SEO expert analyzing "${driverName}" for "${domain}". Score: ${score}/100.${clarificationsBlock(clarifications)}\n\nIssues:\n${issuesList}\n\nGenerate exactly ${numSolutions} solutions as JSON: { "solutions": [{ "title": string (max 50 chars), "description": string (100-200 words), "impact": "high"|"medium"|"low", "effort_level": "high"|"medium"|"low", "estimated_improvement": number 1-20, "timeframe": "quick_win"|"short_term"|"medium_term"|"long_term" }] }`;
   const content = await callLLM(prompt, true, openaiKey, pplxKey, anthropicKey);
   let cleaned = content.trim(); if (cleaned.startsWith('```')) cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
   return JSON.parse(cleaned).solutions || [];
 }
 
-async function generatePriorityMatrix(solutions: any[], openaiKey: string, pplxKey: string, anthropicKey: string = '') {
-  const prompt = `Classify these ${solutions.length} solutions into 4 quadrants. Keep "reference" field.\n\nSOLUTIONS: ${JSON.stringify(solutions)}\n\n1. OPPORTUNITIES (high priority + high impact)\n2. ISSUES (high priority + lower impact)\n3. IMPROVEMENTS (medium priority + high impact)\n4. SUGGESTIONS (low priority)\n\nJSON: { "opportunities": [{"reference": "..."}], "issues": [...], "improvements": [...], "suggestions": [...] }`;
+async function generatePriorityMatrix(solutions: any[], openaiKey: string, pplxKey: string, anthropicKey: string = '', clarifications?: Record<string, string>) {
+  const prompt = `Classify these ${solutions.length} solutions into 4 quadrants. Keep "reference" field.${clarificationsBlock(clarifications)}\n\nSOLUTIONS: ${JSON.stringify(solutions)}\n\n1. OPPORTUNITIES (high priority + high impact)\n2. ISSUES (high priority + lower impact)\n3. IMPROVEMENTS (medium priority + high impact)\n4. SUGGESTIONS (low priority)\n\nJSON: { "opportunities": [{"reference": "..."}], "issues": [...], "improvements": [...], "suggestions": [...] }`;
   const content = await callLLM(prompt, true, openaiKey, pplxKey, anthropicKey);
   let cleaned = content.trim(); if (cleaned.startsWith('```')) cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
   return JSON.parse(cleaned);

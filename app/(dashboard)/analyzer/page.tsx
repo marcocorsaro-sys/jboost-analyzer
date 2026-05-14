@@ -31,6 +31,13 @@ export default function AnalyzerPage() {
   const [isRunning, setIsRunning] = useState(false)
   const [pausedAtPhase, setPausedAtPhase] = useState<string | null>(null)
   const [isResuming, setIsResuming] = useState(false)
+
+  interface CriticAnomaly { severity: 'info' | 'warning' | 'critical'; message: string; evidence: string }
+  interface CriticQuestion { id: string; text: string; options?: string[] }
+  interface CriticVerdict { ok: boolean; anomalies: CriticAnomaly[]; questions: CriticQuestion[]; skipped?: boolean }
+
+  const [criticVerdict, setCriticVerdict] = useState<CriticVerdict | null>(null)
+  const [questionAnswers, setQuestionAnswers] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const [analysisId, setAnalysisId] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
@@ -108,7 +115,19 @@ export default function AnalyzerPage() {
           setError(data.error_message || 'Analysis failed. Please try again.')
         } else if (data.status === 'paused') {
           setIsRunning(false)
-          setPausedAtPhase(data.paused_at_phase || data.current_phase || null)
+          const phase = data.paused_at_phase || data.current_phase || null
+          setPausedAtPhase(phase)
+          // Fetch the checkpoint payload so we can render the critic verdict.
+          if (phase) {
+            const { data: ckpt } = await supabase
+              .from('analysis_checkpoints')
+              .select('payload')
+              .eq('analysis_id', analysisId)
+              .eq('phase', phase)
+              .maybeSingle()
+            const critic = (ckpt?.payload as Record<string, unknown> | null)?.critic as CriticVerdict | undefined
+            setCriticVerdict(critic ?? null)
+          }
         }
       }
     }, 2000)
@@ -284,10 +303,18 @@ export default function AnalyzerPage() {
     setIsResuming(true)
     setError(null)
     try {
+      // Only send answers for questions the user actually filled in.
+      const trimmed: Record<string, string> = {}
+      for (const [k, v] of Object.entries(questionAnswers)) {
+        if (v && v.trim()) trimmed[k] = v.trim()
+      }
       const res = await fetch(`/api/analyses/${analysisId}/resume`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ decision }),
+        body: JSON.stringify({
+          decision,
+          ...(decision === 'continue' && Object.keys(trimmed).length > 0 ? { answers: trimmed } : {}),
+        }),
         credentials: 'same-origin',
       })
       if (!res.ok && res.status !== 202) {
@@ -297,10 +324,13 @@ export default function AnalyzerPage() {
       if (decision === 'continue') {
         setIsRunning(true)
         setPausedAtPhase(null)
+        setCriticVerdict(null)
+        setQuestionAnswers({})
         setStatus('running')
       } else {
         setStatus('failed')
         setPausedAtPhase(null)
+        setCriticVerdict(null)
       }
     } catch (err) {
       console.error('Resume error:', err)
@@ -356,6 +386,64 @@ export default function AnalyzerPage() {
           <p className="text-xs mb-4" style={{ color: 'var(--gray)' }}>
             {t('analyzer.reviewCheckpoint')}
           </p>
+
+          {criticVerdict && criticVerdict.anomalies.length > 0 && (
+            <div className="mb-4 space-y-2">
+              <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--lime-dim)' }}>
+                {t('analyzer.criticAnomalies')}
+              </div>
+              {criticVerdict.anomalies.map((a, i) => {
+                const sevColor = a.severity === 'critical' ? 'var(--red)' : a.severity === 'warning' ? 'var(--amber, #f59e0b)' : 'var(--teal)'
+                return (
+                  <div key={i} className="p-3 rounded text-xs" style={{ background: 'hsl(var(--card))', border: `1px solid ${sevColor}` }}>
+                    <div style={{ color: sevColor, fontWeight: 600, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      {a.severity}
+                    </div>
+                    <div style={{ color: 'var(--white)', marginBottom: '4px' }}>{a.message}</div>
+                    {a.evidence && (
+                      <div style={{ color: 'var(--gray)', fontFamily: 'monospace', fontSize: '11px' }}>{a.evidence}</div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {criticVerdict && criticVerdict.questions.length > 0 && (
+            <div className="mb-4 space-y-3">
+              <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--lime-dim)' }}>
+                {t('analyzer.criticQuestions')}
+              </div>
+              {criticVerdict.questions.map((q) => (
+                <div key={q.id} className="p-3 rounded" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+                  <label className="block text-sm mb-2" style={{ color: 'var(--white)' }}>{q.text}</label>
+                  {q.options && q.options.length > 0 ? (
+                    <select
+                      value={questionAnswers[q.id] || ''}
+                      onChange={e => setQuestionAnswers({ ...questionAnswers, [q.id]: e.target.value })}
+                      disabled={isResuming}
+                      className="w-full px-3 py-2 rounded text-sm outline-none"
+                      style={{ background: 'hsl(var(--bg))', border: '1px solid hsl(var(--border))', color: 'var(--white)' }}
+                    >
+                      <option value="">—</option>
+                      {q.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  ) : (
+                    <textarea
+                      value={questionAnswers[q.id] || ''}
+                      onChange={e => setQuestionAnswers({ ...questionAnswers, [q.id]: e.target.value })}
+                      disabled={isResuming}
+                      rows={2}
+                      className="w-full px-3 py-2 rounded text-sm outline-none"
+                      style={{ background: 'hsl(var(--bg))', border: '1px solid hsl(var(--border))', color: 'var(--white)', fontFamily: 'inherit' }}
+                      placeholder={t('analyzer.answerPlaceholder')}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="flex gap-2">
             <button
               onClick={() => handleResume('continue')}

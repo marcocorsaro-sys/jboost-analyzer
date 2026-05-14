@@ -284,6 +284,9 @@ const it = {
   'analyzer.reviewCheckpoint': 'Rivedi l\'output di questa fase prima di proseguire.',
   'analyzer.continueAnalysis': 'Continua',
   'analyzer.stopAnalysis': 'Interrompi',
+  'analyzer.criticAnomalies': 'Agente critico — anomalie rilevate',
+  'analyzer.criticQuestions': 'Domande di contesto',
+  'analyzer.answerPlaceholder': 'La tua risposta (sarà usata nelle fasi successive)…',
 
   // Knowledge
   'knowledge.title': 'Knowledge Base',
