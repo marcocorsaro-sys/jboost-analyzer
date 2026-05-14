@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { getScoreBand } from '@/lib/constants'
+import { DRIVER_METADATA } from '@/lib/drivers/metadata'
+import type { DriverKey } from '@/lib/constants'
 
 interface Solution {
   title: string
@@ -19,12 +21,22 @@ interface DriverAgentQuestion {
   options?: string[]
 }
 
+interface DriverAgentTurn {
+  role: 'user' | 'agent'
+  content: string
+  turn_idx: number
+  timestamp: string
+}
+
 interface DriverAgentVerdict {
   observations?: string[]
   questions?: DriverAgentQuestion[]
   needs_dialogue?: boolean
   skipped?: boolean
   answered_at?: string
+  turns?: DriverAgentTurn[]
+  locked?: boolean
+  turn_count?: number
 }
 
 interface DriverDetailProps {
@@ -75,8 +87,13 @@ export default function DriverDetail({
 
   const observations = agentVerdict?.observations ?? []
   const agentQuestions = agentVerdict?.questions ?? []
-  const hasAgentContent = observations.length > 0 || agentQuestions.length > 0
-  const needsDialogueBadge = (agentVerdict?.needs_dialogue ?? false) && agentQuestions.length > 0
+  const turns = agentVerdict?.turns ?? []
+  const locked = agentVerdict?.locked ?? false
+  const turnCount = agentVerdict?.turn_count ?? turns.filter(t => t.role === 'agent').length
+  const hasAgentContent = observations.length > 0 || agentQuestions.length > 0 || turns.length > 0
+  const needsDialogueBadge = !locked && agentQuestions.length > 0
+  const meta = DRIVER_METADATA[driverName as DriverKey]
+  const [showDetails, setShowDetails] = useState(false)
 
   async function handleSubmit() {
     if (!analysisId) return
@@ -224,26 +241,158 @@ export default function DriverDetail({
       {/* Expanded content */}
       {expanded && (
         <div style={{ padding: '0 20px 20px', borderTop: '1px solid #2a2d35' }}>
-          {/* Driver Interpreter Agent — observations + (optional) questions */}
+          {/* Dettagli — transparency on data sources, formula, LLM layer */}
+          {meta && (
+            <div style={{ marginTop: '16px' }}>
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowDetails(!showDetails); }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: '#6b7280',
+                  fontSize: '11px',
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span style={{ transform: showDetails ? 'rotate(90deg)' : 'rotate(0)', display: 'inline-block', transition: 'transform 0.2s' }}>▶</span>
+                Dettagli — cosa è stato fatto per questo driver
+              </button>
+              {showDetails && (
+                <div style={{
+                  marginTop: '10px',
+                  padding: '14px',
+                  background: '#111318',
+                  borderRadius: '8px',
+                  border: '1px solid #2a2d35',
+                  fontSize: '12px',
+                  color: '#a0a0a0',
+                  lineHeight: '1.6',
+                }}>
+                  <div style={{ marginBottom: '12px' }}>
+                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>Cosa misura</div>
+                    {meta.whatItMeasures}
+                  </div>
+                  <div style={{ marginBottom: '12px' }}>
+                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '6px' }}>Fonti dati</div>
+                    {meta.sources.map((s, i) => (
+                      <div key={i} style={{
+                        padding: '8px 10px',
+                        background: '#1e2028',
+                        borderRadius: '6px',
+                        marginBottom: '6px',
+                      }}>
+                        <div style={{ color: '#14b8a6', fontSize: '11px', fontWeight: 600 }}>{s.provider}</div>
+                        <div style={{ color: '#ffffff', fontSize: '12px' }}>{s.endpoint}</div>
+                        <div style={{ fontSize: '11px', color: '#6b7280', fontFamily: "'JetBrains Mono', monospace", marginTop: '2px' }}>
+                          {s.fields.join(' · ')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginBottom: '12px' }}>
+                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>Formula</div>
+                    {meta.formula}
+                  </div>
+                  <div style={{ marginBottom: '12px' }}>
+                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>Scoring</div>
+                    {meta.scoring}
+                  </div>
+                  <div>
+                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>Livello LLM</div>
+                    {meta.llmLayer}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Driver Interpreter Agent — chat thread + observations */}
           {hasAgentContent && (
             <div style={{ marginTop: '16px' }}>
-              <h4 style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: '11px',
-                fontWeight: 600,
-                color: '#14b8a6',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
                 marginBottom: '8px',
               }}>
-                Agent — {driverLabel}
-              </h4>
+                <h4 style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: '#14b8a6',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  margin: 0,
+                }}>
+                  Agent — {driverLabel}
+                </h4>
+                {turnCount > 0 && (
+                  <span style={{ fontSize: '10px', color: '#6b7280', fontFamily: "'JetBrains Mono', monospace" }}>
+                    Turno {turnCount} di 3 {locked ? '· chiuso' : ''}
+                  </span>
+                )}
+              </div>
+
+              {/* Latest observations (always show the freshest synthesis) */}
               {observations.length > 0 && (
                 <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', color: '#a0a0a0', lineHeight: '1.6' }}>
                   {observations.map((o, i) => <li key={i}>{o}</li>)}
                 </ul>
               )}
-              {agentQuestions.length > 0 && analysisId && (
+
+              {/* Conversation history: prior user answers */}
+              {turns.filter(t => t.role === 'user').length > 0 && (
+                <details style={{ marginTop: '10px' }}>
+                  <summary style={{ cursor: 'pointer', fontSize: '11px', color: '#6b7280', fontFamily: "'JetBrains Mono', monospace" }}>
+                    Conversazione precedente ({turns.filter(t => t.role === 'user').length} risposte tue)
+                  </summary>
+                  <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {turns.map((t, i) => (
+                      <div key={i} style={{
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        background: t.role === 'user' ? '#14b8a615' : '#1e2028',
+                        borderLeft: `3px solid ${t.role === 'user' ? '#14b8a6' : '#6b7280'}`,
+                        color: '#a0a0a0',
+                        whiteSpace: 'pre-wrap',
+                      }}>
+                        <div style={{ fontSize: '10px', color: t.role === 'user' ? '#14b8a6' : '#6b7280', fontWeight: 600, marginBottom: '2px' }}>
+                          {t.role === 'user' ? 'TU' : 'AGENT'} · turno {t.turn_idx}
+                        </div>
+                        {t.role === 'agent' ? (() => {
+                          try {
+                            const p = JSON.parse(t.content);
+                            const obs: string[] = p.observations || [];
+                            const qs: { text: string }[] = p.questions || [];
+                            return (
+                              <>
+                                {obs.length > 0 && <div>{obs.join(' · ')}</div>}
+                                {qs.length > 0 && <div style={{ marginTop: '4px', fontStyle: 'italic' }}>{qs.map(q => `Q: ${q.text}`).join('  ')}</div>}
+                              </>
+                            );
+                          } catch {
+                            return <div>{t.content}</div>;
+                          }
+                        })() : (
+                          <div>{t.content}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+
+              {/* Current open questions — form */}
+              {agentQuestions.length > 0 && analysisId && !locked && (
                 <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {agentQuestions.map((q) => (
                     <div key={q.id} style={{
@@ -261,14 +410,9 @@ export default function DriverDetail({
                           onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })}
                           disabled={submitting}
                           style={{
-                            width: '100%',
-                            padding: '8px 10px',
-                            background: '#111318',
-                            border: '1px solid #2a2d35',
-                            borderRadius: '6px',
-                            color: '#ffffff',
-                            fontSize: '13px',
-                            outline: 'none',
+                            width: '100%', padding: '8px 10px', background: '#111318',
+                            border: '1px solid #2a2d35', borderRadius: '6px', color: '#ffffff',
+                            fontSize: '13px', outline: 'none',
                           }}
                         >
                           <option value="">—</option>
@@ -282,24 +426,15 @@ export default function DriverDetail({
                           rows={2}
                           placeholder="Your answer…"
                           style={{
-                            width: '100%',
-                            padding: '8px 10px',
-                            background: '#111318',
-                            border: '1px solid #2a2d35',
-                            borderRadius: '6px',
-                            color: '#ffffff',
-                            fontSize: '13px',
-                            fontFamily: 'inherit',
-                            outline: 'none',
-                            resize: 'vertical',
+                            width: '100%', padding: '8px 10px', background: '#111318',
+                            border: '1px solid #2a2d35', borderRadius: '6px', color: '#ffffff',
+                            fontSize: '13px', fontFamily: 'inherit', outline: 'none', resize: 'vertical',
                           }}
                         />
                       )}
                     </div>
                   ))}
-                  {submitError && (
-                    <div style={{ fontSize: '12px', color: '#ef4444' }}>{submitError}</div>
-                  )}
+                  {submitError && <div style={{ fontSize: '12px', color: '#ef4444' }}>{submitError}</div>}
                   <button
                     onClick={(e) => { e.stopPropagation(); handleSubmit(); }}
                     disabled={submitting}
@@ -308,22 +443,20 @@ export default function DriverDetail({
                       padding: '8px 14px',
                       background: submitting ? '#2a2d35' : '#14b8a6',
                       color: submitting ? '#6b7280' : '#ffffff',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontSize: '12px',
+                      border: 'none', borderRadius: '6px', fontSize: '12px',
                       fontWeight: 600,
                       cursor: submitting ? 'default' : 'pointer',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
+                      textTransform: 'uppercase', letterSpacing: '0.5px',
                     }}
                   >
-                    {submitting ? 'Saving…' : 'Save answers'}
+                    {submitting ? 'Saving…' : 'Send answer'}
                   </button>
                 </div>
               )}
-              {agentVerdict?.answered_at && agentQuestions.length === 0 && (
-                <div style={{ marginTop: '8px', fontSize: '11px', color: '#14b8a6' }}>
-                  ✓ Answered — context saved for the next analysis run.
+
+              {locked && (
+                <div style={{ marginTop: '10px', fontSize: '11px', color: '#14b8a6' }}>
+                  ✓ Conversazione chiusa — il contesto è salvato per i prossimi run.
                 </div>
               )}
             </div>
