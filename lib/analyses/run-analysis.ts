@@ -1,5 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { criticAgent, shouldForcePause, type CriticVerdict } from './critic-agent';
+import { driverAgent } from './driver-agent';
+import { DRIVERS } from '@/lib/constants';
 
 export interface RunAnalysisResult {
   success: boolean;
@@ -72,6 +74,9 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
       }
     }
     const dbKeys = await getApiKeysFromDb();
+    // Hoisted so phase 3's per-driver agents can use it before the regular
+    // phase 4 key extraction. Used by critic-agent and driver-agent.
+    const ANTHROPIC_KEY_FOR_AGENTS = dbKeys['ANTHROPIC_API_KEY'] || process.env.ANTHROPIC_API_KEY || '';
 
     const { data: analysis, error: fetchErr } = await supabase
       .from('analyses').select('*').eq('id', analysisId).single();
@@ -423,6 +428,47 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
           analysis_id: analysisId, driver_name: driverName, score: result.score, status: result.status,
           issues: issues, solutions: [], raw_data: result.details || {},
         }, { onConflict: 'analysis_id,driver_name' });
+      }
+
+      // ----------------------------------------------------------------
+      // Per-driver interpreter agents (Step A of the agentic-drivers
+      // roadmap). Each agent reads its driver's score + raw signals
+      // and may surface contextual questions. Non-blocking: runs in
+      // parallel and is best-effort. The verdict is persisted on
+      // driver_results.agent_verdict for the UI to consume.
+      // ----------------------------------------------------------------
+      if (ANTHROPIC_KEY_FOR_AGENTS && hasTime(20000)) {
+        await updatePhase('generating_issues', 'Running per-driver interpreter agents...');
+        const driverContext = {
+          domain,
+          country,
+          language,
+          targetTopic: targetTopic || undefined,
+          competitors,
+          priorClarifications: userClarifications,
+        };
+        const driverMeta = new Map(DRIVERS.map(d => [d.key, d]));
+        await Promise.all(
+          Object.entries(driverScores).map(async ([driverName, result]) => {
+            const meta = driverMeta.get(driverName as any);
+            const issues = allIssues[driverName] || allIssues[driverName.replace('_', '-')] || [];
+            const verdict = await driverAgent({
+              driverName,
+              driverLabel: meta?.label ?? driverName,
+              driverDescription: meta?.description ?? '',
+              score: result.score,
+              status: result.status,
+              issues,
+              rawData: result.details || {},
+              context: driverContext,
+              anthropicKey: ANTHROPIC_KEY_FOR_AGENTS,
+            });
+            await supabase.from('driver_results')
+              .update({ agent_verdict: verdict })
+              .eq('analysis_id', analysisId)
+              .eq('driver_name', driverName);
+          }),
+        );
       }
     }
 

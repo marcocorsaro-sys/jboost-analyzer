@@ -1,0 +1,185 @@
+// Driver Interpreter Agent — one per driver. Takes the deterministic
+// score + raw signals and decides if the user can provide context that
+// would meaningfully refine the driver's interpretation.
+//
+// Non-blocking by design: the verdict is persisted on driver_results
+// and surfaced in the UI, but the pipeline never pauses on its own
+// because of a driver agent. This keeps the analysis fast and lets
+// the user opt into dialogue only on the drivers they care about.
+
+export interface DriverQuestion {
+  id: string;
+  text: string;
+  options?: string[];
+}
+
+export interface DriverVerdict {
+  observations: string[];
+  questions: DriverQuestion[];
+  needs_dialogue: boolean;
+  model?: string;
+  skipped?: boolean;
+  skipped_reason?: string;
+}
+
+export interface DriverContext {
+  domain: string;
+  country: string;
+  language: string;
+  targetTopic?: string;
+  competitors?: string[];
+  priorClarifications?: Record<string, string>;
+}
+
+export interface DriverInput {
+  driverName: string;
+  driverLabel: string;
+  driverDescription: string;
+  score: number | null;
+  status: 'ok' | 'no_results' | 'failed' | string;
+  issues: unknown[];
+  rawData: Record<string, unknown>;
+  context: DriverContext;
+  anthropicKey?: string;
+}
+
+const SYSTEM_PROMPT = `You are a domain-specialist agent for ONE driver of a SEO/GEO analysis. Your job: given the deterministic score and raw signals for this driver, decide whether the user can provide context that would meaningfully refine your interpretation.
+
+Output ONLY valid JSON. No prose, no markdown fences. Schema:
+{
+  "observations": string[],
+  "questions": [{"id": string, "text": string, "options": (string[])?}],
+  "needs_dialogue": boolean
+}
+
+Rules:
+- "observations": 1-3 short notes about what the data says about THIS driver specifically. Reference concrete numbers from the input. Stay in your driver's domain (don't comment on other drivers).
+- "questions": 0-2 questions whose answer would change your interpretation. Each must be answerable in 1-2 sentences or via the "options" list (max 4 options). "id" snake_case, unique within this verdict.
+- "needs_dialogue": true only when at least one question is present AND the answer would meaningfully change the score interpretation (not just nice-to-have).
+- If the score is healthy and the data is unambiguous, return observations only and questions=[].
+- Never invent data. If a signal is missing or null, just acknowledge that.`;
+
+const ANTHROPIC_MODEL = 'claude-sonnet-4-20250514';
+const REQUEST_TIMEOUT_MS = 15_000;
+
+function clamp<T>(arr: T[] | undefined, max: number): T[] {
+  if (!Array.isArray(arr)) return [];
+  return arr.slice(0, max);
+}
+
+function passVerdict(reason: string): DriverVerdict {
+  return { observations: [], questions: [], needs_dialogue: false, skipped: true, skipped_reason: reason };
+}
+
+function buildUserPrompt(input: DriverInput): string {
+  const { driverName, driverLabel, driverDescription, score, status, issues, rawData, context } = input;
+  const lines: string[] = [];
+  lines.push(`Driver: ${driverName} (${driverLabel})`);
+  lines.push(`Description: ${driverDescription}`);
+  lines.push(`Domain: ${context.domain} | Country: ${context.country} | Language: ${context.language}`);
+  if (context.targetTopic) lines.push(`Target topic: ${context.targetTopic}`);
+  if (context.competitors && context.competitors.length > 0) {
+    lines.push(`Competitors: ${context.competitors.join(', ')}`);
+  }
+  if (context.priorClarifications && Object.keys(context.priorClarifications).length > 0) {
+    lines.push('Prior clarifications from the user:');
+    for (const [k, v] of Object.entries(context.priorClarifications)) {
+      lines.push(`  - ${k}: ${v}`);
+    }
+  }
+  lines.push('');
+  lines.push(`Score: ${score === null ? 'null (no_results)' : score} / 100`);
+  lines.push(`Status: ${status}`);
+  lines.push('');
+  lines.push('Issues detected (deterministic rules):');
+  lines.push('```json');
+  lines.push(JSON.stringify(issues, null, 2));
+  lines.push('```');
+  lines.push('');
+  lines.push('Raw signals used to compute the score:');
+  lines.push('```json');
+  lines.push(JSON.stringify(rawData, null, 2));
+  lines.push('```');
+  lines.push('');
+  lines.push('Return your verdict as JSON now.');
+  return lines.join('\n');
+}
+
+function parseVerdict(raw: string): DriverVerdict | null {
+  let cleaned = raw.trim();
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+  }
+  try {
+    const parsed = JSON.parse(cleaned);
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    const observations: string[] = clamp(parsed.observations as string[] | undefined, 3)
+      .filter((o): o is string => typeof o === 'string')
+      .map(o => o.slice(0, 500));
+    const questions: DriverQuestion[] = clamp(parsed.questions as DriverQuestion[] | undefined, 2)
+      .filter(q => q && typeof q === 'object' && typeof q.id === 'string' && typeof q.text === 'string')
+      .map(q => ({
+        id: String(q.id).slice(0, 64).replace(/[^a-z0-9_]+/gi, '_').toLowerCase() || 'question',
+        text: String(q.text),
+        options: Array.isArray(q.options)
+          ? q.options.filter((o: unknown) => typeof o === 'string').slice(0, 4)
+          : undefined,
+      }));
+    const needs_dialogue = typeof parsed.needs_dialogue === 'boolean'
+      ? parsed.needs_dialogue
+      : questions.length > 0;
+    return { observations, questions, needs_dialogue };
+  } catch {
+    return null;
+  }
+}
+
+export async function driverAgent(input: DriverInput): Promise<DriverVerdict> {
+  if (!input.anthropicKey) {
+    return passVerdict('no_anthropic_key');
+  }
+
+  const userPrompt = buildUserPrompt(input);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': input.anthropicKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: ANTHROPIC_MODEL,
+        max_tokens: 1024,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: userPrompt }],
+      }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      console.warn(`[driver-agent:${input.driverName}] Anthropic ${res.status}: ${text.slice(0, 200)}`);
+      return passVerdict(`anthropic_http_${res.status}`);
+    }
+    const data = await res.json();
+    const content = data?.content?.[0]?.text;
+    if (typeof content !== 'string') {
+      return passVerdict('anthropic_empty_response');
+    }
+    const verdict = parseVerdict(content);
+    if (!verdict) {
+      console.warn(`[driver-agent:${input.driverName}] malformed JSON, raw:`, content.slice(0, 300));
+      return passVerdict('malformed_json');
+    }
+    return { ...verdict, model: ANTHROPIC_MODEL };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`[driver-agent:${input.driverName}] request failed:`, message);
+    return passVerdict('request_failed');
+  } finally {
+    clearTimeout(timer);
+  }
+}
