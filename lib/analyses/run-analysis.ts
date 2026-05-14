@@ -94,12 +94,39 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
 
     // If we're being invoked on a paused analysis, figure out the index to
     // resume from. The resume endpoint has already flipped status back to
-    // 'running' and recorded user_decision='continue' on the checkpoint, so
-    // here we just need to know how many phases to skip.
+    // 'running' and recorded user_decision on the checkpoint:
+    //   - 'continue' (default) → skip this phase, run the next one
+    //   - 'rerun' → re-execute this phase with the latest clarifications
+    // The DECISION lives on analysis_checkpoints, so we read it here.
     const resumeFromPhase: string | null = analysis.paused_at_phase || null;
-    const resumeFromIdx: number = resumeFromPhase
+    let resumeFromIdx: number = resumeFromPhase
       ? (PHASES.find(p => p.name === resumeFromPhase)?.index ?? 0)
       : 0;
+
+    if (resumeFromPhase) {
+      const { data: ckpt } = await supabase
+        .from('analysis_checkpoints')
+        .select('user_decision')
+        .eq('analysis_id', analysisId)
+        .eq('phase', resumeFromPhase)
+        .maybeSingle();
+      if (ckpt?.user_decision === 'rerun') {
+        // Re-execute this phase: shift the resume cursor back by 1 phase
+        // so the gate-and-skip logic below treats this phase as pending.
+        // Also clear the prior decision so phaseGate's "already approved"
+        // check doesn't short-circuit the critic on the re-run.
+        const phaseObj = PHASES.find(p => p.name === resumeFromPhase);
+        if (phaseObj) {
+          const prevIdx = PHASES.findIndex(p => p.index === phaseObj.index) - 1;
+          resumeFromIdx = prevIdx >= 0 ? PHASES[prevIdx].index : 0;
+        }
+        await supabase
+          .from('analysis_checkpoints')
+          .update({ user_decision: null, decided_at: null })
+          .eq('analysis_id', analysisId)
+          .eq('phase', resumeFromPhase);
+      }
+    }
 
     async function updatePhase(phase: string, detail?: string) {
       await supabase.from('analyses')

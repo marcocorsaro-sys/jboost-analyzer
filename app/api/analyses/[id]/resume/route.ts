@@ -7,11 +7,22 @@ import { createClient } from '@/lib/supabase/server';
 import { runAnalysis } from '@/lib/analyses/run-analysis';
 
 const Body = z.object({
-  decision: z.enum(['continue', 'stop']),
+  decision: z.enum(['continue', 'stop', 'rerun']),
   // Map of question id -> user's answer (free text). Merged into
   // analyses.user_clarifications so the next phase's prompts can use it.
   answers: z.record(z.string()).optional(),
 });
+
+// Ordered phase list — keep in sync with PHASES in run-analysis.ts.
+// Used to know which checkpoints belong to phases AFTER the rerun
+// target so we can clear them.
+const PHASE_INDEXES: Record<string, number> = {
+  fetching_apis: 1,
+  generating_issues: 3,
+  generating_solutions: 4,
+  analyzing_competitors: 5,
+  generating_matrix: 6,
+};
 
 export async function POST(
   request: Request,
@@ -103,8 +114,30 @@ export async function POST(
     return NextResponse.json({ status: 'stopped', analysisId }, { status: 200 });
   }
 
-  // decision === 'continue': fire-and-forget runAnalysis. It will pick up
-  // paused_at_phase from the DB row, clear it, and resume from the next phase.
+  if (decision === 'rerun') {
+    // Re-execute the paused phase with the latest clarifications. We also
+    // wipe checkpoints for any LATER phase so their critic verdicts (and
+    // user_decisions) don't accidentally short-circuit the upcoming runs.
+    const targetIdx = PHASE_INDEXES[pausedPhase];
+    if (typeof targetIdx === 'number') {
+      const laterPhases = Object.entries(PHASE_INDEXES)
+        .filter(([, idx]) => idx > targetIdx)
+        .map(([name]) => name);
+      if (laterPhases.length > 0) {
+        await supabase
+          .from('analysis_checkpoints')
+          .delete()
+          .eq('analysis_id', analysisId)
+          .in('phase', laterPhases);
+      }
+    }
+    // Decision='rerun' is already recorded above; runAnalysis will see it,
+    // shift resumeFromIdx back, and re-execute pausedPhase.
+  }
+
+  // decision === 'continue' OR 'rerun': fire-and-forget runAnalysis. It
+  // reads paused_at_phase and user_decision from the DB to decide whether
+  // to skip past the phase ('continue') or re-execute it ('rerun').
   void runAnalysis(analysisId)
     .then((result) => {
       console.log(`[api/analyses/resume] runtime=${result.runtime_ms}ms success=${result.success}`);
@@ -113,5 +146,5 @@ export async function POST(
       console.error('[api/analyses/resume] unexpected throw:', err);
     });
 
-  return NextResponse.json({ status: 'resumed', analysisId, from_phase: pausedPhase }, { status: 202 });
+  return NextResponse.json({ status: 'resumed', analysisId, from_phase: pausedPhase, decision }, { status: 202 });
 }

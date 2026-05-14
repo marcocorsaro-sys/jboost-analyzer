@@ -287,6 +287,8 @@ const it = {
   'analyzer.criticAnomalies': 'Agente critico — anomalie rilevate',
   'analyzer.criticQuestions': 'Domande di contesto',
   'analyzer.answerPlaceholder': 'La tua risposta (sarà usata nelle fasi successive)…',
+  'analyzer.rerunPhase': 'Riesegui fase',
+  'analyzer.rerunPhaseHelp': 'Riesegue questa fase usando le tue risposte e le fasi successive che ne dipendevano.',
 
   // Knowledge
   'knowledge.title': 'Knowledge Base',

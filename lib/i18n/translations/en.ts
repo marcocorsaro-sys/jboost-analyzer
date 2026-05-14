@@ -287,6 +287,8 @@ const en = {
   'analyzer.criticAnomalies': 'Critic agent — flagged anomalies',
   'analyzer.criticQuestions': 'Context questions',
   'analyzer.answerPlaceholder': 'Your answer (will be used by the next phases)…',
+  'analyzer.rerunPhase': 'Rerun phase',
+  'analyzer.rerunPhaseHelp': 'Re-execute this phase using your answers and any later phases that depended on it.',
 
   // Knowledge
   'knowledge.title': 'Knowledge Base',
