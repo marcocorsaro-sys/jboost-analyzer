@@ -298,7 +298,7 @@ export default function AnalyzerPage() {
     }
   }
 
-  const handleResume = async (decision: 'continue' | 'stop') => {
+  const handleResume = async (decision: 'continue' | 'stop' | 'rerun') => {
     if (!analysisId) return
     setIsResuming(true)
     setError(null)
@@ -321,7 +321,7 @@ export default function AnalyzerPage() {
         const body = await res.text().catch(() => '')
         throw new Error(`Resume failed: HTTP ${res.status} ${body}`)
       }
-      if (decision === 'continue') {
+      if (decision === 'continue' || decision === 'rerun') {
         setIsRunning(true)
         setPausedAtPhase(null)
         setCriticVerdict(null)
@@ -444,7 +444,7 @@ export default function AnalyzerPage() {
             </div>
           )}
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <button
               onClick={() => handleResume('continue')}
               disabled={isResuming}
@@ -457,6 +457,21 @@ export default function AnalyzerPage() {
               }}
             >
               {t('analyzer.continueAnalysis')}
+            </button>
+            <button
+              onClick={() => handleResume('rerun')}
+              disabled={isResuming}
+              className="px-4 py-2 rounded-lg text-sm font-semibold uppercase tracking-widest"
+              style={{
+                background: 'hsl(var(--card))',
+                border: '1px solid var(--teal)',
+                color: 'var(--teal)',
+                cursor: isResuming ? 'not-allowed' : 'pointer',
+                opacity: isResuming ? 0.6 : 1,
+              }}
+              title={t('analyzer.rerunPhaseHelp')}
+            >
+              {t('analyzer.rerunPhase')}
             </button>
             <button
               onClick={() => handleResume('stop')}
