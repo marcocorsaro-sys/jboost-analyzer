@@ -51,6 +51,38 @@ export async function GET(
 
   const report = reportRow?.completeness || null
 
+  // Core Web Vitals: read from the latest completed analysis for this
+  // client. Mobile has been there since launch; desktop was added in
+  // PR6 so older analyses may not have it (returns null for those).
+  let cwvMobile: Record<string, unknown> | null = null
+  let cwvDesktop: Record<string, unknown> | null = null
+  let cwvAnalysisDate: string | null = null
+  const { data: latestAnalysis } = await supabase
+    .from('analyses')
+    .select('id, completed_at')
+    .eq('client_id', params.id)
+    .eq('status', 'completed')
+    .order('completed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (latestAnalysis?.id) {
+    cwvAnalysisDate = latestAnalysis.completed_at
+    const { data: psiRows } = await supabase
+      .from('api_data')
+      .select('source_name, data')
+      .eq('analysis_id', latestAnalysis.id)
+      .in('source_name', ['pagespeed_mobile', 'pagespeed_desktop'])
+    for (const row of psiRows || []) {
+      const stored = (row.data && typeof row.data === 'object') ? row.data as Record<string, unknown> : null
+      const unwrapped = stored && 'data' in stored && '_meta' in stored
+        ? (stored as { data: Record<string, unknown> }).data
+        : stored
+      if (row.source_name === 'pagespeed_mobile') cwvMobile = unwrapped
+      if (row.source_name === 'pagespeed_desktop') cwvDesktop = unwrapped
+    }
+  }
+
   return NextResponse.json({
     martech: martech || [],
     domain: client.domain,
@@ -59,6 +91,11 @@ export async function GET(
     maturityTier: report?.maturityTier || null,
     gapAnalysis: report?.gapAnalysis || [],
     recommendations: report?.recommendations || [],
+    cwv: {
+      mobile: cwvMobile,
+      desktop: cwvDesktop,
+      analysis_date: cwvAnalysisDate,
+    },
   })
 }
 

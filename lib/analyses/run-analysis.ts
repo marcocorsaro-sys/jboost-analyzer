@@ -286,7 +286,7 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
       'semrush_domain_overview', 'semrush_site_health', 'semrush_organic_losing',
       'semrush_branded_keywords', 'semrush_brand_awareness',
       'ahrefs_domain_rating', 'ahrefs_ai_relevance', 'ahrefs_broken_backlinks', 'ahrefs_refdomains_history',
-      'pagespeed_mobile', 'pagespeed_failed_audits', 'company_context',
+      'pagespeed_mobile', 'pagespeed_desktop', 'pagespeed_failed_audits', 'company_context',
     ];
 
     if (hasAnyApiKey) {
@@ -301,6 +301,7 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
         fetchAhrefsBrokenBacklinks(domain, AHREFS_API_KEY),
         fetchAhrefsRefdomainsHistory(domain, AHREFS_API_KEY),
         fetchPageSpeed(domain, GOOGLE_PSI_API_KEY),
+        fetchPageSpeedDesktop(domain, GOOGLE_PSI_API_KEY),
         fetchPageSpeedFailedAudits(domain, GOOGLE_PSI_API_KEY),
         fetchCompanyContext(domain, competitors, targetTopic, dbKeys, dbKeys['PPLX_API_KEY'] || process.env.PPLX_API_KEY || '', dbKeys['ANTHROPIC_API_KEY'] || process.env.ANTHROPIC_API_KEY || ''),
       ]);
@@ -1058,9 +1059,17 @@ async function fetchAhrefsRefdomainsHistory(domain: string, apiKey: string) {
 }
 
 async function fetchPageSpeed(domain: string, apiKey: string) {
+  return fetchPageSpeedByStrategy(domain, apiKey, 'mobile');
+}
+
+async function fetchPageSpeedDesktop(domain: string, apiKey: string) {
+  return fetchPageSpeedByStrategy(domain, apiKey, 'desktop');
+}
+
+async function fetchPageSpeedByStrategy(domain: string, apiKey: string, strategy: 'mobile' | 'desktop') {
   if (!apiKey) return { data: { performance_score: 0, accessibility_score: 0, seo_score: 0, best_practices_score: 0 }, _meta: { is_mock: true } };
   try {
-    const res = await fetch(`https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=https://${domain}&key=${apiKey}&strategy=mobile&category=performance&category=accessibility&category=seo&category=best-practices`);
+    const res = await fetch(`https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=https://${domain}&key=${apiKey}&strategy=${strategy}&category=performance&category=accessibility&category=seo&category=best-practices`);
     if (!res.ok) throw new Error(`${res.status}`);
     const d = await res.json(); const cats = d.lighthouseResult?.categories || {};
     return { data: { performance_score: Math.round((cats.performance?.score??0)*100), accessibility_score: Math.round((cats.accessibility?.score??0)*100), seo_score: Math.round((cats.seo?.score??0)*100), best_practices_score: Math.round((cats['best-practices']?.score??0)*100) }, _meta: { is_mock: false } };
