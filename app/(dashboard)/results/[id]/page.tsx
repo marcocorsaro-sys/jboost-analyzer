@@ -20,6 +20,7 @@ interface DriverResultRow {
   issues: (string | Record<string, unknown>)[]
   solutions: unknown[]
   raw_data: Record<string, unknown>
+  agent_verdict?: Record<string, unknown> | null
 }
 
 interface CompetitorRow {
@@ -279,6 +280,9 @@ export default function AnalysisDetailPage() {
                 rawData={(dr?.raw_data ?? {}) as Record<string, unknown>}
                 onGenerateSolutions={() => generateSolutions(driver.key)}
                 isGenerating={generatingDriver === driver.key}
+                agentVerdict={dr?.agent_verdict as Parameters<typeof DriverDetail>[0]['agentVerdict']}
+                analysisId={analysisId}
+                onAgentAnswered={fetchData}
               />
             )
           })}

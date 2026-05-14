@@ -13,6 +13,20 @@ interface Solution {
   category: string
 }
 
+interface DriverAgentQuestion {
+  id: string
+  text: string
+  options?: string[]
+}
+
+interface DriverAgentVerdict {
+  observations?: string[]
+  questions?: DriverAgentQuestion[]
+  needs_dialogue?: boolean
+  skipped?: boolean
+  answered_at?: string
+}
+
 interface DriverDetailProps {
   driverName: string
   driverLabel: string
@@ -23,6 +37,12 @@ interface DriverDetailProps {
   rawData: Record<string, unknown>
   onGenerateSolutions?: () => void
   isGenerating?: boolean
+  /** PR4: Per-driver interpreter agent verdict, if any. */
+  agentVerdict?: DriverAgentVerdict | null
+  /** PR4: Analysis id, required to POST answers back to the API. */
+  analysisId?: string
+  /** PR4: Called when the user submits an answer so the parent can refresh. */
+  onAgentAnswered?: () => void
 }
 
 const BAND_COLORS: Record<string, string> = {
@@ -42,10 +62,56 @@ export default function DriverDetail({
   rawData,
   onGenerateSolutions,
   isGenerating = false,
+  agentVerdict,
+  analysisId,
+  onAgentAnswered,
 }: DriverDetailProps) {
   const [expanded, setExpanded] = useState(false)
+  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const band = score !== null ? getScoreBand(score) : null
   const color = band ? BAND_COLORS[band.color] ?? '#6b7280' : '#6b7280'
+
+  const observations = agentVerdict?.observations ?? []
+  const agentQuestions = agentVerdict?.questions ?? []
+  const hasAgentContent = observations.length > 0 || agentQuestions.length > 0
+  const needsDialogueBadge = (agentVerdict?.needs_dialogue ?? false) && agentQuestions.length > 0
+
+  async function handleSubmit() {
+    if (!analysisId) return
+    const trimmed: Record<string, string> = {}
+    for (const [k, v] of Object.entries(answers)) {
+      if (v && v.trim()) trimmed[k] = v.trim()
+    }
+    if (Object.keys(trimmed).length === 0) {
+      setSubmitError('Fill in at least one answer')
+      return
+    }
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      const res = await fetch(
+        `/api/analyses/${analysisId}/driver/${encodeURIComponent(driverName)}/answer`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ answers: trimmed }),
+          credentials: 'same-origin',
+        },
+      )
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        throw new Error(`HTTP ${res.status} ${body}`)
+      }
+      setAnswers({})
+      onAgentAnswered?.()
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Submit failed')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   return (
     <div
@@ -105,6 +171,25 @@ export default function DriverDetail({
           </div>
         </div>
 
+        {needsDialogueBadge && (
+          <span
+            title="The interpreter agent has questions for you"
+            style={{
+              fontSize: '10px',
+              padding: '2px 6px',
+              borderRadius: '10px',
+              background: '#14b8a615',
+              color: '#14b8a6',
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              flexShrink: 0,
+            }}
+          >
+            ●  Agent
+          </span>
+        )}
+
         {/* Progress bar */}
         <div style={{ width: '120px', flexShrink: 0 }}>
           <div style={{
@@ -139,6 +224,111 @@ export default function DriverDetail({
       {/* Expanded content */}
       {expanded && (
         <div style={{ padding: '0 20px 20px', borderTop: '1px solid #2a2d35' }}>
+          {/* Driver Interpreter Agent — observations + (optional) questions */}
+          {hasAgentContent && (
+            <div style={{ marginTop: '16px' }}>
+              <h4 style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: '11px',
+                fontWeight: 600,
+                color: '#14b8a6',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                marginBottom: '8px',
+              }}>
+                Agent — {driverLabel}
+              </h4>
+              {observations.length > 0 && (
+                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', color: '#a0a0a0', lineHeight: '1.6' }}>
+                  {observations.map((o, i) => <li key={i}>{o}</li>)}
+                </ul>
+              )}
+              {agentQuestions.length > 0 && analysisId && (
+                <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {agentQuestions.map((q) => (
+                    <div key={q.id} style={{
+                      padding: '12px',
+                      background: '#1e2028',
+                      borderRadius: '8px',
+                      border: '1px solid #2a2d35',
+                    }}>
+                      <label style={{ display: 'block', fontSize: '13px', color: '#ffffff', marginBottom: '8px' }}>
+                        {q.text}
+                      </label>
+                      {q.options && q.options.length > 0 ? (
+                        <select
+                          value={answers[q.id] || ''}
+                          onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })}
+                          disabled={submitting}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            background: '#111318',
+                            border: '1px solid #2a2d35',
+                            borderRadius: '6px',
+                            color: '#ffffff',
+                            fontSize: '13px',
+                            outline: 'none',
+                          }}
+                        >
+                          <option value="">—</option>
+                          {q.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                      ) : (
+                        <textarea
+                          value={answers[q.id] || ''}
+                          onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })}
+                          disabled={submitting}
+                          rows={2}
+                          placeholder="Your answer…"
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            background: '#111318',
+                            border: '1px solid #2a2d35',
+                            borderRadius: '6px',
+                            color: '#ffffff',
+                            fontSize: '13px',
+                            fontFamily: 'inherit',
+                            outline: 'none',
+                            resize: 'vertical',
+                          }}
+                        />
+                      )}
+                    </div>
+                  ))}
+                  {submitError && (
+                    <div style={{ fontSize: '12px', color: '#ef4444' }}>{submitError}</div>
+                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleSubmit(); }}
+                    disabled={submitting}
+                    style={{
+                      alignSelf: 'flex-start',
+                      padding: '8px 14px',
+                      background: submitting ? '#2a2d35' : '#14b8a6',
+                      color: submitting ? '#6b7280' : '#ffffff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: submitting ? 'default' : 'pointer',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                    }}
+                  >
+                    {submitting ? 'Saving…' : 'Save answers'}
+                  </button>
+                </div>
+              )}
+              {agentVerdict?.answered_at && agentQuestions.length === 0 && (
+                <div style={{ marginTop: '8px', fontSize: '11px', color: '#14b8a6' }}>
+                  ✓ Answered — context saved for the next analysis run.
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Issues */}
           {issues.length > 0 && (
             <div style={{ marginTop: '16px' }}>
