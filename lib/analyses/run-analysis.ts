@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { criticAgent, shouldForcePause, type CriticVerdict } from './critic-agent';
-import { driverAgent } from './driver-agent';
+import { driverAgent, type DriverTurn } from './driver-agent';
 import { DRIVERS } from '@/lib/constants';
 
 export interface RunAnalysisResult {
@@ -463,8 +463,20 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
               context: driverContext,
               anthropicKey: ANTHROPIC_KEY_FOR_AGENTS,
             });
+            // Seed the conversation thread with this initial agent turn
+            // so the UI can render the dialogue history when the user
+            // starts answering questions.
+            const turns: DriverTurn[] = [{
+              role: 'agent',
+              content: JSON.stringify({
+                observations: verdict.observations,
+                questions: verdict.questions,
+              }),
+              turn_idx: verdict.turn_count ?? 1,
+              timestamp: new Date().toISOString(),
+            }];
             await supabase.from('driver_results')
-              .update({ agent_verdict: verdict })
+              .update({ agent_verdict: { ...verdict, turns } })
               .eq('analysis_id', analysisId)
               .eq('driver_name', driverName);
           }),
