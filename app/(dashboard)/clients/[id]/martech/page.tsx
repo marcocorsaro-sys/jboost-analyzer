@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import MartechGrid from '@/components/clients/MartechGrid'
+import MartechEssentials from '@/components/clients/MartechEssentials'
 import { MARTECH_CATEGORIES, AREA_LABELS } from '@/lib/martech/categories'
 import { useLocale } from '@/lib/i18n'
 
@@ -98,10 +99,19 @@ export default function ClientMartechPage() {
   const [maturityTier, setMaturityTier] = useState<string | null>(null)
   const [gapAnalysis, setGapAnalysis] = useState<GapItem[]>([])
   const [recommendations, setRecommendations] = useState<Recommendation[]>([])
+  const [cwv, setCwv] = useState<{
+    mobile: Record<string, number> | null
+    desktop: Record<string, number> | null
+    analysis_date: string | null
+  } | null>(null)
   const [loading, setLoading] = useState(true)
   const [detecting, setDetecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showDiagnostics, setShowDiagnostics] = useState(false)
+  // PR6: full grid + maturity + diagnostics + gap analysis + recommendations
+  // are collapsed under "Mostra dettaglio completo" — the user asked us to
+  // strip the noise and surface only the essentials.
+  const [showFullStack, setShowFullStack] = useState(false)
 
   useEffect(() => {
     fetchMartech()
@@ -121,6 +131,7 @@ export default function ClientMartechPage() {
       setMaturityTier(data.maturityTier ?? null)
       setGapAnalysis(data.gapAnalysis || [])
       setRecommendations(data.recommendations || [])
+      setCwv(data.cwv ?? null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error loading data')
     }
@@ -141,6 +152,7 @@ export default function ClientMartechPage() {
       setMaturityTier(data.maturityTier ?? null)
       setGapAnalysis(data.gapAnalysis || [])
       setRecommendations(data.recommendations || [])
+      // CWV is keyed off the latest analysis — keep whatever fetchMartech got.
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Detection error')
     }
@@ -224,8 +236,38 @@ export default function ClientMartechPage() {
         </button>
       </div>
 
+      {/* PR6: Essentials — the only thing surfaced by default */}
+      {!loading && !detecting && tools.length > 0 && (
+        <div style={{ marginBottom: '20px' }}>
+          <MartechEssentials tools={tools} cwv={cwv} />
+        </div>
+      )}
+
+      {/* PR6: full stack details collapsed behind a toggle.
+          Everything below this only renders when the user opts in. */}
+      {!loading && !detecting && tools.length > 0 && (
+        <button
+          onClick={() => setShowFullStack(s => !s)}
+          style={{
+            background: 'transparent',
+            border: '1px solid #2a2d35',
+            borderRadius: '8px',
+            color: '#9ca3af',
+            padding: '8px 14px',
+            fontSize: '11px',
+            fontFamily: "'JetBrains Mono', monospace",
+            cursor: 'pointer',
+            marginBottom: '20px',
+            textTransform: 'uppercase',
+            letterSpacing: '1px',
+          }}
+        >
+          {showFullStack ? '▲ Nascondi dettaglio completo' : '▼ Mostra dettaglio completo (maturity, gap, full stack)'}
+        </button>
+      )}
+
       {/* Maturity Score + Completeness Row */}
-      {maturityScore !== null && !detecting && (
+      {showFullStack && maturityScore !== null && !detecting && (
         <div style={{
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
@@ -367,7 +409,7 @@ export default function ClientMartechPage() {
       )}
 
       {/* Diagnostics (collapsible) */}
-      {showDiagnostics && completeness && completeness.diagnostics.length > 0 && !detecting && (
+      {showFullStack && showDiagnostics && completeness && completeness.diagnostics.length > 0 && !detecting && (
         <div style={{
           background: '#111318',
           borderRadius: '8px',
@@ -399,7 +441,7 @@ export default function ClientMartechPage() {
       )}
 
       {/* Gap Analysis */}
-      {gapAnalysis.length > 0 && !detecting && (
+      {showFullStack && gapAnalysis.length > 0 && !detecting && (
         <div style={{
           background: '#1a1c24',
           borderRadius: '12px',
@@ -470,7 +512,7 @@ export default function ClientMartechPage() {
       )}
 
       {/* Recommendations */}
-      {recommendations.length > 0 && !detecting && (
+      {showFullStack && recommendations.length > 0 && !detecting && (
         <div style={{
           background: '#1a1c24',
           borderRadius: '12px',
@@ -622,9 +664,9 @@ export default function ClientMartechPage() {
             {domain ? t('martech.clickDetect') : t('martech.configureDomainFirst')}
           </p>
         </div>
-      ) : (
+      ) : showFullStack ? (
         <MartechGrid tools={tools} />
-      )}
+      ) : null}
     </div>
   )
 }
