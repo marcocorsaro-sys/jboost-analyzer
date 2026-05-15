@@ -30,7 +30,29 @@ export interface DataForSEOTech {
   dfseo_subgroup?: string
 }
 
+/**
+ * Possible end-states of a fetchDomainTechnologies() call. We expose this
+ * to the caller so it can surface the reason in user-facing diagnostics
+ * (client_martech_reports.completeness.diagnostics) instead of vanishing
+ * into Vercel-only console.warn output.
+ */
+export type DataForSEOTechStatus =
+  | 'ok'
+  | 'no_credentials'
+  | 'http_error'
+  | 'envelope_error'
+  | 'task_error'
+  | 'no_results'
+  | 'unexpected_shape'
+  | 'network_error'
+
 export interface DataForSEOTechResult {
+  /** Did we actually get tools back? */
+  ok: boolean
+  /** End-state classification, see DataForSEOTechStatus. */
+  status: DataForSEOTechStatus
+  /** Human-readable detail (HTTP status, status_message, error msg). */
+  detail?: string
   /** Mapped tools ready to merge into DetectedTool[]. */
   tools: DataForSEOTech[]
   /** Cost reported by DataForSEO (USD). */
@@ -122,19 +144,29 @@ function mapGroupToCategory(group: string): string {
 }
 
 /**
- * Calls DataForSEO Domain Technologies. Returns an empty result on any
- * non-fatal error (credentials missing, network timeout, unexpected shape)
- * so the caller can gracefully degrade. Fatal errors (programmer bugs) do
- * throw.
+ * Calls DataForSEO Domain Technologies. ALWAYS returns a result envelope so
+ * the caller can surface the exact failure mode in diagnostics rather than
+ * lose it in Vercel-only console.warn. Network/HTTP/envelope failures map
+ * to specific `status` values — see DataForSEOTechStatus.
  */
-export async function fetchDomainTechnologies(domain: string): Promise<DataForSEOTechResult | null> {
+export async function fetchDomainTechnologies(domain: string): Promise<DataForSEOTechResult> {
+  const startedAt = Date.now()
+  const empty = (status: DataForSEOTechStatus, detail?: string): DataForSEOTechResult => ({
+    ok: false,
+    status,
+    detail,
+    tools: [],
+    cost_usd: 0,
+    elapsed_ms: Date.now() - startedAt,
+    raw_count: 0,
+  })
+
   const creds = readDataForSEOCredentialsFromEnv()
   if (!creds) {
     console.warn('[dataforseo-tech] DATAFORSEO_LOGIN/PASSWORD not set, skipping')
-    return null
+    return empty('no_credentials', 'env vars DATAFORSEO_LOGIN/PASSWORD not set on Vercel')
   }
 
-  const startedAt = Date.now()
   const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '').toLowerCase()
   const token = Buffer.from(`${creds.login}:${creds.password}`).toString('base64')
 
@@ -154,8 +186,9 @@ export async function fetchDomainTechnologies(domain: string): Promise<DataForSE
 
     if (!res.ok) {
       const body = await res.text().catch(() => '')
-      console.warn(`[dataforseo-tech] HTTP ${res.status} for ${cleanDomain}: ${body.slice(0, 200)}`)
-      return null
+      const detail = `HTTP ${res.status}: ${body.slice(0, 300)}`
+      console.warn(`[dataforseo-tech] ${detail} for ${cleanDomain}`)
+      return empty('http_error', detail)
     }
 
     const data = await res.json() as {
@@ -173,18 +206,23 @@ export async function fetchDomainTechnologies(domain: string): Promise<DataForSE
     }
 
     if (typeof data.status_code === 'number' && data.status_code >= 40000) {
-      console.warn(`[dataforseo-tech] DFSEO error ${data.status_code}: ${data.status_message}`)
-      return null
+      const detail = `envelope status_code=${data.status_code} status_message="${data.status_message}"`
+      console.warn(`[dataforseo-tech] ${detail}`)
+      return empty('envelope_error', detail)
     }
 
     const task = data.tasks?.[0]
     if (!task || (typeof task.status_code === 'number' && task.status_code >= 40000)) {
-      console.warn(`[dataforseo-tech] task error ${task?.status_code}: ${task?.status_message}`)
-      return null
+      const detail = `task status_code=${task?.status_code} status_message="${task?.status_message}"`
+      console.warn(`[dataforseo-tech] ${detail}`)
+      return empty('task_error', detail)
     }
 
     const result = task.result?.[0]
     const technologies = result?.technologies
+    if (!technologies) {
+      return empty('no_results', `task returned but no technologies field (result_count=${(task as { result_count?: number }).result_count ?? 0})`)
+    }
 
     const tools: DataForSEOTech[] = []
     // DataForSEO's `technologies` field is documented as an object keyed by
@@ -224,18 +262,24 @@ export async function fetchDomainTechnologies(domain: string): Promise<DataForSE
       }
     }
 
+    if (tools.length === 0) {
+      return empty('unexpected_shape', `parsed 0 tools from technologies field (keys: ${Object.keys(technologies as object).slice(0, 5).join(',')})`)
+    }
+    const cost = typeof data.cost === 'number' ? data.cost : 0
     const out: DataForSEOTechResult = {
+      ok: true,
+      status: 'ok',
       tools,
-      cost_usd: typeof data.cost === 'number' ? data.cost : 0,
+      cost_usd: cost,
       elapsed_ms: Date.now() - startedAt,
       raw_count: tools.length,
     }
-    console.log(`[dataforseo-tech] ${cleanDomain}: ${tools.length} tools, $${out.cost_usd}, ${out.elapsed_ms}ms`)
+    console.log(`[dataforseo-tech] ${cleanDomain}: ${tools.length} tools, $${cost}, ${out.elapsed_ms}ms`)
     return out
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.warn(`[dataforseo-tech] failed for ${cleanDomain}:`, message)
-    return null
+    return empty('network_error', message)
   } finally {
     clearTimeout(timer)
   }
