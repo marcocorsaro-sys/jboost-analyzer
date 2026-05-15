@@ -1150,11 +1150,13 @@ export async function detectMartechStack(domain: string): Promise<DetectionResul
   const lowSignal = signals.scripts.length <= 3 && signals.jsonLd.length === 0
   let dfseoTools: DetectedTool[] = []
   let dfseoCostUsd = 0
+  let dfseoDiagnostic: { status: string; detail?: string; ok: boolean } | null = null
   if (challengeCheck.isChallenge || lowSignal) {
     try {
       const { fetchDomainTechnologies } = await import('@/lib/integrations/providers/dataforseo/technologies')
       const dfseo = await fetchDomainTechnologies(cleanDomain)
-      if (dfseo && dfseo.tools.length > 0) {
+      dfseoDiagnostic = { status: dfseo.status, detail: dfseo.detail, ok: dfseo.ok }
+      if (dfseo.ok && dfseo.tools.length > 0) {
         dfseoCostUsd = dfseo.cost_usd
         dfseoTools = dfseo.tools.map(t => ({
           category: t.category,
@@ -1172,11 +1174,13 @@ export async function detectMartechStack(domain: string): Promise<DetectionResul
           },
         }))
         console.log(`[MarTech] DataForSEO supplied ${dfseoTools.length} tools at $${dfseoCostUsd}`)
-      } else if (dfseo === null) {
-        console.warn('[MarTech] DataForSEO unavailable (no creds or failed call) — leaning on AI/web-search only')
+      } else {
+        console.warn(`[MarTech] DataForSEO returned no tools — status=${dfseo.status}, detail=${dfseo.detail}`)
       }
     } catch (err) {
-      console.warn('[MarTech] DataForSEO call threw, continuing:', err instanceof Error ? err.message : err)
+      const message = err instanceof Error ? err.message : String(err)
+      console.warn('[MarTech] DataForSEO call threw, continuing:', message)
+      dfseoDiagnostic = { status: 'throw', detail: message, ok: false }
     }
   }
 
@@ -1297,11 +1301,21 @@ ${signalsSummary}`
     type: 'info',
     message: `Detection: ${patternTools.length} pattern + ${probeTools.length} probe + ${aiTools.length} AI/web-search + ${dfseoTools.length} dataforseo → ${allTools.length} unique after merge`
   })
-  if (dfseoCostUsd > 0) {
-    completeness.diagnostics.push({
-      type: 'info',
-      message: `DataForSEO domain_technologies cost: $${dfseoCostUsd.toFixed(4)}`,
-    })
+  if (dfseoDiagnostic) {
+    // Surface why DataForSEO did or didn't contribute. Critical for ops —
+    // without this the only place to see 'no_credentials' vs 'http_error'
+    // vs 'task_error' is Vercel logs, which rotate.
+    if (dfseoDiagnostic.ok) {
+      completeness.diagnostics.push({
+        type: 'info',
+        message: `DataForSEO Domain Technologies: ${dfseoTools.length} tools, cost $${dfseoCostUsd.toFixed(4)}`,
+      })
+    } else {
+      completeness.diagnostics.push({
+        type: 'warning',
+        message: `DataForSEO Domain Technologies skipped: ${dfseoDiagnostic.status}${dfseoDiagnostic.detail ? ' — ' + dfseoDiagnostic.detail.slice(0, 250) : ''}`,
+      })
+    }
   }
 
   // Use AI maturity score if we have it, otherwise compute from tools
