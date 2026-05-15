@@ -161,6 +161,21 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
         status: 'failed', error_message: errorMsg, current_phase: 'failed',
         updated_at: new Date().toISOString(),
       }).eq('id', analysisId);
+      // Mirror the analysis_completed audit row but with action='analysis_failed'
+      // so we can see write_counters / write_errors even when the run never
+      // reaches the success path. Without this we have no way to confirm from
+      // the DB which code revision was executed.
+      const { error: auditErr } = await supabase.from('analysis_audit_log').insert({
+        analysis_id: analysisId,
+        action: 'analysis_failed',
+        details: {
+          error_message: errorMsg,
+          runtime_ms: Date.now() - startTime,
+          write_counters: writeCounters,
+          write_errors: writeErrors.length > 0 ? writeErrors : undefined,
+        },
+      });
+      if (auditErr) console.warn('[markFailed] audit_log insert failed:', auditErr.message);
     }
 
     // After each phase boundary: invoke the critic agent, persist the
@@ -807,6 +822,19 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
           completed_at: new Date().toISOString(),
         })
         .eq('id', analysisId);
+      // Audit log entry so write_counters / write_errors collected up to the
+      // throw point are visible from the DB. Mirrors the failure path of
+      // markFailed().
+      await supabase.from('analysis_audit_log').insert({
+        analysis_id: analysisId,
+        action: 'analysis_failed',
+        details: {
+          error_message: `Run failed: ${String(error).substring(0, 500)}`,
+          runtime_ms: Date.now() - startTime,
+          write_counters: writeCounters,
+          write_errors: writeErrors.length > 0 ? writeErrors : undefined,
+        },
+      });
     } catch (markErr) {
       console.error('[runAnalysis] Failed to mark analysis as failed:', markErr);
     }
@@ -1041,6 +1069,29 @@ function analyzeCompetitorMock(competitorDomain: string, country: string): Recor
 // ============================================================
 function extractBrand(domain: string): string { return domain.replace(/\.(com|org|net|io|co|it|de|fr|es|uk|us)$/i, '').replace(/\./g, ' '); }
 
+/**
+ * fetch() wrapper with a hard timeout via AbortController. Without this,
+ * a single slow upstream (PSI on a heavy site, OpenAI under load) can pin
+ * the whole Promise.allSettled in Phase 1 past MAX_RUNTIME_MS and trigger
+ * markFailed('Timeout: API data fetching took too long'). Concrete case
+ * observed on casaforte.it: 173s spent in Phase 1 with all 12 sources
+ * returning, then the orchestrator gave up.
+ *
+ * Callers stay simple — on timeout we throw a regular Error('timeout') and
+ * the existing try/catch in each fetcher converts it to a mock fallback,
+ * same shape as a 4xx.
+ */
+async function fetchWithTimeout(url: string, init: RequestInit & { timeoutMs: number }): Promise<Response> {
+  const { timeoutMs, ...rest } = init;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...rest, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function parseSemrushCsv(csv: string): Record<string, string>[] {
   const lines = csv.trim().split('\n');
   if (lines.length < 2) return [];
@@ -1169,24 +1220,24 @@ async function fetchPageSpeedDesktop(domain: string, apiKey: string) {
 async function fetchPageSpeedByStrategy(domain: string, apiKey: string, strategy: 'mobile' | 'desktop') {
   if (!apiKey) return { data: { performance_score: 0, accessibility_score: 0, seo_score: 0, best_practices_score: 0 }, _meta: { is_mock: true } };
   try {
-    const res = await fetch(`https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=https://${domain}&key=${apiKey}&strategy=${strategy}&category=performance&category=accessibility&category=seo&category=best-practices`);
+    const res = await fetchWithTimeout(`https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=https://${domain}&key=${apiKey}&strategy=${strategy}&category=performance&category=accessibility&category=seo&category=best-practices`, { timeoutMs: 45000 });
     if (!res.ok) throw new Error(`${res.status}`);
     const d = await res.json(); const cats = d.lighthouseResult?.categories || {};
     return { data: { performance_score: Math.round((cats.performance?.score??0)*100), accessibility_score: Math.round((cats.accessibility?.score??0)*100), seo_score: Math.round((cats.seo?.score??0)*100), best_practices_score: Math.round((cats['best-practices']?.score??0)*100) }, _meta: { is_mock: false } };
-  } catch (e) { return { data: { performance_score: 0, accessibility_score: 0, seo_score: 0, best_practices_score: 0 }, _meta: { is_mock: true } }; }
+  } catch (e) { console.warn(`[pagespeed_${strategy}] failed:`, (e as Error).message); return { data: { performance_score: 0, accessibility_score: 0, seo_score: 0, best_practices_score: 0 }, _meta: { is_mock: true } }; }
 }
 
 async function fetchPageSpeedFailedAudits(domain: string, apiKey: string) {
   if (!apiKey) return { data: [], _meta: { is_mock: true } };
   try {
-    const res = await fetch(`https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=https://${domain}&key=${apiKey}&strategy=mobile&category=performance&category=accessibility&category=seo&category=best-practices`);
+    const res = await fetchWithTimeout(`https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=https://${domain}&key=${apiKey}&strategy=mobile&category=performance&category=accessibility&category=seo&category=best-practices`, { timeoutMs: 45000 });
     if (!res.ok) throw new Error(`${res.status}`);
     const d = await res.json(); const audits = d.lighthouseResult?.audits || {};
     const failed: any[] = [];
     for (const [id, audit] of Object.entries(audits)) { const a = audit as any; if (a.score !== null && a.score < 1 && a.title) { failed.push({ id, title: a.title, description: a.description||'', score: a.score, displayValue: a.displayValue }); } }
     failed.sort((a, b) => a.score - b.score);
     return { data: failed, _meta: { is_mock: false } };
-  } catch (e) { return { data: [], _meta: { is_mock: true } }; }
+  } catch (e) { console.warn('[pagespeed_failed_audits] failed:', (e as Error).message); return { data: [], _meta: { is_mock: true } }; }
 }
 
 async function fetchCompanyContext(domain: string, competitors: string[], targetTopic: string, dbKeysMap: Record<string, string>, pplxKey: string, anthropicKey: string) {
@@ -1195,22 +1246,24 @@ async function fetchCompanyContext(domain: string, competitors: string[], target
 
   if (OPENAI_KEY) {
     try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      const res = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
         body: JSON.stringify({ model: 'gpt-4o', temperature: 0.3, messages: [{ role: 'system', content: 'You are a market analyst. Output only valid JSON.' }, { role: 'user', content: prompt }], response_format: { type: 'json_object' } }),
+        timeoutMs: 12000,
       });
       if (!res.ok) throw new Error(`OpenAI ${res.status}`);
       const d = await res.json();
       const parsed = JSON.parse(d.choices?.[0]?.message?.content || '{}');
       if (parsed.company_profile) return { data: parsed, _meta: { is_mock: false } };
-    } catch (e) { console.warn('[company_context] OpenAI failed:', e); }
+    } catch (e) { console.warn('[company_context] OpenAI failed:', (e as Error).message); }
   }
 
   if (pplxKey) {
     try {
-      const res = await fetch('https://api.perplexity.ai/chat/completions', {
+      const res = await fetchWithTimeout('https://api.perplexity.ai/chat/completions', {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${pplxKey}` },
         body: JSON.stringify({ model: 'sonar-pro', temperature: 0.3, messages: [{ role: 'system', content: 'You are a market analyst. Output only valid JSON.' }, { role: 'user', content: prompt }] }),
+        timeoutMs: 12000,
       });
       if (!res.ok) throw new Error(`Perplexity ${res.status}`);
       const d = await res.json();
@@ -1219,15 +1272,16 @@ async function fetchCompanyContext(domain: string, competitors: string[], target
       if (content.startsWith('```')) content = content.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
       const parsed = JSON.parse(content);
       if (parsed.company_profile) return { data: parsed, _meta: { is_mock: false } };
-    } catch (e) { console.warn('[company_context] Perplexity failed:', e); }
+    } catch (e) { console.warn('[company_context] Perplexity failed:', (e as Error).message); }
   }
 
   if (anthropicKey) {
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, messages: [{ role: 'user', content: `You are a market analyst. Output only valid JSON.\n\n${prompt}` }] }),
+        timeoutMs: 12000,
       });
       if (!res.ok) throw new Error(`Anthropic ${res.status}`);
       const d = await res.json();
@@ -1236,7 +1290,7 @@ async function fetchCompanyContext(domain: string, competitors: string[], target
       if (content.startsWith('```')) content = content.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
       const parsed = JSON.parse(content);
       if (parsed.company_profile) return { data: parsed, _meta: { is_mock: false } };
-    } catch (e) { console.warn('[company_context] Anthropic failed:', e); }
+    } catch (e) { console.warn('[company_context] Anthropic failed:', (e as Error).message); }
   }
 
   return { data: null, _meta: { is_mock: true } };
