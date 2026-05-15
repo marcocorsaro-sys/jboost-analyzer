@@ -1042,7 +1042,12 @@ function validateCompleteness(
 }
 
 /* ── Merge and deduplicate tools ── */
-function mergeTools(patternTools: DetectedTool[], aiTools: DetectedTool[], probeTools: DetectedTool[]): DetectedTool[] {
+function mergeTools(
+  patternTools: DetectedTool[],
+  aiTools: DetectedTool[],
+  probeTools: DetectedTool[],
+  dfseoTools: DetectedTool[] = [],
+): DetectedTool[] {
   const toolMap = new Map<string, DetectedTool>()
 
   const key = (t: DetectedTool) => `${t.category}::${t.tool_name.toLowerCase().replace(/\s+/g, ' ').trim()}`
@@ -1060,6 +1065,28 @@ function mergeTools(patternTools: DetectedTool[], aiTools: DetectedTool[], probe
     const k = key(tool)
     if (!toolMap.has(k) || (toolMap.get(k)!.confidence < tool.confidence)) {
       toolMap.set(k, tool)
+    }
+  }
+
+  // DataForSEO tools — authoritative index, fill gaps and boost confirmations.
+  // Sits between pattern (deterministic on-page evidence) and AI/web-search
+  // (LLM inference). Wins over AI on ties because the underlying signal is
+  // a curated index, not LLM speculation.
+  for (const tool of dfseoTools) {
+    const k = key(tool)
+    if (!toolMap.has(k)) {
+      toolMap.set(k, tool)
+    } else {
+      const existing = toolMap.get(k)!
+      // Confirmation from DataForSEO boosts confidence of an already-seen tool.
+      if (existing.confidence < 0.95) {
+        existing.confidence = Math.min(0.98, existing.confidence + 0.07)
+      }
+      // Record the cross-source confirmation so the UI can flag high-trust rows.
+      existing.details = {
+        ...existing.details,
+        confirmed_by_dataforseo: true,
+      }
     }
   }
 
@@ -1107,6 +1134,50 @@ export async function detectMartechStack(domain: string): Promise<DetectionResul
   const challengeCheck = detectBotChallenge(fullHtml, signals.headers)
   if (challengeCheck.isChallenge) {
     console.warn(`[MarTech] ⚠ Bot challenge detected: ${challengeCheck.provider}. HTML may be incomplete.`)
+  }
+
+  // Step 1.6: DataForSEO Domain Technologies fallback.
+  // Bot-protected sites (e.g. Cloudflare-fronted commercial sites like
+  // casaforte.it) serve us a JS challenge page with near-zero usable
+  // signals. The HTML pipeline can't see GA/GTM/etc. when this happens.
+  // DataForSEO maintains its own tech-stack index keyed on the domain,
+  // bypassing the need to execute JS or evade CF. We only trigger this
+  // on a detected challenge to keep cost predictable (~$0.0015/lookup).
+  //
+  // Also triggered when signals are exceptionally low (≤3 scripts), which
+  // is a strong indicator that the HTML fetch was incomplete even if no
+  // explicit CF challenge header was matched.
+  const lowSignal = signals.scripts.length <= 3 && signals.jsonLd.length === 0
+  let dfseoTools: DetectedTool[] = []
+  let dfseoCostUsd = 0
+  if (challengeCheck.isChallenge || lowSignal) {
+    try {
+      const { fetchDomainTechnologies } = await import('@/lib/integrations/providers/dataforseo/technologies')
+      const dfseo = await fetchDomainTechnologies(cleanDomain)
+      if (dfseo && dfseo.tools.length > 0) {
+        dfseoCostUsd = dfseo.cost_usd
+        dfseoTools = dfseo.tools.map(t => ({
+          category: t.category,
+          tool_name: t.tool_name,
+          tool_version: null,
+          // DataForSEO's index has authoritative-grade signals but we
+          // still flag a touch below 1.0 to let pattern-match (0.95+) win
+          // ties on the merge.
+          confidence: 0.85,
+          details: {
+            source: 'dataforseo_tech',
+            evidence: `DataForSEO index: ${t.dfseo_group}${t.dfseo_subgroup ? ' › ' + t.dfseo_subgroup : ''}`,
+            dfseo_group: t.dfseo_group,
+            dfseo_subgroup: t.dfseo_subgroup,
+          },
+        }))
+        console.log(`[MarTech] DataForSEO supplied ${dfseoTools.length} tools at $${dfseoCostUsd}`)
+      } else if (dfseo === null) {
+        console.warn('[MarTech] DataForSEO unavailable (no creds or failed call) — leaning on AI/web-search only')
+      }
+    } catch (err) {
+      console.warn('[MarTech] DataForSEO call threw, continuing:', err instanceof Error ? err.message : err)
+    }
   }
 
   // Step 2: DETERMINISTIC pattern matching (fast, reliable, no API call)
@@ -1208,7 +1279,7 @@ ${signalsSummary}`
   }))
 
   // Step 5: Merge all sources
-  const allTools = mergeTools(patternTools, aiTools, probeTools)
+  const allTools = mergeTools(patternTools, aiTools, probeTools, dfseoTools)
   console.log(`[MarTech] Merged: ${allTools.length} total unique tools`)
 
   // Step 6: Completeness validation
@@ -1218,14 +1289,20 @@ ${signalsSummary}`
   if (challengeCheck.isChallenge) {
     completeness.diagnostics.unshift({
       type: 'warning',
-      message: `Bot protection detected (${challengeCheck.provider}). HTML signals may be incomplete — web search compensates for this.`
+      message: `Bot protection detected (${challengeCheck.provider}). HTML signals may be incomplete — web search and DataForSEO index compensate for this.`
     })
   }
 
   completeness.diagnostics.push({
     type: 'info',
-    message: `Detection: ${patternTools.length} pattern + ${probeTools.length} probe + ${aiTools.length} AI/web-search → ${allTools.length} unique after merge`
+    message: `Detection: ${patternTools.length} pattern + ${probeTools.length} probe + ${aiTools.length} AI/web-search + ${dfseoTools.length} dataforseo → ${allTools.length} unique after merge`
   })
+  if (dfseoCostUsd > 0) {
+    completeness.diagnostics.push({
+      type: 'info',
+      message: `DataForSEO domain_technologies cost: $${dfseoCostUsd.toFixed(4)}`,
+    })
+  }
 
   // Use AI maturity score if we have it, otherwise compute from tools
   let maturityScore = aiAnalysis.maturity_score
