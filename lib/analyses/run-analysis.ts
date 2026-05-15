@@ -58,6 +58,23 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
   const supabase: SupabaseClient = createClient(supabaseUrl, serviceRoleKey);
 
+  // Observability counters. We log a summary row at the end of the run so
+  // missing data (e.g. zero checkpoints / zero competitor rows) is visible
+  // from the DB even when Vercel logs have rotated away.
+  const writeCounters: Record<string, number> = {
+    api_data_written: 0, api_data_errors: 0,
+    checkpoints_written: 0, checkpoint_errors: 0,
+    competitors_written: 0, competitor_errors: 0,
+    matrix_rows_written: 0, matrix_errors: 0,
+    driver_agent_verdicts_written: 0, driver_agent_errors: 0,
+  };
+  const writeErrors: Array<{ table: string; phase?: string; key?: string; message: string }> = [];
+  function recordWriteError(table: string, message: string, extras: { phase?: string; key?: string } = {}) {
+    writeErrors.push({ table, message, ...extras });
+    // Cap the array so a misconfig doesn't OOM the function.
+    if (writeErrors.length > 50) writeErrors.shift();
+  }
+
   try {
     // Load API keys from DB (app_config table), with env fallback
     async function getApiKeysFromDb(): Promise<Record<string, string>> {
@@ -170,7 +187,7 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
       if (existing?.user_decision === 'continue') {
         // Refresh the payload's "output" key in case re-run produced new
         // numbers, but preserve the prior critic verdict for traceability.
-        await supabase.from('analysis_checkpoints').upsert(
+        const { error: refreshErr } = await supabase.from('analysis_checkpoints').upsert(
           {
             analysis_id: analysisId,
             phase,
@@ -179,6 +196,13 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
           },
           { onConflict: 'analysis_id,phase' },
         );
+        if (refreshErr) {
+          console.error(`[runAnalysis:checkpoint:${phase}] refresh upsert failed:`, refreshErr.message, refreshErr.details);
+          writeCounters.checkpoint_errors++;
+          recordWriteError('analysis_checkpoints', refreshErr.message, { phase });
+        } else {
+          writeCounters.checkpoints_written++;
+        }
         return;
       }
 
@@ -204,7 +228,7 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
         verdict = { ok: true, anomalies: [], questions: [], skipped: true, skipped_reason: 'thrown' };
       }
 
-      await supabase.from('analysis_checkpoints').upsert(
+      const { error: ckErr } = await supabase.from('analysis_checkpoints').upsert(
         {
           analysis_id: analysisId,
           phase,
@@ -213,6 +237,13 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
         },
         { onConflict: 'analysis_id,phase' },
       );
+      if (ckErr) {
+        console.error(`[runAnalysis:checkpoint:${phase}] upsert failed:`, ckErr.message, ckErr.details);
+        writeCounters.checkpoint_errors++;
+        recordWriteError('analysis_checkpoints', ckErr.message, { phase });
+      } else {
+        writeCounters.checkpoints_written++;
+      }
 
       const forcedByCritic = shouldForcePause(verdict);
       if (!pauseBetweenPhases && !forcedByCritic) return;
@@ -309,11 +340,21 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
         const result = apiResults[i];
         const name = apiNames[i];
         const data = result.status === 'fulfilled' ? result.value : null;
+        if (result.status === 'rejected') {
+          console.warn(`[runAnalysis:api:${name}] fetcher rejected:`, result.reason);
+        }
         const isMock = !data || (data as any)?._meta?.is_mock === true;
         apiDataMap[name] = (data as any)?.data || data || null;
-        await supabase.from('api_data').upsert({
+        const { error: adErr } = await supabase.from('api_data').upsert({
           analysis_id: analysisId, source_name: name, data: data || {}, is_mock: isMock, fetched_at: new Date().toISOString(),
         }, { onConflict: 'analysis_id,source_name' });
+        if (adErr) {
+          console.error(`[runAnalysis:api_data:${name}] upsert failed:`, adErr.message, adErr.details);
+          writeCounters.api_data_errors++;
+          recordWriteError('api_data', adErr.message, { key: name });
+        } else {
+          writeCounters.api_data_written++;
+        }
       }
     } else {
       await updatePhase('fetching_apis', 'Generating demo data (no API keys configured)...');
@@ -476,10 +517,24 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
               turn_idx: verdict.turn_count ?? 1,
               timestamp: new Date().toISOString(),
             }];
-            await supabase.from('driver_results')
+            const { error: avErr } = await supabase.from('driver_results')
               .update({ agent_verdict: { ...verdict, turns } })
               .eq('analysis_id', analysisId)
               .eq('driver_name', driverName);
+            if (avErr) {
+              console.error(`[runAnalysis:agent_verdict:${driverName}] update failed:`, avErr.message, avErr.details);
+              writeCounters.driver_agent_errors++;
+              recordWriteError('driver_results.agent_verdict', avErr.message, { key: driverName });
+            } else if (verdict.skipped) {
+              // The agent ran but Anthropic returned a skip (no key / http error /
+              // malformed JSON). The verdict.skipped_reason tells us why. We still
+              // count this as an attempt but log the reason for visibility.
+              console.warn(`[runAnalysis:agent_verdict:${driverName}] skipped:`, verdict.skipped_reason);
+              writeCounters.driver_agent_errors++;
+              recordWriteError('driver_results.agent_verdict', `skipped:${verdict.skipped_reason ?? 'unknown'}`, { key: driverName });
+            } else {
+              writeCounters.driver_agent_verdicts_written++;
+            }
           }),
         );
       }
@@ -544,7 +599,14 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
     // ============================
     // PHASE 5: Competitor analysis (PARALLEL)
     // ============================
-    if (resumeFromIdx < 5 && competitors.length > 0 && hasTime(20000)) {
+    // The old 20s upfront-budget check skipped competitor analysis ~70% of
+    // the time in prod (e.g. casaforte: 2 competitors configured, 0
+    // analyzed). Competitors run in parallel with a per-competitor 25s
+    // race-timeout, so we only need a few seconds of headroom on entry.
+    // Anything less than that risks the whole orchestration timing out
+    // before the upserts return — but we still attempt the run instead of
+    // silently skipping the user's configured competitors.
+    if (resumeFromIdx < 5 && competitors.length > 0 && hasTime(8000)) {
       await updatePhase('analyzing_competitors', `Analyzing ${competitors.length} competitors in parallel...`);
 
       // Run ALL competitors in parallel instead of serial
@@ -562,12 +624,22 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
           } else {
             compScores = analyzeCompetitorMock(competitor, country);
           }
-          await supabase.from('competitor_results').upsert({
+          const { error: crErr } = await supabase.from('competitor_results').upsert({
             analysis_id: analysisId, competitor_domain: competitor, scores: compScores,
           }, { onConflict: 'analysis_id,competitor_domain' });
+          if (crErr) {
+            console.error(`[runAnalysis:competitor:${competitor}] upsert failed:`, crErr.message, crErr.details);
+            writeCounters.competitor_errors++;
+            recordWriteError('competitor_results', crErr.message, { key: competitor });
+            return { competitor, success: false };
+          }
+          writeCounters.competitors_written++;
           return { competitor, success: true };
         } catch (err) {
-          console.error(`[competitor:${competitor}]`, err);
+          const message = err instanceof Error ? err.message : String(err);
+          console.error(`[runAnalysis:competitor:${competitor}] failed:`, message);
+          writeCounters.competitor_errors++;
+          recordWriteError('competitor_results', message, { key: competitor });
           return { competitor, success: false };
         }
       });
@@ -576,7 +648,8 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
       const completed = competitorResults.filter(r => r.status === 'fulfilled' && (r.value as any).success).length;
       console.log(`[competitors] ${completed}/${competitors.length} analyzed successfully`);
     } else if (resumeFromIdx < 5 && competitors.length > 0) {
-      console.warn('[competitors] Skipped - running low on time');
+      console.warn(`[competitors] Skipped ${competitors.length} competitor(s) — only ${timeLeft()}ms left in budget`);
+      recordWriteError('competitor_results', `skipped_low_time:${timeLeft()}ms_left`);
       await updatePhase('analyzing_competitors', 'Skipped competitors (time constraint)');
     }
 
@@ -653,13 +726,26 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
             }
           }
 
-          await supabase.from('priority_matrix').upsert({
+          const { error: pmErr } = await supabase.from('priority_matrix').upsert({
             analysis_id: analysisId, ...matrix,
           }, { onConflict: 'analysis_id' });
+          if (pmErr) {
+            console.error('[runAnalysis:priority_matrix] upsert failed:', pmErr.message, pmErr.details);
+            writeCounters.matrix_errors++;
+            recordWriteError('priority_matrix', pmErr.message);
+          } else {
+            writeCounters.matrix_rows_written++;
+          }
         }
-      } catch (err) { console.error('[priority_matrix]', err); }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error('[priority_matrix]', message);
+        writeCounters.matrix_errors++;
+        recordWriteError('priority_matrix', message);
+      }
     } else if (resumeFromIdx < 6) {
-      console.warn('[priority_matrix] Skipped - running low on time');
+      console.warn(`[priority_matrix] Skipped — only ${timeLeft()}ms left in budget`);
+      recordWriteError('priority_matrix', `skipped_low_time:${timeLeft()}ms_left`);
     }
 
     const { data: matrixRow } = await supabase
@@ -682,11 +768,25 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
     await supabase.from('analyses').update({
       status: 'completed', current_phase: 'completed', phase_detail: null, completed_at: new Date().toISOString(),
     }).eq('id', analysisId);
+
+    // Surface the run's persistence health to the DB so we can audit
+    // silent-failure patterns (e.g. zero checkpoints across N analyses)
+    // without scraping Vercel logs. The counters mirror what the validator
+    // agent (planned PR2) will check at end-of-pipeline.
+    const runtimeMs = Date.now() - startTime;
     await supabase.from('analysis_audit_log').insert({
-      analysis_id: analysisId, action: 'analysis_completed', details: { domain, competitors_count: competitors.length, runtime_ms: Date.now() - startTime },
+      analysis_id: analysisId,
+      action: 'analysis_completed',
+      details: {
+        domain,
+        competitors_count: competitors.length,
+        runtime_ms: runtimeMs,
+        write_counters: writeCounters,
+        write_errors: writeErrors.length > 0 ? writeErrors : undefined,
+      },
     });
 
-    console.log(`[run-analysis] Completed in ${Date.now() - startTime}ms for ${domain} with ${competitors.length} competitors`);
+    console.log(`[run-analysis] Completed in ${runtimeMs}ms for ${domain}, counters=${JSON.stringify(writeCounters)}`);
 
     return { success: true, analysisId, runtime_ms: Date.now() - startTime };
 
