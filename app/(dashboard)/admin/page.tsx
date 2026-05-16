@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useLocale, formatLocalDate } from '@/lib/i18n'
@@ -85,7 +85,24 @@ const OPERATION_LABELS: Record<string, string> = {
   llm_priority_matrix: 'Priority Matrix',
 }
 
-type Tab = 'users' | 'apikeys' | 'createuser' | 'costs' | 'activity' | 'memory'
+type Tab = 'users' | 'apikeys' | 'createuser' | 'costs' | 'activity' | 'memory' | 'integrations'
+
+// ─── Integrations Health types ─────────────────────────
+interface IntegrationRow {
+  id: string
+  label: string
+  envKeys: string[]
+  costHint: string
+  configured: boolean
+  keySources: Record<string, 'db' | 'env' | 'missing'>
+}
+interface IntegrationProbeResult {
+  ok: boolean
+  latency_ms: number
+  message: string
+  details?: Record<string, unknown>
+  tested_at?: string
+}
 
 // ─── Memory Health types (Phase 5E) ─────────────────────
 interface MemoryHealthRow {
@@ -214,6 +231,66 @@ export default function AdminPage() {
   const [memoryHealth, setMemoryHealth] = useState<MemoryHealthData | null>(null)
   const [loadingMemoryHealth, setLoadingMemoryHealth] = useState(false)
   const [memoryHealthError, setMemoryHealthError] = useState<string | null>(null)
+
+  // Integrations Health state
+  const [integrations, setIntegrations] = useState<IntegrationRow[]>([])
+  const [integrationResults, setIntegrationResults] = useState<Record<string, IntegrationProbeResult>>({})
+  const [loadingIntegrations, setLoadingIntegrations] = useState(false)
+  const [testingIds, setTestingIds] = useState<Set<string>>(new Set())
+  const [integrationsError, setIntegrationsError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (activeTab !== 'integrations' || !isAdmin) return
+    let cancelled = false
+    setLoadingIntegrations(true)
+    setIntegrationsError(null)
+    fetch('/api/admin/integrations-health')
+      .then(async res => {
+        const data = await res.json().catch(() => ({}))
+        if (cancelled) return
+        if (!res.ok) {
+          setIntegrationsError(data.error || 'Failed to load integrations')
+          setIntegrations([])
+        } else if (Array.isArray(data.inventory)) {
+          setIntegrations(data.inventory)
+        }
+      })
+      .catch(err => {
+        if (!cancelled) setIntegrationsError(err instanceof Error ? err.message : 'Network error')
+      })
+      .finally(() => { if (!cancelled) setLoadingIntegrations(false) })
+    return () => { cancelled = true }
+  }, [activeTab, isAdmin])
+
+  async function runIntegrationTests(ids?: string[]) {
+    const targetIds = ids ?? integrations.filter(i => i.configured).map(i => i.id)
+    if (targetIds.length === 0) return
+    setTestingIds(prev => {
+      const next = new Set(prev)
+      for (const id of targetIds) next.add(id)
+      return next
+    })
+    try {
+      const res = await fetch('/api/admin/integrations-health', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ids: targetIds }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.results) {
+        setIntegrationResults(prev => ({ ...prev, ...data.results }))
+      }
+    } catch {
+      // Probe errors surface in the per-row message via the POST response above;
+      // a transport-level failure leaves the previous state visible.
+    } finally {
+      setTestingIds(prev => {
+        const next = new Set(prev)
+        for (const id of targetIds) next.delete(id)
+        return next
+      })
+    }
+  }
 
   useEffect(() => {
     if (activeTab !== 'memory' || !isAdmin) return
@@ -478,6 +555,7 @@ export default function AdminPage() {
     { id: 'costs', label: t('admin.aiCosts') },
     { id: 'activity', label: t('admin.activity') },
     { id: 'memory', label: 'Memory Health' },
+    { id: 'integrations', label: 'Integrations' },
   ]
 
   return (
@@ -1182,6 +1260,142 @@ export default function AdminPage() {
                   </table>
                 </div>
               )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══ INTEGRATIONS TAB ═══ */}
+      {activeTab === 'integrations' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-mono text-lg font-bold text-foreground">External APIs</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                Live status of every third-party provider the app calls. Tests use the same
+                key resolution as the analyzer (DB first, env fallback).
+              </p>
+            </div>
+            <button
+              onClick={() => runIntegrationTests()}
+              disabled={testingIds.size > 0 || integrations.length === 0}
+              className="rounded-lg border border-border bg-card px-4 py-2 text-[12px] font-mono font-semibold uppercase tracking-wider text-foreground hover:bg-background disabled:opacity-50"
+            >
+              {testingIds.size > 0 ? 'Testing…' : 'Test all configured'}
+            </button>
+          </div>
+
+          {loadingIntegrations && <div className="text-gray-500">Loading integrations…</div>}
+          {integrationsError && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/[0.08] px-4 py-3 text-sm text-destructive">
+              {integrationsError}
+            </div>
+          )}
+
+          {!loadingIntegrations && integrations.length > 0 && (
+            <div className="overflow-hidden rounded-xl border border-border bg-card">
+              <table className="w-full text-sm">
+                <thead className="bg-background text-left">
+                  <tr className="border-b border-border">
+                    <th className="px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-gray-500">Provider</th>
+                    <th className="px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-gray-500">Keys</th>
+                    <th className="px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-gray-500">Status</th>
+                    <th className="px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-gray-500">Latency</th>
+                    <th className="px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-gray-500">Last test</th>
+                    <th className="px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-gray-500">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {integrations.map(row => {
+                    const result = integrationResults[row.id]
+                    const isTesting = testingIds.has(row.id)
+                    let statusBadge: ReactNode
+                    if (isTesting) {
+                      statusBadge = <span className="font-mono text-[11px] text-gray-500">Testing…</span>
+                    } else if (!row.configured) {
+                      statusBadge = (
+                        <span className="rounded-md bg-gray-500/10 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-gray-500">
+                          Not configured
+                        </span>
+                      )
+                    } else if (!result) {
+                      statusBadge = (
+                        <span className="rounded-md bg-blue-500/10 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-blue-500">
+                          Idle
+                        </span>
+                      )
+                    } else if (result.ok) {
+                      statusBadge = (
+                        <span className="rounded-md bg-emerald-500/10 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-emerald-600">
+                          OK
+                        </span>
+                      )
+                    } else {
+                      statusBadge = (
+                        <span className="rounded-md bg-destructive/10 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-destructive">
+                          Error
+                        </span>
+                      )
+                    }
+                    return (
+                      <tr key={row.id} className="border-b border-border last:border-0 align-top">
+                        <td className="px-4 py-3">
+                          <div className="font-mono font-semibold text-foreground">{row.label}</div>
+                          <div className="mt-1 text-[11px] text-gray-500">{row.costHint}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <ul className="space-y-1">
+                            {row.envKeys.map(k => {
+                              const src = row.keySources[k]
+                              return (
+                                <li key={k} className="font-mono text-[11px]">
+                                  <span className="text-gray-500">{k}</span>{' '}
+                                  {src === 'missing' ? (
+                                    <span className="text-destructive">missing</span>
+                                  ) : (
+                                    <span className="text-emerald-600">{src}</span>
+                                  )}
+                                </li>
+                              )
+                            })}
+                          </ul>
+                        </td>
+                        <td className="px-4 py-3">
+                          {statusBadge}
+                          {result?.message && (
+                            <div className="mt-1 max-w-xs text-[11px] text-gray-500 break-words">
+                              {result.message}
+                            </div>
+                          )}
+                          {result?.details && Object.keys(result.details).length > 0 && (
+                            <div className="mt-1 font-mono text-[10px] text-gray-500">
+                              {Object.entries(result.details)
+                                .filter(([, v]) => v !== undefined && v !== null && v !== '')
+                                .map(([k, v]) => `${k}: ${String(v)}`)
+                                .join(' · ')}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-[12px] text-gray-500">
+                          {result ? `${result.latency_ms} ms` : '—'}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-[11px] text-gray-500">
+                          {result?.tested_at ? formatLocalDate(result.tested_at, locale) : '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => runIntegrationTests([row.id])}
+                            disabled={!row.configured || isTesting}
+                            className="rounded-lg border border-border bg-background px-3 py-1.5 text-[11px] font-mono font-semibold uppercase tracking-wider text-foreground hover:bg-card disabled:opacity-50"
+                          >
+                            {isTesting ? 'Testing…' : 'Test'}
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
