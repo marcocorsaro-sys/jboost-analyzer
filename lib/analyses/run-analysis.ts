@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { criticAgent, shouldForcePause, type CriticVerdict } from './critic-agent';
 import { driverAgent, type DriverTurn } from './driver-agent';
+import { aiRelevanceAgent, runAgentWithQuality } from '@/lib/agents';
 import { DRIVERS } from '@/lib/constants';
 
 export interface RunAnalysisResult {
@@ -470,6 +471,56 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
     };
     const driverScores = calculateAllDrivers(driverInputs);
 
+    // ----------------------------------------------------------------
+    // Pilot agent override — AI Relevance.
+    //
+    // PR1 of the "co-pilot every driver" roadmap: AI Relevance is now
+    // routed through the new Agent framework (methodology + quality
+    // loop + retry-with-guidance) instead of the bare deterministic
+    // calculation. The other 8 drivers keep working unchanged via
+    // calculateAllDrivers() above; they will be migrated agent-by-agent
+    // in follow-up PRs. The agent's quality-loop history is persisted
+    // on driver_results.raw_data.agent_quality so the UI can render it.
+    // ----------------------------------------------------------------
+    let aiRelevanceAgentMeta: Record<string, unknown> | null = null;
+    if (hasTime(15000)) {
+      try {
+        const outcome = await runAgentWithQuality(
+          aiRelevanceAgent,
+          {
+            ahrefsAiData: driverInputs.ahrefs_ai_relevance ?? null,
+            dataforseoAiData: driverInputs.dataforseo_ai_overview ?? null,
+          },
+          {
+            domain,
+            country,
+            language,
+            targetTopic: targetTopic || undefined,
+            competitors,
+            priorClarifications: userClarifications,
+            anthropicKey: ANTHROPIC_KEY_FOR_AGENTS || undefined,
+          },
+          { maxRetries: 2, verbose: false },
+        );
+        const agentDriverResult = outcome.result.output.driverResult;
+        driverScores.ai_relevance = agentDriverResult;
+        aiRelevanceAgentMeta = {
+          methodology_label: aiRelevanceAgent.label,
+          methodology: aiRelevanceAgent.methodology,
+          interpretation: outcome.result.output.interpretation,
+          source: outcome.result.output.source,
+          attempts: outcome.attempts,
+          passed: outcome.passed,
+          final_score: outcome.finalVerdict.score,
+          final_verdict: outcome.finalVerdict.verdict,
+          history: outcome.history,
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn('[runAnalysis:ai_relevance_agent] failed, falling back to deterministic score:', message);
+      }
+    }
+
     // ============================
     // PHASE 3: Generate issues
     // ============================
@@ -481,9 +532,13 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
       await updatePhase('generating_issues', 'Identifying problems...');
       for (const [driverName, result] of Object.entries(driverScores)) {
         const issues = allIssues[driverName] || allIssues[driverName.replace('_', '-')] || [];
+        const rawData: Record<string, unknown> = { ...(result.details || {}) };
+        if (driverName === 'ai_relevance' && aiRelevanceAgentMeta) {
+          rawData.agent_quality = aiRelevanceAgentMeta;
+        }
         await supabase.from('driver_results').upsert({
           analysis_id: analysisId, driver_name: driverName, score: result.score, status: result.status,
-          issues: issues, solutions: [], raw_data: result.details || {},
+          issues: issues, solutions: [], raw_data: rawData,
         }, { onConflict: 'analysis_id,driver_name' });
       }
 

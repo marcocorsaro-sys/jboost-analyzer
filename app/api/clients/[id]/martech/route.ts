@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { detectMartechStack } from '@/lib/martech/detect'
 import { trackLlmUsage } from '@/lib/tracking/llm-usage'
 import { logActivity } from '@/lib/tracking/activity'
+import { martechAgent, runAgentWithQuality } from '@/lib/agents'
 
 export const maxDuration = 180 // increased for web_search + multi-page crawl
 
@@ -127,8 +127,18 @@ export async function POST(
   }
 
   try {
-    // Run V3 detection (pattern matching + web search + AI analysis)
-    const result = await detectMartechStack(client.domain)
+    // Co-piloted MarTech agent: detection + quality-judge loop (max 2 retries).
+    // The quality judge is sister to the agent — if the output is weak (few
+    // tools detected, missing essential categories, contradictory evidence),
+    // it returns 'retry' with explicit guidance and the agent re-executes.
+    const anthropicKey = process.env.ANTHROPIC_API_KEY || ''
+    const outcome = await runAgentWithQuality(
+      martechAgent,
+      { domain: client.domain },
+      { domain: client.domain, anthropicKey },
+      { maxRetries: 2, verbose: true },
+    )
+    const result = outcome.result.output.detection
     const { tools, usage, completeness, maturityScore, maturityTier, gapAnalysis, recommendations } = result
 
     // Track LLM cost (non-blocking)
@@ -150,6 +160,9 @@ export async function POST(
         gaps: gapAnalysis.length,
         recommendations: recommendations.length,
         pages_scanned: completeness.pagesScanned,
+        agent_attempts: outcome.attempts,
+        agent_passed: outcome.passed,
+        agent_quality_score: outcome.finalVerdict.score,
       },
     }).catch(() => {})
 
@@ -195,13 +208,23 @@ export async function POST(
       }
     }
 
-    // Save full report (completeness + maturity + gaps + recommendations)
+    // Save full report (completeness + maturity + gaps + recommendations).
+    // Embed the agent's quality loop history under `agent_quality` so the
+    // UI / debug panel can show why a re-run happened.
     const fullReport = {
       completeness,
       maturityScore,
       maturityTier,
       gapAnalysis,
       recommendations,
+      agent_quality: {
+        methodology: martechAgent.methodology,
+        attempts: outcome.attempts,
+        passed: outcome.passed,
+        final_score: outcome.finalVerdict.score,
+        final_verdict: outcome.finalVerdict.verdict,
+        history: outcome.history,
+      },
     }
 
     try {
@@ -233,6 +256,7 @@ export async function POST(
       maturityTier,
       gapAnalysis,
       recommendations,
+      agentQuality: fullReport.agent_quality,
     })
   } catch (err) {
     console.error('MarTech detection error:', err)
