@@ -134,7 +134,11 @@ export default function ProspectsPage() {
           gap: '16px',
         }}>
           {filtered.map((client) => (
-            <ClientCard key={client.id} {...client} />
+            <ClientCard
+              key={client.id}
+              {...client}
+              onDeleted={(id) => setProspects((prev) => prev.filter((c) => c.id !== id))}
+            />
           ))}
         </div>
       )}

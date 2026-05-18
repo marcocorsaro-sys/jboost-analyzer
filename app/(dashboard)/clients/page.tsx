@@ -182,7 +182,11 @@ export default function ClientsPage() {
           gap: '16px',
         }}>
           {filtered.map((client) => (
-            <ClientCard key={client.id} {...client} />
+            <ClientCard
+              key={client.id}
+              {...client}
+              onDeleted={(id) => setClients((prev) => prev.filter((c) => c.id !== id))}
+            />
           ))}
         </div>
       )}
