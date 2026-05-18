@@ -3,6 +3,7 @@ import {
   Zap,
   Building2,
   MessageSquare,
+  BookOpen,
   User,
   type LucideIcon,
 } from 'lucide-react'
@@ -21,10 +22,11 @@ export interface NavItem {
  * (with the last slot replaced by "Me").
  */
 export const PRIMARY_NAV: NavItem[] = [
-  { href: '/dashboard', labelKey: 'nav.home', icon: Home },
+  { href: '/home', labelKey: 'nav.home', icon: Home },
   { href: '/pre-sales', labelKey: 'nav.pre_sales', icon: Zap },
   { href: '/clients', labelKey: 'nav.clients', icon: Building2 },
   { href: '/ask-j', labelKey: 'nav.ask_j', icon: MessageSquare },
+  { href: '/library', labelKey: 'nav.library', icon: BookOpen },
 ]
 
 /**
@@ -32,7 +34,7 @@ export const PRIMARY_NAV: NavItem[] = [
  * fifth slot reserved for the user's profile menu.
  */
 export const MOBILE_NAV: NavItem[] = [
-  { href: '/dashboard', labelKey: 'nav.home', icon: Home },
+  { href: '/home', labelKey: 'nav.home', icon: Home },
   { href: '/pre-sales', labelKey: 'nav.pre_sales', icon: Zap },
   { href: '/clients', labelKey: 'nav.clients', icon: Building2 },
   { href: '/ask-j', labelKey: 'nav.ask_j', icon: MessageSquare },
