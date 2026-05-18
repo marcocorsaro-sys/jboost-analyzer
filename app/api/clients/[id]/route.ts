@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { logActivity } from '@/lib/tracking/activity'
 import type { ClientLifecycleStage } from '@/lib/types/client'
@@ -152,12 +153,47 @@ export async function DELETE(
       return NextResponse.json({ error: 'Client not found' }, { status: 404 })
     }
 
-    // RLS DELETE policy requires the caller to be the client's owner or an
-    // admin. Cascade deletes drop client_members + knowledge_* rows tied to
-    // this client.
-    const { error } = await supabase.from('clients').delete().eq('id', params.id)
+    // Authorize: owner OR admin. RLS DELETE policy on `clients` enforces the
+    // same predicate, but a plain user-role .delete() silently returns 0 rows
+    // when RLS filters the row out — so we authorize explicitly here and then
+    // use the service role to actually delete, which guarantees the row goes
+    // away (and so do all the FK-cascaded children: analyses, client_martech,
+    // client_memory, knowledge_*, monitoring, members, etc.).
+    const [{ data: isAdmin }, { data: isOwner }] = await Promise.all([
+      supabase.rpc('jboost_is_admin'),
+      supabase.rpc('user_is_client_owner', { p_client_id: params.id }),
+    ])
+    if (!isAdmin && !isOwner) {
+      return NextResponse.json(
+        { error: 'Only the client owner or a workspace admin can hard-delete a client.' },
+        { status: 403 }
+      )
+    }
+
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
+    if (!serviceRoleKey || !supabaseUrl) {
+      return NextResponse.json(
+        { error: 'Service role not configured on server.' },
+        { status: 500 }
+      )
+    }
+    const admin = createAdminClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+
+    const { error, count } = await admin
+      .from('clients')
+      .delete({ count: 'exact' })
+      .eq('id', params.id)
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+    if (!count) {
+      return NextResponse.json(
+        { error: 'Client not found or already deleted.' },
+        { status: 404 }
+      )
     }
 
     logActivity({

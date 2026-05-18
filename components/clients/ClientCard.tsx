@@ -57,8 +57,6 @@ export default function ClientCard({
   const handleDelete = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    const confirmMsg = `Eliminare definitivamente "${name}"?\n\nQuesto cancella il cliente e TUTTI i dati collegati (analisi, MarTech, knowledge, monitoring). L'operazione non è reversibile.`
-    if (!window.confirm(confirmMsg)) return
     setDeleting(true)
     try {
       const res = await fetch(`/api/clients/${id}?mode=hard`, { method: 'DELETE' })
