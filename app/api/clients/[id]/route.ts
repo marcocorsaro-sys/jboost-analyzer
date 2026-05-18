@@ -124,12 +124,11 @@ export async function PUT(
 
 // DELETE /api/clients/[id]
 //   default (?mode=archive)  -> soft delete: status='archived'
-//   ?mode=hard               -> hard delete (only allowed for prospects).
-//                               Cascades to client_members + knowledge_*
-//                               (FK ON DELETE CASCADE).
-//
-// Hard delete is restricted to prospects so we never destroy a real client's
-// history (analyses, monitoring snapshots, audit trail).
+//   ?mode=hard               -> hard delete (allowed for any lifecycle stage).
+//                               Cascades to client_members + knowledge_* +
+//                               analyses + martech + monitoring (FK ON DELETE
+//                               CASCADE). Auth still enforced via RLS DELETE
+//                               policy (owner or admin only).
 export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
@@ -144,7 +143,6 @@ export async function DELETE(
   const mode = searchParams.get('mode') === 'hard' ? 'hard' : 'archive'
 
   if (mode === 'hard') {
-    // Pre-flight: only prospects can be hard-deleted, regardless of role.
     const { data: client, error: fetchError } = await supabase
       .from('clients')
       .select('id, name, lifecycle_stage')
@@ -152,14 +150,6 @@ export async function DELETE(
       .single()
     if (fetchError || !client) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 })
-    }
-    if (client.lifecycle_stage !== 'prospect') {
-      return NextResponse.json(
-        {
-          error: `Hard delete only allowed for prospects (current: ${client.lifecycle_stage}). Use archive instead.`,
-        },
-        { status: 400 }
-      )
     }
 
     // RLS DELETE policy requires the caller to be the client's owner or an
@@ -175,7 +165,7 @@ export async function DELETE(
       action: 'client_hard_deleted',
       resourceType: 'client',
       resourceId: params.id,
-      details: { name: client.name, was_stage: 'prospect' },
+      details: { name: client.name, was_stage: client.lifecycle_stage },
     }).catch(() => {})
 
     return NextResponse.json({ success: true, mode: 'hard' })

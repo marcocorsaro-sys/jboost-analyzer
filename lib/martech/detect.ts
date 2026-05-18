@@ -1113,10 +1113,13 @@ function mergeTools(
  * → Merge → Maturity Score → Gap Analysis → Recommendations
  * ══════════════════════════════════════════════════════════════════ */
 export async function detectMartechStack(domain: string): Promise<DetectionResult> {
-  // Optional LLM-native pipeline — Firecrawl scrape + Sonnet 4.6 analysis.
-  // Enable per-environment with USE_LLM_MARTECH=true. Falls back to the legacy
-  // hybrid (HTML fetch + pattern + AI web-search + DataForSEO) when unset.
-  if (process.env.USE_LLM_MARTECH === 'true') {
+  // LLM-native pipeline — Firecrawl scrape + Sonnet 4.6 analysis.
+  // Default ON whenever FIRECRAWL_API_KEY is configured (handles JS-challenged
+  // sites natively, much higher signal quality). Explicit USE_LLM_MARTECH=false
+  // forces the legacy hybrid for fallback / debugging.
+  const useLlm = process.env.USE_LLM_MARTECH === 'true'
+    || (process.env.USE_LLM_MARTECH !== 'false' && !!process.env.FIRECRAWL_API_KEY)
+  if (useLlm) {
     const { detectMartechStackLlm } = await import('./detect-llm')
     return detectMartechStackLlm(domain)
   }
