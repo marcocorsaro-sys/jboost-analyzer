@@ -168,40 +168,49 @@ export async function DELETE(
       )
     }
 
-    // Try the user-role delete first. RLS allows it for owners/admins, and FK
-    // cascades to children fire at the DB level regardless of which role
-    // issues the delete. Service-role fallback handles the rare case where
-    // RLS blocks despite the explicit auth check (e.g. policy drift).
-    let { error, count } = await supabase
-      .from('clients')
-      .delete({ count: 'exact' })
-      .eq('id', params.id)
+    // Auth passed. Use service-role to bypass any RLS edge cases. Supabase
+    // JS `count: 'exact'` was not reliably populated for DELETE in prod, so
+    // we use `.select('id')` to get back the actual deleted rows and check
+    // the array length — that's the only count we can fully trust.
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
 
-    if (error || !count) {
-      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
-      if (serviceRoleKey && supabaseUrl) {
-        console.warn(
-          `[clients:delete] user-role delete returned ${count ?? 'null'} rows (err=${error?.message ?? 'none'}), falling back to service role`,
-        )
-        const admin = createAdminClient(supabaseUrl, serviceRoleKey, {
-          auth: { autoRefreshToken: false, persistSession: false },
-        })
-        const adminRes = await admin
-          .from('clients')
-          .delete({ count: 'exact' })
-          .eq('id', params.id)
-        error = adminRes.error
-        count = adminRes.count
-      }
+    let deletedRows: Array<{ id: string }> | null = null
+    let deleteError: { message: string } | null = null
+
+    if (serviceRoleKey && supabaseUrl) {
+      const admin = createAdminClient(supabaseUrl, serviceRoleKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      })
+      const res = await admin
+        .from('clients')
+        .delete()
+        .eq('id', params.id)
+        .select('id')
+      deletedRows = res.data ?? null
+      deleteError = res.error
+    } else {
+      // Fallback path when service-role isn't on the server — try with the
+      // user role and trust RLS (admin/owner already verified above).
+      const res = await supabase
+        .from('clients')
+        .delete()
+        .eq('id', params.id)
+        .select('id')
+      deletedRows = res.data ?? null
+      deleteError = res.error
     }
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (deleteError) {
+      console.error(`[clients:delete] id=${params.id} failed:`, deleteError.message)
+      return NextResponse.json({ error: deleteError.message }, { status: 500 })
     }
-    if (!count) {
+
+    const rowsDeleted = deletedRows?.length ?? 0
+    if (rowsDeleted === 0) {
+      console.warn(`[clients:delete] id=${params.id} returned 0 rows (RLS may have blocked)`)
       return NextResponse.json(
-        { error: 'Client not found or already deleted.' },
+        { error: 'Client not deleted — RLS or row missing. Check server logs.' },
         { status: 404 }
       )
     }
@@ -211,10 +220,10 @@ export async function DELETE(
       action: 'client_hard_deleted',
       resourceType: 'client',
       resourceId: params.id,
-      details: { name: client.name, was_stage: client.lifecycle_stage },
+      details: { name: client.name, was_stage: client.lifecycle_stage, rows_deleted: rowsDeleted },
     }).catch(() => {})
 
-    return NextResponse.json({ success: true, mode: 'hard' })
+    return NextResponse.json({ success: true, mode: 'hard', rows_deleted: rowsDeleted })
   }
 
   // Default: soft archive.
