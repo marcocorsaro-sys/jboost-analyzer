@@ -19,6 +19,7 @@ import {
   type AgentExecutionContext,
 } from '@/lib/agents'
 import { logActivity } from '@/lib/tracking/activity'
+import { refetchForDriver } from '@/lib/analyses/driver-refetchers'
 
 export const maxDuration = 90
 export const dynamic = 'force-dynamic'
@@ -83,9 +84,35 @@ export async function POST(
     return NextResponse.json({ error: `Unknown driver: ${params.name}` }, { status: 404 })
   }
 
-  // 3. Load the existing API snapshot for THIS analysis (no re-fetching
-  //    from external providers — we use whatever Phase 1 already gathered).
-  //    Unwrap { data, _meta } wrappers, mirroring run-analysis.ts.
+  // 3. RE-FETCH external data sources for this driver — the whole point of
+  // "Rilancia driver" is to get fresh data, not to re-interpret stale/mock
+  // bytes from the original run. The deterministic agent is fed live data
+  // from SEMrush/PSI/Ahrefs (whichever the driver needs), then the LLM
+  // quality loop runs on top.
+  //
+  // Keys come from app_config first (db-stored, settable from /admin), with
+  // env fallback. The fetchers all soft-degrade to mock on failure, so the
+  // route never crashes on a missing key — it just returns the same stale
+  // result the original analysis had, with diagnostics.
+  const { data: cfgRows } = await supabase.from('app_config').select('key, value')
+  const dbKeys: Record<string, string> = {}
+  for (const r of (cfgRows ?? []) as Array<{ key: string; value: string }>) dbKeys[r.key] = r.value
+  const apiKeys = {
+    semrushKey: dbKeys.SEMRUSH_API_KEY || process.env.SEMRUSH_API_KEY || '',
+    ahrefsKey: dbKeys.AHREFS_API_KEY || process.env.AHREFS_API_KEY || '',
+    psiKey: dbKeys.GOOGLE_PSI_API_KEY || process.env.GOOGLE_PSI_API_KEY || '',
+    dataforseoLogin: dbKeys.DATAFORSEO_LOGIN || process.env.DATAFORSEO_LOGIN || '',
+    dataforseoPassword: dbKeys.DATAFORSEO_PASSWORD || process.env.DATAFORSEO_PASSWORD || '',
+  }
+
+  const freshData = await refetchForDriver(
+    agent.name,
+    { domain: analysis.domain ?? '', country: analysis.country ?? 'us' },
+    apiKeys,
+  )
+
+  // Read existing api_data so we keep dataforseo_ai_overview (it's not in
+  // the refetch plan — it's expensive and gated by a flag) etc.
   const { data: apiRows } = await supabase
     .from('api_data')
     .select('source_name, data')
@@ -98,14 +125,31 @@ export async function POST(
       : stored
     apiDataMap[row.source_name] = unwrapped
   }
+
+  // Merge: prefer fresh data when present, fall back to stored.
+  const merged = { ...apiDataMap, ...freshData }
+
+  // Persist the fresh slices into api_data so subsequent reruns / page
+  // refreshes see the same fresh state.
+  for (const [sourceName, data] of Object.entries(freshData)) {
+    if (!data) continue
+    await supabase.from('api_data').upsert({
+      analysis_id: params.id,
+      source_name: sourceName,
+      data: { data, _meta: { is_mock: false, refetched_for: agent.name, refetched_at: new Date().toISOString() } },
+      is_mock: false,
+      fetched_at: new Date().toISOString(),
+    }, { onConflict: 'analysis_id,source_name' })
+  }
+
   const driverInputs: DriverInputsMap = {
-    semrush_domain_rank: apiDataMap.semrush_domain_overview,
-    semrush_site_health: apiDataMap.semrush_site_health,
-    ahrefs_domain_rating: apiDataMap.ahrefs_domain_rating,
-    ahrefs_ai_relevance: apiDataMap.ahrefs_ai_relevance,
-    dataforseo_ai_overview: apiDataMap.dataforseo_ai_overview,
-    psi_mobile: apiDataMap.pagespeed_mobile,
-    trends_brand_awareness: apiDataMap.semrush_brand_awareness,
+    semrush_domain_rank: merged.semrush_domain_overview,
+    semrush_site_health: merged.semrush_site_health,
+    ahrefs_domain_rating: merged.ahrefs_domain_rating,
+    ahrefs_ai_relevance: merged.ahrefs_ai_relevance,
+    dataforseo_ai_overview: merged.dataforseo_ai_overview,
+    psi_mobile: merged.pagespeed_mobile,
+    trends_brand_awareness: merged.semrush_brand_awareness,
   }
 
   const inputs = buildAgentInputs(driverInputs)

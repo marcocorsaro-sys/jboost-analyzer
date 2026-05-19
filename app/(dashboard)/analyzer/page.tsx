@@ -27,6 +27,42 @@ export default function AnalyzerPage() {
   const [language, setLanguage] = useState('en')
   const [competitors, setCompetitors] = useState<string[]>([''])
   const [targetTopic, setTargetTopic] = useState('')
+
+  // "Suggerisci con AI" — calls /api/pre-sales/intake to pre-fill country,
+  // language and 4 competitor suggestions from the current domain via the
+  // same Firecrawl+Sonnet pipeline used in /pre-sales/new.
+  const [suggesting, setSuggesting] = useState(false)
+  const [suggestError, setSuggestError] = useState<string | null>(null)
+  const runIntakeSuggest = async () => {
+    if (!domain.trim()) { setSuggestError('Inserisci prima un dominio'); return }
+    setSuggesting(true)
+    setSuggestError(null)
+    try {
+      const res = await fetch('/api/pre-sales/intake', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: domain }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || `HTTP ${res.status}`)
+      }
+      const data = await res.json() as {
+        country: 'IT' | 'US' | 'DE' | 'FR' | 'ES' | 'UK'
+        language: 'it' | 'en' | 'de' | 'fr' | 'es'
+        competitors: string[]
+      }
+      setCountry(data.country.toLowerCase())
+      setLanguage(data.language)
+      if (data.competitors.length > 0) {
+        setCompetitors(data.competitors.slice(0, MAX_COMPETITORS))
+      }
+    } catch (err) {
+      setSuggestError(err instanceof Error ? err.message : 'suggest failed')
+    } finally {
+      setSuggesting(false)
+    }
+  }
   const [pauseBetweenPhases, setPauseBetweenPhases] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
   const [pausedAtPhase, setPausedAtPhase] = useState<string | null>(null)
@@ -570,6 +606,35 @@ export default function AnalyzerPage() {
               <p className="mt-1 text-xs" style={{ color: 'var(--gray)' }}>
                 {t('analyzer.domainHelp')}
               </p>
+            )}
+            {/* Firecrawl-backed pre-fill: same intake mechanic as /pre-sales/new. */}
+            <div style={{ marginTop: '8px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={runIntakeSuggest}
+                disabled={suggesting || !domain.trim() || isRunning}
+                style={{
+                  padding: '6px 12px',
+                  background: suggesting || !domain.trim() ? '#2a2d35' : '#1e2028',
+                  color: suggesting || !domain.trim() ? '#6b7280' : '#c8e64a',
+                  border: '1px solid #c8e64a40',
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  cursor: suggesting || !domain.trim() ? 'default' : 'pointer',
+                }}
+              >
+                {suggesting ? '↻ Suggerisco…' : '✨ Suggerisci con AI'}
+              </button>
+              <span style={{ fontSize: '11px', color: '#6b7280' }}>
+                Firecrawl + Sonnet → pre-popola paese, lingua, 4 competitor
+              </span>
+            </div>
+            {suggestError && (
+              <p style={{ marginTop: '6px', fontSize: '11px', color: '#ef4444' }}>{suggestError}</p>
             )}
           </div>
 
