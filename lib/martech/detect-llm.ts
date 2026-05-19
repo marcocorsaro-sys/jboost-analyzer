@@ -385,3 +385,80 @@ export async function detectMartechStackLlm(domain: string): Promise<DetectionRe
     recommendations,
   }
 }
+
+/**
+ * Focused single-category re-detection. Reuses a Firecrawl scrape (passed in
+ * by the caller, typically read from a cache) and asks Sonnet for ONLY the
+ * tools that fall in `categoryKey`. Much smaller output (~200-500 tokens)
+ * than the full-stack call, so dramatically more reliable + faster.
+ *
+ * Returns the same { tools, usage } subset so the caller can replace just
+ * the slice of `client_martech` rows tied to that category.
+ */
+export async function detectMartechCategoryLlm(
+  domain: string,
+  categoryKey: string,
+  scrape: FirecrawlScrapeResult,
+): Promise<{ tools: DetectedTool[]; usage: DetectionUsage; error?: string }> {
+  if (!scrape.ok) {
+    return {
+      tools: [],
+      usage: { input_tokens: 0, output_tokens: 0 },
+      error: `Firecrawl scrape unavailable: ${scrape.status}${scrape.detail ? ' — ' + scrape.detail : ''}`,
+    }
+  }
+
+  const systemPrompt = `You are a martech analyst. You receive a fully rendered web page (HTML + markdown) and you return ONLY tools that fall in the category "${categoryKey}".
+
+Output ONLY a valid JSON object — no prose, no markdown fences. Schema:
+{
+  "tools": [
+    { "tool_name": "<name>", "tool_version": "<version_or_null>", "confidence": <0.0-1.0>, "evidence": "<concrete signal from the content>" }
+  ]
+}
+
+Rules:
+- Every tool MUST cite concrete evidence (script src URL, JSON-LD field, cookie name, meta tag, etc.) actually present in the supplied content.
+- If no tools for this category, return { "tools": [] }.
+- Confidence 0.90+ = explicit match; 0.70-0.89 = strong indirect signal; 0.50-0.69 = inferred (use sparingly).
+- Order by confidence DESC.
+- All tools you return belong EXACTLY to category "${categoryKey}". Do not return anything else.`
+
+  const userMessage = buildUserMessage(domain, scrape)
+  let parsed: { tools?: Array<{ tool_name?: string; tool_version?: string | null; confidence?: number; evidence?: string }> } = { tools: [] }
+  let usage: DetectionUsage = { input_tokens: 0, output_tokens: 0 }
+  try {
+    const llmRes = await callSonnet(systemPrompt, userMessage)
+    usage = llmRes.usage
+    let raw = llmRes.text.trim()
+    if (raw.startsWith('```')) {
+      raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim()
+    }
+    const start = raw.indexOf('{')
+    const end = raw.lastIndexOf('}')
+    if (start >= 0 && end > start) raw = raw.slice(start, end + 1)
+    parsed = JSON.parse(raw)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return { tools: [], usage, error: `LLM call failed: ${message.slice(0, 200)}` }
+  }
+
+  const tools: DetectedTool[] = (Array.isArray(parsed.tools) ? parsed.tools : [])
+    .filter(t => t && typeof t.tool_name === 'string')
+    .map(t => ({
+      category: categoryKey,
+      tool_name: t.tool_name as string,
+      tool_version: t.tool_version ?? null,
+      confidence: typeof t.confidence === 'number' ? Math.max(0, Math.min(1, t.confidence)) : 0.5,
+      details: {
+        source: 'firecrawl_sonnet_category_refresh',
+        evidence: t.evidence ?? '',
+      },
+    }))
+
+  return { tools, usage }
+}
+
+/** Re-exported so route handlers can scrape once and reuse the result. */
+export { scrapeWithFirecrawl } from '@/lib/integrations/providers/firecrawl/client'
+export type { FirecrawlScrapeResult } from '@/lib/integrations/providers/firecrawl/client'
