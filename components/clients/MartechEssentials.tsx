@@ -1,9 +1,11 @@
 'use client'
 
-// "Fotografia MarTech solida": 4 big cards — CMS, Web Analytics,
-// Core Web Vitals Desktop, Core Web Vitals Mobile. Everything else
-// (CDN, tag manager, marketing automation, etc.) is still available
-// via the "Mostra dettaglio completo" toggle on the parent page.
+import { useState } from 'react'
+
+// "Fotografia MarTech solida": 5 big cards — CMS, Web Analytics,
+// MKT Automation, Core Web Vitals Desktop, Core Web Vitals Mobile.
+// Each category card has a "↻" rerun icon that hits the per-category
+// refresh endpoint (faster + far more reliable than the full pipeline).
 
 interface MartechTool {
   id: string
@@ -22,6 +24,10 @@ interface CwvData {
 
 interface MartechEssentialsProps {
   tools: MartechTool[]
+  /** Client id, required for the per-category rerun call. */
+  clientId?: string
+  /** Called after a successful category rerun so the parent can refresh. */
+  onCategoryRefreshed?: () => void
   cwv: {
     mobile: CwvData | null
     desktop: CwvData | null
@@ -49,38 +55,97 @@ function scoreLabel(score: number | undefined | null): string {
 }
 
 function CategoryCard({
+  categoryKey,
   label,
   hint,
   tools,
+  clientId,
+  onRefreshed,
 }: {
+  categoryKey: string
   label: string
   hint: string
   tools: MartechTool[]
+  clientId?: string
+  onRefreshed?: () => void
 }) {
   const sorted = [...tools].sort((a, b) => b.confidence - a.confidence)
   const primary = sorted[0] ?? null
   const others = sorted.slice(1, 4)
 
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshError, setRefreshError] = useState<string | null>(null)
+
+  async function handleRefresh(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!clientId) return
+    setRefreshing(true)
+    setRefreshError(null)
+    try {
+      const res = await fetch(`/api/clients/${clientId}/martech/category-refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: categoryKey }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || `HTTP ${res.status}`)
+      }
+      onRefreshed?.()
+    } catch (err) {
+      setRefreshError(err instanceof Error ? err.message : 'rerun failed')
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
   return (
     <div style={{
       background: '#1a1c24',
       borderRadius: '14px',
-      border: '1px solid #2a2d35',
+      border: `1px solid ${refreshError ? '#ef4444' : '#2a2d35'}`,
       padding: '28px',
       display: 'flex',
       flexDirection: 'column',
       gap: '16px',
       minHeight: '220px',
+      position: 'relative',
+      opacity: refreshing ? 0.6 : 1,
+      transition: 'opacity 0.2s',
     }}>
-      <div style={{
-        fontFamily: "'JetBrains Mono', monospace",
-        fontSize: '11px',
-        fontWeight: 700,
-        color: '#c8e64a',
-        textTransform: 'uppercase',
-        letterSpacing: '1.5px',
-      }}>
-        {label}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div style={{
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: '11px',
+          fontWeight: 700,
+          color: '#c8e64a',
+          textTransform: 'uppercase',
+          letterSpacing: '1.5px',
+        }}>
+          {label}
+        </div>
+        {clientId && (
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            title={refreshing ? 'Sto rilanciando…' : `Rilancia solo ${label}`}
+            aria-label={`Rilancia ${label}`}
+            style={{
+              background: 'transparent',
+              border: '1px solid #2a2d35',
+              borderRadius: '6px',
+              color: refreshing ? '#6b7280' : '#9ca3af',
+              padding: '4px 8px',
+              fontSize: '11px',
+              fontFamily: "'JetBrains Mono', monospace",
+              cursor: refreshing ? 'default' : 'pointer',
+            }}
+          >
+            ↻
+          </button>
+        )}
       </div>
 
       {primary ? (
@@ -232,7 +297,7 @@ function CwvCard({
   )
 }
 
-export default function MartechEssentials({ tools, cwv }: MartechEssentialsProps) {
+export default function MartechEssentials({ tools, cwv, clientId, onCategoryRefreshed }: MartechEssentialsProps) {
   const byCategory: Record<string, MartechTool[]> = {}
   for (const t of tools) {
     if (!t?.category) continue
@@ -252,9 +317,12 @@ export default function MartechEssentials({ tools, cwv }: MartechEssentialsProps
         {ESSENTIAL_CATEGORIES.map(cat => (
           <CategoryCard
             key={cat.key}
+            categoryKey={cat.key}
             label={cat.label}
             hint={cat.hint}
             tools={byCategory[cat.key] ?? []}
+            clientId={clientId}
+            onRefreshed={onCategoryRefreshed}
           />
         ))}
 

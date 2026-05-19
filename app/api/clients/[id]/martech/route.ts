@@ -206,7 +206,7 @@ export async function POST(
       martechAgent,
       { domain: client.domain },
       { domain: client.domain, anthropicKey },
-      { maxRetries: 2, verbose: true },
+      { maxRetries: 1, verbose: true },
     )
     const result = outcome.result.output.detection
     const { tools, usage, completeness, maturityScore, maturityTier, gapAnalysis, recommendations } = result

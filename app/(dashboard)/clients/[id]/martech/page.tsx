@@ -239,7 +239,12 @@ export default function ClientMartechPage() {
       {/* PR6: Essentials — the only thing surfaced by default */}
       {!loading && !detecting && tools.length > 0 && (
         <div style={{ marginBottom: '20px' }}>
-          <MartechEssentials tools={tools} cwv={cwv} />
+          <MartechEssentials
+            tools={tools}
+            cwv={cwv}
+            clientId={clientId}
+            onCategoryRefreshed={fetchMartech}
+          />
         </div>
       )}
 
