@@ -1,6 +1,12 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { criticAgent, shouldForcePause, type CriticVerdict } from './critic-agent';
 import { driverAgent, type DriverTurn } from './driver-agent';
+import {
+  DRIVER_AGENTS,
+  runAgentWithQuality,
+  type Agent,
+  type AgentExecutionContext,
+} from '@/lib/agents';
 import { DRIVERS } from '@/lib/constants';
 
 export interface RunAnalysisResult {
@@ -468,7 +474,77 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
       psi_mobile: apiDataMap.pagespeed_mobile,
       trends_brand_awareness: apiDataMap.semrush_brand_awareness,
     };
-    const driverScores = calculateAllDrivers(driverInputs);
+
+    // ----------------------------------------------------------------
+    // Driver agents — all 9 drivers run through the Agent framework:
+    // each one executes its own methodology, then a per-agent Anthropic
+    // quality judge decides pass/retry/fail (max 2 retries with guidance).
+    // The deterministic calculation still lives inside each agent's
+    // execute(), so when the judge can't run (no Anthropic key, http
+    // error, etc.) the agent emits the deterministic score unchanged.
+    //
+    // Each agent's quality-loop history is persisted onto
+    // driver_results.raw_data.agent_quality for transparency.
+    // ----------------------------------------------------------------
+    const driverScores: Record<string, DriverResult> = {};
+    const driverAgentMeta: Record<string, Record<string, unknown>> = {};
+
+    {
+      const agentCtx: AgentExecutionContext = {
+        domain,
+        country,
+        language,
+        targetTopic: targetTopic || undefined,
+        competitors,
+        priorClarifications: userClarifications,
+        anthropicKey: ANTHROPIC_KEY_FOR_AGENTS || undefined,
+      };
+      const inputs = buildAgentInputs(driverInputs);
+      // Run all 9 in parallel; each agent has its own internal timeout
+      // (Anthropic call 15s ceiling, retry budget capped at 2 retries).
+      await Promise.all(
+        DRIVER_AGENTS.map(async (agent) => {
+          const agentInput = (inputs as Record<string, unknown>)[agent.name];
+          if (agentInput === undefined) return;
+          try {
+            const outcome = await runAgentWithQuality(
+              agent,
+              agentInput,
+              agentCtx,
+              { maxRetries: 2, verbose: false },
+            );
+            const out = outcome.result.output as {
+              driverResult: DriverResult;
+              interpretation?: string;
+              source?: string;
+            };
+            if (out?.driverResult) {
+              driverScores[agent.name] = out.driverResult;
+            }
+            driverAgentMeta[agent.name] = {
+              methodology_label: agent.label,
+              methodology: agent.methodology,
+              interpretation: out?.interpretation ?? '',
+              source: out?.source,
+              attempts: outcome.attempts,
+              passed: outcome.passed,
+              final_score: outcome.finalVerdict.score,
+              final_verdict: outcome.finalVerdict.verdict,
+              history: outcome.history,
+            };
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.warn(`[runAnalysis:driver_agent:${agent.name}] failed, falling back to deterministic:`, message);
+          }
+        }),
+      );
+      // Safety net: if any driver didn't get an agent result, fall back to
+      // the deterministic calc so the rest of the pipeline still sees all 9.
+      const det = calculateAllDrivers(driverInputs);
+      for (const [k, v] of Object.entries(det)) {
+        if (!driverScores[k]) driverScores[k] = v;
+      }
+    }
 
     // ============================
     // PHASE 3: Generate issues
@@ -481,9 +557,14 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
       await updatePhase('generating_issues', 'Identifying problems...');
       for (const [driverName, result] of Object.entries(driverScores)) {
         const issues = allIssues[driverName] || allIssues[driverName.replace('_', '-')] || [];
+        const rawData: Record<string, unknown> = { ...(result.details || {}) };
+        const meta = driverAgentMeta[driverName];
+        if (meta) {
+          rawData.agent_quality = meta;
+        }
         await supabase.from('driver_results').upsert({
           analysis_id: analysisId, driver_name: driverName, score: result.score, status: result.status,
-          issues: issues, solutions: [], raw_data: result.details || {},
+          issues: issues, solutions: [], raw_data: rawData,
         }, { onConflict: 'analysis_id,driver_name' });
       }
 
@@ -840,6 +921,36 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
     }
     return { success: false, analysisId, error: String(error), runtime_ms: Date.now() - startTime };
   }
+}
+
+// ============================================================
+// Per-agent input router. Maps `agent.name` → the narrow input shape
+// the agent's execute() expects. New driver agents just add a case here.
+// ============================================================
+interface DriverInputsMap {
+  semrush_domain_rank?: Record<string, unknown>;
+  semrush_site_health?: Record<string, unknown>;
+  ahrefs_domain_rating?: Record<string, unknown>;
+  ahrefs_ai_relevance?: Record<string, unknown>;
+  dataforseo_ai_overview?: Record<string, unknown>;
+  psi_mobile?: Record<string, unknown>;
+  trends_brand_awareness?: Record<string, unknown>;
+}
+function buildAgentInputs(d: DriverInputsMap): Record<string, unknown> {
+  return {
+    compliance:       { siteHealthData:  d.semrush_site_health  ?? null },
+    experience:       { psiData:         d.psi_mobile           ?? null },
+    discoverability:  { domainRankData:  d.semrush_domain_rank  ?? null },
+    content:          { siteHealthData:  d.semrush_site_health  ?? null },
+    accessibility:    { psiData:         d.psi_mobile           ?? null },
+    authority:        { ahrefsData:      d.ahrefs_domain_rating ?? null },
+    aso_visibility:   { domainRankData:  d.semrush_domain_rank  ?? null },
+    ai_relevance:     {
+      ahrefsAiData:    d.ahrefs_ai_relevance  ?? null,
+      dataforseoAiData: d.dataforseo_ai_overview ?? null,
+    },
+    awareness:        { trendsData:      d.trends_brand_awareness ?? null },
+  };
 }
 
 // ============================================================

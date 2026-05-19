@@ -1113,6 +1113,17 @@ function mergeTools(
  * → Merge → Maturity Score → Gap Analysis → Recommendations
  * ══════════════════════════════════════════════════════════════════ */
 export async function detectMartechStack(domain: string): Promise<DetectionResult> {
+  // LLM-native pipeline — Firecrawl scrape + Sonnet 4.6 analysis.
+  // Default ON whenever FIRECRAWL_API_KEY is configured (handles JS-challenged
+  // sites natively, much higher signal quality). Explicit USE_LLM_MARTECH=false
+  // forces the legacy hybrid for fallback / debugging.
+  const useLlm = process.env.USE_LLM_MARTECH === 'true'
+    || (process.env.USE_LLM_MARTECH !== 'false' && !!process.env.FIRECRAWL_API_KEY)
+  if (useLlm) {
+    const { detectMartechStackLlm } = await import('./detect-llm')
+    return detectMartechStackLlm(domain)
+  }
+
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY not configured. Add the key to environment variables.')
   }

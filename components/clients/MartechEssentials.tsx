@@ -1,10 +1,9 @@
 'use client'
 
-// PR6: stripped-down martech view — only the 6 categories useful for
-// organic SEO reasoning, plus Core Web Vitals mobile + desktop pulled
-// from the client's latest completed analysis. Replaces the dense
-// MartechGrid in the main martech tab; the full grid is still
-// available behind a "Mostra tutto" toggle below for power users.
+// "Fotografia MarTech solida": 4 big cards — CMS, Web Analytics,
+// Core Web Vitals Desktop, Core Web Vitals Mobile. Everything else
+// (CDN, tag manager, marketing automation, etc.) is still available
+// via the "Mostra dettaglio completo" toggle on the parent page.
 
 interface MartechTool {
   id: string
@@ -30,15 +29,9 @@ interface MartechEssentialsProps {
   } | null
 }
 
-/** Categories the user explicitly wants surfaced.
- *  Order matters: this is also the display order. */
 const ESSENTIAL_CATEGORIES: Array<{ key: string; label: string; hint: string }> = [
   { key: 'cms', label: 'CMS', hint: 'Content Management / DXP' },
-  { key: 'cdn', label: 'CDN', hint: 'Content Delivery Network' },
-  { key: 'analytics', label: 'Analytics', hint: 'Web Analytics & BI' },
-  { key: 'tag_manager', label: 'Tag Manager', hint: 'Tag Management & Data Layer' },
-  { key: 'marketing_automation', label: 'Marketing Automation', hint: 'Lead Nurturing & Campaigns' },
-  { key: 'seo', label: 'Schema / SEO', hint: 'Structured Data & SEO Tooling' },
+  { key: 'analytics', label: 'Web Analytics', hint: 'Web Analytics & BI' },
 ]
 
 function scoreColor(score: number | undefined | null): string {
@@ -54,43 +47,6 @@ function scoreLabel(score: number | undefined | null): string {
   return String(Math.round(score))
 }
 
-function PrimaryTool({ tool, fallback }: { tool: MartechTool | null; fallback: string }) {
-  if (!tool) {
-    return (
-      <div style={{
-        fontFamily: "'JetBrains Mono', monospace",
-        fontSize: '28px',
-        fontWeight: 700,
-        color: '#4b5563',
-        letterSpacing: '-0.5px',
-        lineHeight: '1.1',
-      }}>
-        {fallback}
-      </div>
-    )
-  }
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-      <div style={{
-        fontFamily: "'JetBrains Mono', monospace",
-        fontSize: '28px',
-        fontWeight: 700,
-        color: '#ffffff',
-        letterSpacing: '-0.5px',
-        lineHeight: '1.1',
-        wordBreak: 'break-word',
-      }}>
-        {tool.tool_name}
-      </div>
-      {tool.tool_version && (
-        <div style={{ fontSize: '11px', color: '#9ca3af', fontFamily: "'JetBrains Mono', monospace" }}>
-          v{tool.tool_version}
-        </div>
-      )}
-    </div>
-  )
-}
-
 function CategoryCard({
   label,
   hint,
@@ -100,42 +56,73 @@ function CategoryCard({
   hint: string
   tools: MartechTool[]
 }) {
-  // Pick the highest-confidence tool as the "primary" for the big label,
-  // and surface the others as secondaries below.
   const sorted = [...tools].sort((a, b) => b.confidence - a.confidence)
   const primary = sorted[0] ?? null
-  const others = sorted.slice(1)
+  const others = sorted.slice(1, 4)
 
   return (
     <div style={{
       background: '#1a1c24',
-      borderRadius: '12px',
+      borderRadius: '14px',
       border: '1px solid #2a2d35',
-      padding: '20px',
+      padding: '28px',
       display: 'flex',
       flexDirection: 'column',
-      gap: '12px',
-      minHeight: '140px',
+      gap: '16px',
+      minHeight: '220px',
     }}>
       <div style={{
         fontFamily: "'JetBrains Mono', monospace",
-        fontSize: '10px',
+        fontSize: '11px',
         fontWeight: 700,
         color: '#c8e64a',
         textTransform: 'uppercase',
-        letterSpacing: '1px',
+        letterSpacing: '1.5px',
       }}>
         {label}
       </div>
-      <PrimaryTool tool={primary} fallback="—" />
+
+      {primary ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <div style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: '40px',
+            fontWeight: 700,
+            color: '#ffffff',
+            letterSpacing: '-1px',
+            lineHeight: '1.05',
+            wordBreak: 'break-word',
+          }}>
+            {primary.tool_name}
+          </div>
+          {primary.tool_version && (
+            <div style={{ fontSize: '12px', color: '#9ca3af', fontFamily: "'JetBrains Mono', monospace" }}>
+              v{primary.tool_version}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: '40px',
+          fontWeight: 700,
+          color: '#4b5563',
+          letterSpacing: '-1px',
+          lineHeight: '1.05',
+        }}>
+          —
+        </div>
+      )}
+
       <div style={{ flex: 1 }} />
-      <div style={{ fontSize: '11px', color: '#6b7280' }}>
+
+      <div style={{ fontSize: '12px', color: '#6b7280' }}>
         {primary
           ? `${Math.round(primary.confidence * 100)}% confidence · ${hint}`
           : hint}
       </div>
       {others.length > 0 && (
-        <div style={{ fontSize: '11px', color: '#9ca3af' }}>
+        <div style={{ fontSize: '12px', color: '#9ca3af' }}>
           + {others.map(t => t.tool_name).join(', ')}
         </div>
       )}
@@ -159,52 +146,57 @@ function CwvCard({
   return (
     <div style={{
       background: '#1a1c24',
-      borderRadius: '12px',
+      borderRadius: '14px',
       border: `1px solid ${scoreColor(overall)}40`,
-      padding: '20px',
+      padding: '28px',
       display: 'flex',
       flexDirection: 'column',
-      gap: '14px',
-      minHeight: '140px',
+      gap: '18px',
+      minHeight: '220px',
     }}>
       <div style={{
-        display: 'flex',
-        alignItems: 'baseline',
-        justifyContent: 'space-between',
+        fontFamily: "'JetBrains Mono', monospace",
+        fontSize: '11px',
+        fontWeight: 700,
+        color: '#c8e64a',
+        textTransform: 'uppercase',
+        letterSpacing: '1.5px',
       }}>
-        <div style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: '10px',
-          fontWeight: 700,
-          color: '#c8e64a',
-          textTransform: 'uppercase',
-          letterSpacing: '1px',
-        }}>
-          Core Web Vitals · {label}
-        </div>
+        Core Web Vitals · {label}
       </div>
+
       <div style={{
         fontFamily: "'JetBrains Mono', monospace",
-        fontSize: '44px',
+        fontSize: '72px',
         fontWeight: 700,
         color: scoreColor(overall),
         lineHeight: '1',
-        letterSpacing: '-1px',
+        letterSpacing: '-2px',
       }}>
         {scoreLabel(overall)}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', fontSize: '11px' }}>
+
+      <div style={{ flex: 1 }} />
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr 1fr',
+        gap: '8px',
+        fontSize: '12px',
+        paddingTop: '12px',
+        borderTop: '1px solid #2a2d35',
+      }}>
         <div>
-          <div style={{ color: '#6b7280' }}>SEO</div>
-          <div style={{ color: scoreColor(seo), fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{scoreLabel(seo)}</div>
+          <div style={{ color: '#6b7280', marginBottom: '2px' }}>SEO</div>
+          <div style={{ color: scoreColor(seo), fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: '16px' }}>{scoreLabel(seo)}</div>
         </div>
         <div>
-          <div style={{ color: '#6b7280' }}>A11Y</div>
-          <div style={{ color: scoreColor(a11y), fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{scoreLabel(a11y)}</div>
+          <div style={{ color: '#6b7280', marginBottom: '2px' }}>A11Y</div>
+          <div style={{ color: scoreColor(a11y), fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: '16px' }}>{scoreLabel(a11y)}</div>
         </div>
         <div>
-          <div style={{ color: '#6b7280' }}>Best Practices</div>
-          <div style={{ color: scoreColor(bp), fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{scoreLabel(bp)}</div>
+          <div style={{ color: '#6b7280', marginBottom: '2px' }}>Best Pr.</div>
+          <div style={{ color: scoreColor(bp), fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: '16px' }}>{scoreLabel(bp)}</div>
         </div>
       </div>
     </div>
@@ -212,7 +204,6 @@ function CwvCard({
 }
 
 export default function MartechEssentials({ tools, cwv }: MartechEssentialsProps) {
-  // Bucket tools by their category. Defensive against malformed input.
   const byCategory: Record<string, MartechTool[]> = {}
   for (const t of tools) {
     if (!t?.category) continue
@@ -226,8 +217,8 @@ export default function MartechEssentials({ tools, cwv }: MartechEssentialsProps
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-        gap: '12px',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+        gap: '14px',
       }}>
         {ESSENTIAL_CATEGORIES.map(cat => (
           <CategoryCard
@@ -238,8 +229,8 @@ export default function MartechEssentials({ tools, cwv }: MartechEssentialsProps
           />
         ))}
 
-        <CwvCard label="Mobile" data={cwv?.mobile ?? null} />
         <CwvCard label="Desktop" data={cwv?.desktop ?? null} />
+        <CwvCard label="Mobile" data={cwv?.mobile ?? null} />
       </div>
 
       {desktopMissing && (
@@ -252,7 +243,7 @@ export default function MartechEssentials({ tools, cwv }: MartechEssentialsProps
           color: '#6b7280',
           fontFamily: "'JetBrains Mono', monospace",
         }}>
-          ℹ Il dato Desktop non è ancora presente — verrà popolato al prossimo run di analisi (PSI desktop aggiunto in PR6).
+          ℹ Il dato Desktop non è ancora presente — verrà popolato al prossimo run di analisi.
         </div>
       )}
 

@@ -305,10 +305,68 @@ export default function DriverDetail({
                     <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>Scoring</div>
                     {meta.scoring}
                   </div>
-                  <div>
+                  <div style={{ marginBottom: '12px' }}>
                     <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>Livello LLM</div>
                     {meta.llmLayer}
                   </div>
+
+                  {/* Co-pilot quality loop — PR1 pilot, populated for ai_relevance only.
+                      Shows that the agent + quality judge ran and how many retries it took. */}
+                  {(() => {
+                    const aq = rawData?.agent_quality as
+                      | {
+                          attempts?: number
+                          passed?: boolean
+                          final_score?: number
+                          final_verdict?: string
+                          interpretation?: string
+                          source?: string
+                          history?: Array<{ attempt: number; verdict: { verdict: string; score: number; issues?: string[]; guidance?: string } }>
+                        }
+                      | undefined
+                    if (!aq) return null
+                    const verdictColor = aq.passed ? '#22c55e' : aq.final_verdict === 'fail' ? '#ef4444' : '#f59e0b'
+                    return (
+                      <div>
+                        <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>Co-pilot quality loop</div>
+                        <div style={{
+                          padding: '8px 10px',
+                          background: '#1e2028',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '4px',
+                        }}>
+                          <div>
+                            <span style={{ color: verdictColor, fontWeight: 700, textTransform: 'uppercase', fontFamily: "'JetBrains Mono', monospace" }}>
+                              {aq.final_verdict ?? '—'}
+                            </span>
+                            <span style={{ color: '#6b7280', marginLeft: '8px' }}>
+                              attempts: {aq.attempts ?? '—'} · quality score: {aq.final_score ?? '—'}/100
+                            </span>
+                          </div>
+                          {aq.interpretation && (
+                            <div style={{ color: '#a0a0a0', marginTop: '4px' }}>{aq.interpretation}</div>
+                          )}
+                          {aq.history && aq.history.length > 1 && (
+                            <div style={{ marginTop: '6px', borderTop: '1px solid #2a2d35', paddingTop: '6px' }}>
+                              {aq.history.map((h, i) => (
+                                <div key={i} style={{ color: '#6b7280', fontFamily: "'JetBrains Mono', monospace" }}>
+                                  attempt {h.attempt}: {h.verdict.verdict} ({h.verdict.score}/100)
+                                  {h.verdict.guidance && i < aq.history!.length - 1 && (
+                                    <div style={{ paddingLeft: '12px', color: '#9ca3af' }}>
+                                      → guidance: {h.verdict.guidance.slice(0, 160)}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
               )}
             </div>
