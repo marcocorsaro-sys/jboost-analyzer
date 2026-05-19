@@ -15,6 +15,7 @@
 import { calculateAiRelevance } from '@/lib/drivers/ai-relevance';
 import type { DriverResult } from '@/lib/drivers/utils';
 import type { Agent, AgentExecutionContext, AgentRunResult } from '../types';
+import { produceExcellence, type ExcellenceOutput } from '../excellence';
 
 export interface AiRelevanceInput {
   ahrefsAiData: Record<string, unknown> | null;
@@ -31,6 +32,8 @@ export interface AiRelevanceOutput {
   source: 'dataforseo_serp_live' | 'ahrefs_organic_keywords' | 'none';
   /** Guidance the agent absorbed on this attempt (echo, for audit). */
   appliedGuidance?: string;
+  /** PILOT — deep LLM-driven analysis. Findings, recommendations, Q&A. */
+  excellence?: ExcellenceOutput;
 }
 
 export const AI_RELEVANCE_METHODOLOGY = `Analizza la visibilità del dominio dentro le risposte generative dei motori di ricerca (AI Overview, Featured Snippet, People Also Ask).
@@ -50,7 +53,7 @@ class AiRelevanceAgent implements Agent<AiRelevanceInput, AiRelevanceOutput> {
 
   async execute(
     input: AiRelevanceInput,
-    _ctx: AgentExecutionContext,
+    ctx: AgentExecutionContext,
     guidance?: string,
   ): Promise<AgentRunResult<AiRelevanceOutput>> {
     const driverResult = calculateAiRelevance(input.ahrefsAiData, input.dataforseoAiData);
@@ -81,20 +84,40 @@ class AiRelevanceAgent implements Agent<AiRelevanceInput, AiRelevanceOutput> {
 
     const interpretation = buildInterpretation(driverResult, source);
 
+    // Excellence layer — deep LLM analysis with findings + recommendations.
+    // Fed the same fact sheet the deterministic calc saw, plus any prior
+    // user clarifications from the analysis. Skipped silently if no key.
+    const factSheet = [
+      `Score: ${driverResult.score === null ? 'null (no_results)' : driverResult.score} / 100`,
+      `Status: ${driverResult.status}`,
+      `Source: ${source}`,
+      ...Object.entries(details).map(([k, v]) => `${k}: ${JSON.stringify(v)}`),
+    ].join('\n');
+    const excellence = await produceExcellence({
+      driverName: 'ai_relevance',
+      driverLabel: 'AI Relevance',
+      methodology: AI_RELEVANCE_METHODOLOGY,
+      factSheet,
+      context: ctx,
+      anthropicKey: ctx.anthropicKey,
+    });
+
     return {
       output: {
         driverResult,
         interpretation,
         source,
         appliedGuidance: guidance,
+        excellence,
       },
       evidence,
+      usage: excellence.usage,
       notes: guidance ? [`Retry guidance applied: ${guidance.slice(0, 200)}`] : undefined,
     };
   }
 
   summarizeForQuality(result: AgentRunResult<AiRelevanceOutput>): string {
-    const { driverResult, source, interpretation } = result.output;
+    const { driverResult, source, interpretation, excellence } = result.output;
     const details = driverResult.details ?? {};
     const lines: string[] = [];
     lines.push(`score: ${driverResult.score ?? 'null'} / 100`);
@@ -110,6 +133,11 @@ class AiRelevanceAgent implements Agent<AiRelevanceInput, AiRelevanceOutput> {
       lines.push(`featured_snippet_keywords: ${details.featured_snippet_keywords}`);
     }
     lines.push(`interpretation: ${interpretation}`);
+    if (excellence && !excellence.skipped) {
+      lines.push(`executive_summary: ${excellence.executive_summary}`);
+      lines.push(`findings: ${excellence.findings.length}`);
+      lines.push(`recommendations: ${excellence.recommendations.length}`);
+    }
     return lines.join('\n');
   }
 }

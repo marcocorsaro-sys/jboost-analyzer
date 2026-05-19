@@ -95,6 +95,31 @@ export default function DriverDetail({
   const meta = DRIVER_METADATA[driverName as DriverKey]
   const [showDetails, setShowDetails] = useState(false)
 
+  // Per-driver rerun — independent re-execution of the agent loop.
+  const [rerunning, setRerunning] = useState(false)
+  const [rerunError, setRerunError] = useState<string | null>(null)
+  async function handleRerun(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!analysisId) return
+    setRerunning(true)
+    setRerunError(null)
+    try {
+      const res = await fetch(
+        `/api/analyses/${analysisId}/driver/${encodeURIComponent(driverName)}/rerun`,
+        { method: 'POST', credentials: 'same-origin' },
+      )
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `HTTP ${res.status}`)
+      }
+      onAgentAnswered?.()
+    } catch (err) {
+      setRerunError(err instanceof Error ? err.message : 'rerun failed')
+    } finally {
+      setRerunning(false)
+    }
+  }
+
   async function handleSubmit() {
     if (!analysisId) return
     const trimmed: Record<string, string> = {}
@@ -241,6 +266,122 @@ export default function DriverDetail({
       {/* Expanded content */}
       {expanded && (
         <div style={{ padding: '0 20px 20px', borderTop: '1px solid #2a2d35' }}>
+          {/* Rerun bar — independent re-execution of this driver agent. */}
+          {analysisId && (
+            <div style={{
+              marginTop: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+            }}>
+              <div style={{ fontSize: '11px', color: '#6b7280', fontFamily: "'JetBrains Mono', monospace", textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Driver indipendente
+              </div>
+              <button
+                type="button"
+                onClick={handleRerun}
+                disabled={rerunning}
+                style={{
+                  padding: '6px 14px',
+                  background: rerunning ? '#2a2d35' : '#1e2028',
+                  color: rerunning ? '#6b7280' : '#c8e64a',
+                  border: '1px solid #c8e64a40',
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  cursor: rerunning ? 'default' : 'pointer',
+                }}
+                title="Re-esegue solo questo driver, indipendente dall'analisi"
+              >
+                {rerunning ? '↻ Rilancio…' : '↻ Rilancia driver'}
+              </button>
+            </div>
+          )}
+          {rerunError && (
+            <div style={{ marginTop: '6px', fontSize: '11px', color: '#ef4444' }}>
+              {rerunError}
+            </div>
+          )}
+
+          {/* Co-pilot quality loop summary — always visible when populated.
+              Was previously hidden inside the "Dettagli" toggle; now in evidence
+              so the user sees verdict + retries + interpretation up-front. */}
+          {(() => {
+            const aq = rawData?.agent_quality as
+              | {
+                  attempts?: number
+                  passed?: boolean
+                  final_score?: number
+                  final_verdict?: string
+                  interpretation?: string
+                  source?: string
+                  history?: Array<{ attempt: number; verdict: { verdict: string; score: number; issues?: string[]; guidance?: string } }>
+                }
+              | undefined
+            if (!aq) return null
+            const verdictColor = aq.passed ? '#22c55e' : aq.final_verdict === 'fail' ? '#ef4444' : '#f59e0b'
+            return (
+              <div style={{ marginTop: '14px' }}>
+                <div style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: '#c8e64a',
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px',
+                  marginBottom: '6px',
+                }}>
+                  Co-pilot quality
+                </div>
+                <div style={{
+                  padding: '10px 12px',
+                  background: '#1e2028',
+                  borderRadius: '8px',
+                  border: '1px solid #2a2d35',
+                  fontSize: '12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                }}>
+                  <div>
+                    <span style={{ color: verdictColor, fontWeight: 700, textTransform: 'uppercase', fontFamily: "'JetBrains Mono', monospace" }}>
+                      {aq.final_verdict ?? '—'}
+                    </span>
+                    <span style={{ color: '#6b7280', marginLeft: '8px' }}>
+                      tentativi: {aq.attempts ?? '—'} · quality score: {aq.final_score ?? '—'}/100
+                    </span>
+                  </div>
+                  {aq.interpretation && (
+                    <div style={{ color: '#cfcfcf', lineHeight: 1.5 }}>{aq.interpretation}</div>
+                  )}
+                  {aq.history && aq.history.length > 1 && (
+                    <details>
+                      <summary style={{ cursor: 'pointer', color: '#6b7280', fontSize: '11px', fontFamily: "'JetBrains Mono', monospace" }}>
+                        Storia tentativi
+                      </summary>
+                      <div style={{ marginTop: '4px' }}>
+                        {aq.history.map((h, i) => (
+                          <div key={i} style={{ color: '#9ca3af', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
+                            attempt {h.attempt}: {h.verdict.verdict} ({h.verdict.score}/100)
+                            {h.verdict.guidance && i < aq.history!.length - 1 && (
+                              <div style={{ paddingLeft: '14px', color: '#9ca3af' }}>
+                                → guidance: {h.verdict.guidance.slice(0, 200)}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              </div>
+            )
+          })()}
+
           {/* Dettagli — transparency on data sources, formula, LLM layer */}
           {meta && (
             <div style={{ marginTop: '16px' }}>
@@ -305,72 +446,138 @@ export default function DriverDetail({
                     <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>Scoring</div>
                     {meta.scoring}
                   </div>
-                  <div style={{ marginBottom: '12px' }}>
+                  <div>
                     <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>Livello LLM</div>
                     {meta.llmLayer}
                   </div>
-
-                  {/* Co-pilot quality loop — PR1 pilot, populated for ai_relevance only.
-                      Shows that the agent + quality judge ran and how many retries it took. */}
-                  {(() => {
-                    const aq = rawData?.agent_quality as
-                      | {
-                          attempts?: number
-                          passed?: boolean
-                          final_score?: number
-                          final_verdict?: string
-                          interpretation?: string
-                          source?: string
-                          history?: Array<{ attempt: number; verdict: { verdict: string; score: number; issues?: string[]; guidance?: string } }>
-                        }
-                      | undefined
-                    if (!aq) return null
-                    const verdictColor = aq.passed ? '#22c55e' : aq.final_verdict === 'fail' ? '#ef4444' : '#f59e0b'
-                    return (
-                      <div>
-                        <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>Co-pilot quality loop</div>
-                        <div style={{
-                          padding: '8px 10px',
-                          background: '#1e2028',
-                          borderRadius: '6px',
-                          fontSize: '11px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '4px',
-                        }}>
-                          <div>
-                            <span style={{ color: verdictColor, fontWeight: 700, textTransform: 'uppercase', fontFamily: "'JetBrains Mono', monospace" }}>
-                              {aq.final_verdict ?? '—'}
-                            </span>
-                            <span style={{ color: '#6b7280', marginLeft: '8px' }}>
-                              attempts: {aq.attempts ?? '—'} · quality score: {aq.final_score ?? '—'}/100
-                            </span>
-                          </div>
-                          {aq.interpretation && (
-                            <div style={{ color: '#a0a0a0', marginTop: '4px' }}>{aq.interpretation}</div>
-                          )}
-                          {aq.history && aq.history.length > 1 && (
-                            <div style={{ marginTop: '6px', borderTop: '1px solid #2a2d35', paddingTop: '6px' }}>
-                              {aq.history.map((h, i) => (
-                                <div key={i} style={{ color: '#6b7280', fontFamily: "'JetBrains Mono', monospace" }}>
-                                  attempt {h.attempt}: {h.verdict.verdict} ({h.verdict.score}/100)
-                                  {h.verdict.guidance && i < aq.history!.length - 1 && (
-                                    <div style={{ paddingLeft: '12px', color: '#9ca3af' }}>
-                                      → guidance: {h.verdict.guidance.slice(0, 160)}
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })()}
                 </div>
               )}
             </div>
           )}
+
+          {/* Excellence — detailed LLM-driven analysis (findings + recommendations).
+              Populated for pilot agents (AI Relevance, Authority); other drivers
+              will gain it incrementally. */}
+          {(() => {
+            const aq = rawData?.agent_quality as { excellence?: {
+              executive_summary?: string
+              findings?: Array<{ title: string; detail: string; signal: 'positive' | 'concern' | 'neutral'; evidence: string[] }>
+              recommendations?: Array<{ title: string; detail: string; priority: 'high' | 'medium' | 'low'; effort: string }>
+              clarification_questions?: Array<{ id: string; text: string; options?: string[] }>
+              skipped?: boolean
+            } } | undefined
+            const ex = aq?.excellence
+            if (!ex || ex.skipped) return null
+            const sigColor = (s: string) => s === 'positive' ? '#22c55e' : s === 'concern' ? '#ef4444' : '#6b7280'
+            const prColor = (p: string) => p === 'high' ? '#ef4444' : p === 'medium' ? '#f59e0b' : '#6b7280'
+            return (
+              <div style={{ marginTop: '18px' }}>
+                <div style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: '#14b8a6',
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px',
+                  marginBottom: '8px',
+                }}>
+                  Analisi dettagliata
+                </div>
+                {ex.executive_summary && (
+                  <div style={{
+                    padding: '12px 14px',
+                    background: '#14b8a610',
+                    borderLeft: '3px solid #14b8a6',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    color: '#ffffff',
+                    lineHeight: '1.6',
+                    marginBottom: '12px',
+                  }}>
+                    {ex.executive_summary}
+                  </div>
+                )}
+                {ex.findings && ex.findings.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                    {ex.findings.map((f, i) => (
+                      <div key={i} style={{
+                        padding: '10px 12px',
+                        background: '#1e2028',
+                        borderRadius: '6px',
+                        borderLeft: `3px solid ${sigColor(f.signal)}`,
+                      }}>
+                        <div style={{ color: '#ffffff', fontWeight: 600, fontSize: '13px', marginBottom: '4px' }}>
+                          {f.title}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#cfcfcf', lineHeight: '1.6' }}>{f.detail}</div>
+                        {f.evidence && f.evidence.length > 0 && (
+                          <div style={{
+                            marginTop: '6px',
+                            fontSize: '11px',
+                            color: '#9ca3af',
+                            fontFamily: "'JetBrains Mono', monospace",
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: '6px',
+                          }}>
+                            {f.evidence.map((e, j) => (
+                              <span key={j} style={{
+                                padding: '2px 8px',
+                                background: '#111318',
+                                borderRadius: '4px',
+                                border: '1px solid #2a2d35',
+                              }}>{e}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {ex.recommendations && ex.recommendations.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      color: '#c8e64a',
+                      textTransform: 'uppercase',
+                      letterSpacing: '1px',
+                    }}>
+                      Raccomandazioni
+                    </div>
+                    {ex.recommendations.map((r, i) => (
+                      <div key={i} style={{
+                        padding: '10px 12px',
+                        background: '#1e2028',
+                        borderRadius: '6px',
+                        borderLeft: `3px solid ${prColor(r.priority)}`,
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginBottom: '4px',
+                        }}>
+                          <div style={{ color: '#ffffff', fontWeight: 600, fontSize: '13px' }}>{r.title}</div>
+                          <div style={{ display: 'flex', gap: '6px', fontFamily: "'JetBrains Mono', monospace" }}>
+                            <span style={{
+                              fontSize: '10px',
+                              color: prColor(r.priority),
+                              textTransform: 'uppercase',
+                              fontWeight: 700,
+                            }}>{r.priority}</span>
+                            <span style={{ fontSize: '10px', color: '#6b7280' }}>{r.effort}</span>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#cfcfcf', lineHeight: '1.6' }}>{r.detail}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           {/* Driver Interpreter Agent — chat thread + observations */}
           {hasAgentContent && (

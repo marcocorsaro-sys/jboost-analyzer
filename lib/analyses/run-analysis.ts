@@ -517,6 +517,7 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
               driverResult: DriverResult;
               interpretation?: string;
               source?: string;
+              excellence?: Record<string, unknown>;
             };
             if (out?.driverResult) {
               driverScores[agent.name] = out.driverResult;
@@ -526,6 +527,7 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
               methodology: agent.methodology,
               interpretation: out?.interpretation ?? '',
               source: out?.source,
+              excellence: out?.excellence,
               attempts: outcome.attempts,
               passed: outcome.passed,
               final_score: outcome.finalVerdict.score,

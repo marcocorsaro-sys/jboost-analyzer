@@ -3,6 +3,7 @@
 import { calculateAuthority } from '@/lib/drivers/authority';
 import type { DriverResult } from '@/lib/drivers/utils';
 import type { Agent, AgentExecutionContext, AgentRunResult } from '../types';
+import { produceExcellence, type ExcellenceOutput } from '../excellence';
 
 export interface AuthorityInput {
   ahrefsData: Record<string, unknown> | null;
@@ -12,6 +13,7 @@ export interface AuthorityOutput {
   driverResult: DriverResult;
   interpretation: string;
   appliedGuidance?: string;
+  excellence?: ExcellenceOutput;
 }
 
 export const AUTHORITY_METHODOLOGY = `Misura l'autorevolezza del dominio basata sul profilo backlink.
@@ -29,7 +31,7 @@ class AuthorityAgent implements Agent<AuthorityInput, AuthorityOutput> {
 
   async execute(
     input: AuthorityInput,
-    _ctx: AgentExecutionContext,
+    ctx: AgentExecutionContext,
     guidance?: string,
   ): Promise<AgentRunResult<AuthorityOutput>> {
     const driverResult = calculateAuthority(input.ahrefsData);
@@ -46,15 +48,32 @@ class AuthorityAgent implements Agent<AuthorityInput, AuthorityOutput> {
     }
 
     const interpretation = buildInterpretation(driverResult);
+
+    // Excellence layer — deep LLM analysis of the backlink authority signal.
+    const factSheet = [
+      `Score: ${driverResult.score === null ? 'null' : driverResult.score} / 100`,
+      `Status: ${driverResult.status}`,
+      ...Object.entries(details).map(([k, v]) => `${k}: ${JSON.stringify(v)}`),
+    ].join('\n');
+    const excellence = await produceExcellence({
+      driverName: 'authority',
+      driverLabel: 'Authority',
+      methodology: AUTHORITY_METHODOLOGY,
+      factSheet,
+      context: ctx,
+      anthropicKey: ctx.anthropicKey,
+    });
+
     return {
-      output: { driverResult, interpretation, appliedGuidance: guidance },
+      output: { driverResult, interpretation, appliedGuidance: guidance, excellence },
       evidence,
+      usage: excellence.usage,
       notes: guidance ? [`Retry guidance applied: ${guidance.slice(0, 200)}`] : undefined,
     };
   }
 
   summarizeForQuality(result: AgentRunResult<AuthorityOutput>): string {
-    const { driverResult, interpretation } = result.output;
+    const { driverResult, interpretation, excellence } = result.output;
     const lines: string[] = [];
     lines.push(`score: ${driverResult.score ?? 'null'} / 100`);
     lines.push(`status: ${driverResult.status}`);
@@ -62,6 +81,11 @@ class AuthorityAgent implements Agent<AuthorityInput, AuthorityOutput> {
     if (d?.domain_rating !== undefined) lines.push(`domain_rating: ${d.domain_rating}`);
     if (d?.is_mock) lines.push(`is_mock: true (Ahrefs API not available)`);
     lines.push(`interpretation: ${interpretation}`);
+    if (excellence && !excellence.skipped) {
+      lines.push(`executive_summary: ${excellence.executive_summary}`);
+      lines.push(`findings: ${excellence.findings.length}`);
+      lines.push(`recommendations: ${excellence.recommendations.length}`);
+    }
     return lines.join('\n');
   }
 }

@@ -1,4 +1,4 @@
-import ClientForm from '@/components/clients/ClientForm'
+import NewProspectIntake from '@/components/clients/NewProspectIntake'
 import T from '@/components/ui/T'
 
 export default function NewProspectPage() {
@@ -14,7 +14,7 @@ export default function NewProspectPage() {
         <T k="clients.new_prospect_title" />
       </h1>
       <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
-        <T k="clients.new_prospect_subtitle" />
+        Incolla la URL del dominio. Estraiamo automaticamente nome, settore, paese, lingua e 4 competitor.
       </p>
 
       {/* Warning banner: all new clients are created as prospects */}
@@ -36,7 +36,7 @@ export default function NewProspectPage() {
         border: '1px solid #2a2d35',
         padding: '24px',
       }}>
-        <ClientForm mode="create" />
+        <NewProspectIntake />
       </div>
     </div>
   )
