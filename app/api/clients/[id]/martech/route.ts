@@ -83,6 +83,76 @@ export async function GET(
     }
   }
 
+  // "PSI dati MAI vuoti" guarantee — if the latest analysis didn't persist
+  // a strategy (older deploy, fetcher failure, resumed analysis), look at
+  // the cwv_cache stashed in client_martech_reports, then fall back to a
+  // live PSI fetch. Persisted with 7-day TTL so the slow path only fires
+  // when truly needed.
+  const isEmpty = (d: Record<string, unknown> | null): boolean => {
+    if (!d) return true
+    const keys = ['performance_score', 'seo_score', 'accessibility_score', 'best_practices_score']
+    return keys.every(k => !d[k] || d[k] === 0)
+  }
+  if (client.domain && (isEmpty(cwvMobile) || isEmpty(cwvDesktop))) {
+    const cache = (report?.cwv_cache ?? null) as
+      | { mobile?: Record<string, unknown> | null; desktop?: Record<string, unknown> | null; fetched_at?: string }
+      | null
+    const cacheFreshMs = 7 * 24 * 60 * 60 * 1000
+    const cacheAge = cache?.fetched_at ? Date.now() - new Date(cache.fetched_at).getTime() : Infinity
+    const cacheFresh = cacheAge < cacheFreshMs
+    if (cacheFresh && cache) {
+      if (isEmpty(cwvMobile) && !isEmpty(cache.mobile ?? null)) cwvMobile = cache.mobile ?? null
+      if (isEmpty(cwvDesktop) && !isEmpty(cache.desktop ?? null)) cwvDesktop = cache.desktop ?? null
+    }
+
+    if (isEmpty(cwvMobile) || isEmpty(cwvDesktop)) {
+      // Read PSI key from app_config (db) with env fallback. Skip if no key.
+      let psiKey = process.env.GOOGLE_PSI_API_KEY || ''
+      try {
+        const { data: cfgRows } = await supabase
+          .from('app_config')
+          .select('key, value')
+          .eq('key', 'GOOGLE_PSI_API_KEY')
+          .maybeSingle()
+        if (cfgRows?.value) psiKey = cfgRows.value
+      } catch {
+        /* ignore — fall back to env */
+      }
+
+      if (psiKey) {
+        const liveResults = await Promise.allSettled([
+          isEmpty(cwvMobile) ? fetchLivePsi(client.domain, psiKey, 'mobile') : Promise.resolve(null),
+          isEmpty(cwvDesktop) ? fetchLivePsi(client.domain, psiKey, 'desktop') : Promise.resolve(null),
+        ])
+        const liveMobile = liveResults[0].status === 'fulfilled' ? liveResults[0].value : null
+        const liveDesktop = liveResults[1].status === 'fulfilled' ? liveResults[1].value : null
+        if (liveMobile && !isEmpty(liveMobile)) cwvMobile = liveMobile
+        if (liveDesktop && !isEmpty(liveDesktop)) cwvDesktop = liveDesktop
+
+        // Persist whatever we got (best-effort, non-blocking on failure) so
+        // subsequent loads are instant.
+        if (!isEmpty(cwvMobile) || !isEmpty(cwvDesktop)) {
+          const newCache = {
+            mobile: !isEmpty(cwvMobile) ? cwvMobile : (cache?.mobile ?? null),
+            desktop: !isEmpty(cwvDesktop) ? cwvDesktop : (cache?.desktop ?? null),
+            fetched_at: new Date().toISOString(),
+          }
+          const updatedReport = { ...(report ?? {}), cwv_cache: newCache }
+          supabase
+            .from('client_martech_reports')
+            .upsert({
+              client_id: params.id,
+              completeness: updatedReport,
+              created_at: new Date().toISOString(),
+            }, { onConflict: 'client_id' })
+            .then(({ error }) => {
+              if (error) console.warn('[martech:cwv_cache] persist failed:', error.message)
+            })
+        }
+      }
+    }
+  }
+
   return NextResponse.json({
     martech: martech || [],
     domain: client.domain,
@@ -265,3 +335,40 @@ export async function POST(
     }, { status: 500 })
   }
 }
+
+// Live PSI fetcher used by GET to backfill missing CWV. Mirrors what
+// run-analysis.ts does in phase 1, but bounded to a single strategy and
+// returns null on any failure (caller is best-effort).
+async function fetchLivePsi(
+  domain: string,
+  apiKey: string,
+  strategy: 'mobile' | 'desktop',
+): Promise<Record<string, unknown> | null> {
+  const url =
+    `https://www.googleapis.com/pagespeedonline/v5/runPagespeed` +
+    `?url=https://${domain}&key=${apiKey}&strategy=${strategy}` +
+    `&category=performance&category=accessibility&category=seo&category=best-practices`
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 45_000)
+  try {
+    const res = await fetch(url, { signal: ctrl.signal })
+    if (!res.ok) {
+      console.warn(`[martech:cwv_live:${strategy}] PSI ${res.status}`)
+      return null
+    }
+    const d = await res.json()
+    const cats = d.lighthouseResult?.categories || {}
+    return {
+      performance_score: Math.round((cats.performance?.score ?? 0) * 100),
+      accessibility_score: Math.round((cats.accessibility?.score ?? 0) * 100),
+      seo_score: Math.round((cats.seo?.score ?? 0) * 100),
+      best_practices_score: Math.round((cats['best-practices']?.score ?? 0) * 100),
+    }
+  } catch (err) {
+    console.warn(`[martech:cwv_live:${strategy}] failed:`, (err as Error).message)
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
