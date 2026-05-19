@@ -13,6 +13,7 @@
 
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import {
   DRIVER_AGENTS,
   runAgentWithQuality,
@@ -36,10 +37,17 @@ interface DriverInputsMap {
 
 function buildAgentInputs(d: DriverInputsMap): Record<string, unknown> {
   return {
-    compliance:       { siteHealthData:  d.semrush_site_health  ?? null },
+    compliance:       {
+      siteHealthData: d.semrush_site_health ?? null,
+      psiData:        d.psi_mobile          ?? null,
+    },
     experience:       { psiData:         d.psi_mobile           ?? null },
     discoverability:  { domainRankData:  d.semrush_domain_rank  ?? null },
-    content:          { siteHealthData:  d.semrush_site_health  ?? null },
+    content:          {
+      siteHealthData: d.semrush_site_health ?? null,
+      psiData:        d.psi_mobile          ?? null,
+      domainRankData: d.semrush_domain_rank ?? null,
+    },
     accessibility:    { psiData:         d.psi_mobile           ?? null },
     authority:        { ahrefsData:      d.ahrefs_domain_rating ?? null },
     aso_visibility:   { domainRankData:  d.semrush_domain_rank  ?? null },
@@ -206,18 +214,46 @@ export async function POST(
     },
   }
 
-  const { error: updErr } = await supabase
-    .from('driver_results')
-    .update({
-      score: result.score,
-      status: result.status,
-      raw_data: newRawData,
+  // Use service-role for the actual update — supabase JS doesn't reliably
+  // populate update affected-row counts when an RLS predicate evaluates
+  // false-but-no-error, so the user-role .update() can silently no-op.
+  // We've already authorized above (admin OR editor), so service-role is
+  // safe here.
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
+  let updateRows: Array<{ id: string }> | null = null
+  let updateError: { message: string } | null = null
+  if (serviceRoleKey && supabaseUrl) {
+    const admin = createAdminClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
     })
-    .eq('analysis_id', params.id)
-    .eq('driver_name', agent.name)
+    const res = await admin
+      .from('driver_results')
+      .update({ score: result.score, status: result.status, raw_data: newRawData })
+      .eq('analysis_id', params.id)
+      .eq('driver_name', agent.name)
+      .select('id')
+    updateRows = res.data ?? null
+    updateError = res.error
+  } else {
+    const res = await supabase
+      .from('driver_results')
+      .update({ score: result.score, status: result.status, raw_data: newRawData })
+      .eq('analysis_id', params.id)
+      .eq('driver_name', agent.name)
+      .select('id')
+    updateRows = res.data ?? null
+    updateError = res.error
+  }
 
-  if (updErr) {
-    return NextResponse.json({ error: `DB update failed: ${updErr.message}` }, { status: 500 })
+  if (updateError) {
+    return NextResponse.json({ error: `DB update failed: ${updateError.message}` }, { status: 500 })
+  }
+  if (!updateRows || updateRows.length === 0) {
+    return NextResponse.json(
+      { error: `Driver row not found for analysis ${params.id} / driver ${agent.name}` },
+      { status: 404 },
+    )
   }
 
   logActivity({

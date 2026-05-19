@@ -940,10 +940,17 @@ interface DriverInputsMap {
 }
 function buildAgentInputs(d: DriverInputsMap): Record<string, unknown> {
   return {
-    compliance:       { siteHealthData:  d.semrush_site_health  ?? null },
+    compliance:       {
+      siteHealthData: d.semrush_site_health ?? null,
+      psiData:        d.psi_mobile          ?? null,
+    },
     experience:       { psiData:         d.psi_mobile           ?? null },
     discoverability:  { domainRankData:  d.semrush_domain_rank  ?? null },
-    content:          { siteHealthData:  d.semrush_site_health  ?? null },
+    content:          {
+      siteHealthData: d.semrush_site_health ?? null,
+      psiData:        d.psi_mobile          ?? null,
+      domainRankData: d.semrush_domain_rank ?? null,
+    },
     accessibility:    { psiData:         d.psi_mobile           ?? null },
     authority:        { ahrefsData:      d.ahrefs_domain_rating ?? null },
     aso_visibility:   { domainRankData:  d.semrush_domain_rank  ?? null },

@@ -6,6 +6,7 @@ import type { Agent, AgentExecutionContext, AgentRunResult } from '../types';
 
 export interface ComplianceInput {
   siteHealthData: Record<string, unknown> | null;
+  psiData: Record<string, unknown> | null;
 }
 
 export interface ComplianceOutput {
@@ -30,13 +31,15 @@ class ComplianceAgent implements Agent<ComplianceInput, ComplianceOutput> {
     _ctx: AgentExecutionContext,
     guidance?: string,
   ): Promise<AgentRunResult<ComplianceOutput>> {
-    const driverResult = calculateCompliance(input.siteHealthData);
+    const driverResult = calculateCompliance(input.siteHealthData, input.psiData);
     const details = driverResult.details ?? {};
     const evidence: string[] = [];
-    if (details.site_health_score !== undefined) {
+    if (details.source === 'pagespeed_seo') {
+      evidence.push(`Lighthouse SEO score (mobile): ${details.seo_score}`);
+    } else if (details.source === 'semrush_site_health') {
       evidence.push(`SEMrush site_health_score: ${details.site_health_score}`);
     } else {
-      evidence.push('No site_health_score in SEMrush Site Audit response');
+      evidence.push('Né PSI SEO né SEMrush Site Audit hanno dati per questo dominio');
     }
 
     const interpretation = buildInterpretation(driverResult);
