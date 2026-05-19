@@ -237,7 +237,7 @@ export async function refetchForDriver(
     compliance: [collectSemrushSiteHealth, collectPsi],
     experience: [collectPsi],
     accessibility: [collectPsi],
-    content: [collectSemrushSiteHealth],
+    content: [collectSemrushSiteHealth, collectPsi, collectSemrushDomain],
     discoverability: [collectSemrushDomain],
     aso_visibility: [collectSemrushDomain],
     authority: [collectAhrefsDr],

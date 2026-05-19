@@ -6,6 +6,8 @@ import type { Agent, AgentExecutionContext, AgentRunResult } from '../types';
 
 export interface ContentInput {
   siteHealthData: Record<string, unknown> | null;
+  psiData: Record<string, unknown> | null;
+  domainRankData: Record<string, unknown> | null;
 }
 
 export interface ContentOutput {
@@ -32,12 +34,13 @@ class ContentAgent implements Agent<ContentInput, ContentOutput> {
     _ctx: AgentExecutionContext,
     guidance?: string,
   ): Promise<AgentRunResult<ContentOutput>> {
-    const driverResult = calculateContent(input.siteHealthData);
+    const driverResult = calculateContent(input.siteHealthData, input.psiData, input.domainRankData);
     const details = driverResult.details ?? {};
     const evidence: string[] = [];
-    if (details.pagesCrawled !== undefined) evidence.push(`Pages crawled: ${details.pagesCrawled}`);
-    if (details.totalErrorPages !== undefined) evidence.push(`Pages with errors: ${details.totalErrorPages}`);
-    if (details.errorRatio !== undefined) evidence.push(`Error ratio: ${details.errorRatio}`);
+    if (details.signalCount !== undefined) evidence.push(`Segnali aggregati: ${details.signalCount}/3`);
+    if (details.best_practices_score !== undefined) evidence.push(`Lighthouse Best Practices: ${details.best_practices_score}`);
+    if (details.pagesCrawled !== undefined) evidence.push(`Pages crawled: ${details.pagesCrawled}, errors: ${details.errorPages ?? 0} (ratio ${details.errorRatio})`);
+    if (details.keywordsScore !== undefined) evidence.push(`SEMrush organic keywords: ${details.organicKeywords} (keyword score ${details.keywordsScore})`);
 
     const interpretation = buildInterpretation(driverResult);
     return {
