@@ -1,9 +1,11 @@
-import ClientForm from '@/components/clients/ClientForm'
+import NewProspectIntake from '@/components/clients/NewProspectIntake'
 import T from '@/components/ui/T'
 
-// Note: all new clients are created with lifecycle_stage='prospect' (API default).
-// The user-facing "+ New Prospect" CTA now points to /pre-sales/new, but this
-// route is kept for backwards compatibility with deep links / bookmarks.
+// Route kept for backwards compatibility with deep links/bookmarks.
+// Identical UX to /pre-sales/new — URL-first intake powered by Firecrawl
+// + Sonnet to auto-fill name, country, language, industry and 4
+// competitor suggestions. All new clients still start as prospect
+// (the API enforces lifecycle_stage='prospect' on POST /api/clients).
 export default function NewClientPage() {
   return (
     <div style={{ maxWidth: '800px' }}>
@@ -17,7 +19,7 @@ export default function NewClientPage() {
         <T k="clients.new_prospect_title" />
       </h1>
       <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
-        <T k="clients.new_prospect_subtitle" />
+        Incolla la URL del cliente. Estraiamo automaticamente nome, settore, paese, lingua e 4 competitor.
       </p>
 
       {/* Warning banner: all new clients are created as prospects */}
@@ -39,7 +41,7 @@ export default function NewClientPage() {
         border: '1px solid #2a2d35',
         padding: '24px',
       }}>
-        <ClientForm mode="create" />
+        <NewProspectIntake />
       </div>
     </div>
   )
