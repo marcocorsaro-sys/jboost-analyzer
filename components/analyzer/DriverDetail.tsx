@@ -417,37 +417,87 @@ export default function DriverDetail({
                   color: '#a0a0a0',
                   lineHeight: '1.6',
                 }}>
-                  <div style={{ marginBottom: '12px' }}>
-                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>Cosa misura</div>
+                  <div style={{ marginBottom: '14px' }}>
+                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>1. Cosa misura</div>
                     {meta.whatItMeasures}
                   </div>
-                  <div style={{ marginBottom: '12px' }}>
-                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '6px' }}>Fonti dati</div>
-                    {meta.sources.map((s, i) => (
-                      <div key={i} style={{
-                        padding: '8px 10px',
-                        background: '#1e2028',
-                        borderRadius: '6px',
-                        marginBottom: '6px',
-                      }}>
-                        <div style={{ color: '#14b8a6', fontSize: '11px', fontWeight: 600 }}>{s.provider}</div>
-                        <div style={{ color: '#ffffff', fontSize: '12px' }}>{s.endpoint}</div>
-                        <div style={{ fontSize: '11px', color: '#6b7280', fontFamily: "'JetBrains Mono', monospace", marginTop: '2px' }}>
-                          {s.fields.join(' · ')}
+
+                  <div style={{ marginBottom: '14px' }}>
+                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>2. Quale dato è studiato</div>
+                    {meta.dataSpecifics}
+                  </div>
+
+                  <div style={{ marginBottom: '14px' }}>
+                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>3. Con che tecnologia</div>
+                    {meta.technology}
+                    <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {meta.sources.map((s, i) => (
+                        <div key={i} style={{
+                          padding: '8px 10px',
+                          background: '#1e2028',
+                          borderRadius: '6px',
+                        }}>
+                          <div style={{ color: '#14b8a6', fontSize: '11px', fontWeight: 600 }}>{s.provider}</div>
+                          <div style={{ color: '#ffffff', fontSize: '12px' }}>{s.endpoint}</div>
+                          <div style={{ fontSize: '11px', color: '#6b7280', fontFamily: "'JetBrains Mono', monospace", marginTop: '2px' }}>
+                            {s.fields.join(' · ')}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                  <div style={{ marginBottom: '12px' }}>
-                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>Formula</div>
-                    {meta.formula}
+
+                  <div style={{ marginBottom: '14px' }}>
+                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>4. Come si calcola il punteggio</div>
+                    <div style={{ marginBottom: '6px' }}>{meta.formula}</div>
+                    <div style={{
+                      padding: '8px 10px',
+                      background: '#1e2028',
+                      borderRadius: '6px',
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: '11px',
+                      color: '#cfcfcf',
+                      lineHeight: '1.5',
+                    }}>
+                      <span style={{ color: '#14b8a6', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Esempio numerico:</span>{' '}
+                      {meta.formulaExample}
+                    </div>
                   </div>
-                  <div style={{ marginBottom: '12px' }}>
-                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>Scoring</div>
-                    {meta.scoring}
+
+                  <div style={{ marginBottom: '14px' }}>
+                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>5. Bande di punteggio</div>
+                    <div style={{ marginBottom: '6px', fontSize: '11px', color: '#9ca3af' }}>{meta.scoring}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {meta.scoreBands.map((b, i) => {
+                        const color = b.color === 'green' ? '#22c55e' : b.color === 'teal' ? '#14b8a6' : b.color === 'amber' ? '#f59e0b' : '#ef4444'
+                        return (
+                          <div key={i} style={{
+                            display: 'flex',
+                            gap: '10px',
+                            alignItems: 'center',
+                            padding: '6px 10px',
+                            background: '#1e2028',
+                            borderRadius: '6px',
+                            borderLeft: `3px solid ${color}`,
+                          }}>
+                            <span style={{ color, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', minWidth: '70px' }}>
+                              {b.range}
+                            </span>
+                            <span style={{ color: '#ffffff', fontWeight: 600, fontSize: '12px', minWidth: '90px' }}>{b.label}</span>
+                            <span style={{ color: '#9ca3af', fontSize: '11px', lineHeight: '1.4' }}>{b.meaning}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
+
+                  <div style={{ marginBottom: '14px' }}>
+                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>6. Come diventa una considerazione</div>
+                    {meta.considerationsLogic}
+                  </div>
+
                   <div>
-                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>Livello LLM</div>
+                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>7. Livello LLM</div>
                     {meta.llmLayer}
                   </div>
                 </div>
