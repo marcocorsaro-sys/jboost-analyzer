@@ -32,6 +32,7 @@ interface MartechEssentialsProps {
 const ESSENTIAL_CATEGORIES: Array<{ key: string; label: string; hint: string }> = [
   { key: 'cms', label: 'CMS', hint: 'Content Management / DXP' },
   { key: 'analytics', label: 'Web Analytics', hint: 'Web Analytics & BI' },
+  { key: 'marketing_automation', label: 'MKT Automation', hint: 'Lead Nurturing & Campaigns' },
 ]
 
 function scoreColor(score: number | undefined | null): string {
@@ -143,11 +144,19 @@ function CwvCard({
   const bp = data?.best_practices_score ?? null
   const overall = perf ?? null
 
+  // "Unavailable" = no data row at all (data is null). "Stale/mock" = data
+  // exists but all four scores are 0 (PSI key missing during the analysis
+  // run, or all categories failed). Both surface as a clear text hint instead
+  // of a misleading "0" big number.
+  const noData = data === null
+  const allZero = !noData && [perf, seo, a11y, bp].every(v => v === 0)
+  const showFallback = noData || allZero
+
   return (
     <div style={{
       background: '#1a1c24',
       borderRadius: '14px',
-      border: `1px solid ${scoreColor(overall)}40`,
+      border: `1px solid ${showFallback ? '#3a3d45' : scoreColor(overall) + '40'}`,
       padding: '28px',
       display: 'flex',
       flexDirection: 'column',
@@ -165,16 +174,36 @@ function CwvCard({
         Core Web Vitals · {label}
       </div>
 
-      <div style={{
-        fontFamily: "'JetBrains Mono', monospace",
-        fontSize: '72px',
-        fontWeight: 700,
-        color: scoreColor(overall),
-        lineHeight: '1',
-        letterSpacing: '-2px',
-      }}>
-        {scoreLabel(overall)}
-      </div>
+      {showFallback ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: '72px',
+            fontWeight: 700,
+            color: '#4b5563',
+            lineHeight: '1',
+            letterSpacing: '-2px',
+          }}>
+            —
+          </div>
+          <div style={{ fontSize: '12px', color: '#9ca3af', lineHeight: '1.4' }}>
+            {noData
+              ? `Dato ${label.toLowerCase()} non presente nell'ultima analisi. Rilancia un'analisi per popolarlo.`
+              : `PSI ha restituito 0 su tutte le categorie. Verifica GOOGLE_PSI_API_KEY in /admin > Integrations.`}
+          </div>
+        </div>
+      ) : (
+        <div style={{
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: '72px',
+          fontWeight: 700,
+          color: scoreColor(overall),
+          lineHeight: '1',
+          letterSpacing: '-2px',
+        }}>
+          {scoreLabel(overall)}
+        </div>
+      )}
 
       <div style={{ flex: 1 }} />
 
