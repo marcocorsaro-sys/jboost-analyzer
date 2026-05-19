@@ -47,6 +47,7 @@ export default function ClientCard({
 }: ClientCardProps) {
   const { t, locale } = useLocale()
   const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const band = latest_score !== null ? getScoreBand(latest_score) : null
   const color = band ? BAND_COLORS[band.color] ?? '#6b7280' : '#6b7280'
 
@@ -58,17 +59,22 @@ export default function ClientCard({
     e.preventDefault()
     e.stopPropagation()
     setDeleting(true)
+    setDeleteError(null)
     try {
       const res = await fetch(`/api/clients/${id}?mode=hard`, { method: 'DELETE' })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        alert(`Cancellazione fallita: ${data.error || res.statusText}`)
+        const msg = data.error || res.statusText || `HTTP ${res.status}`
+        console.error(`[ClientCard:delete:${id}] ${res.status} ${msg}`)
+        setDeleteError(msg)
         setDeleting(false)
         return
       }
       onDeleted?.(id)
     } catch (err) {
-      alert(`Errore di rete: ${err instanceof Error ? err.message : 'sconosciuto'}`)
+      const msg = err instanceof Error ? err.message : 'network error'
+      console.error(`[ClientCard:delete:${id}] threw:`, msg)
+      setDeleteError(msg)
       setDeleting(false)
     }
   }
@@ -76,7 +82,8 @@ export default function ClientCard({
   return (
     <Link href={`/clients/${id}`}>
       <div
-        className={`group relative overflow-hidden rounded-xl border bg-card border-border transition-all duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 ${deleting ? 'opacity-50 pointer-events-none' : ''}`}
+        className={`group relative overflow-hidden rounded-xl border bg-card transition-all duration-200 hover:shadow-lg hover:shadow-primary/5 ${deleting ? 'opacity-50 pointer-events-none' : ''} ${deleteError ? 'border-red-500/60' : 'border-border hover:border-primary/30'}`}
+        title={deleteError ? `Cancellazione fallita: ${deleteError}` : undefined}
       >
         {/* Top-right badges: lifecycle + (optional) archived marker + delete */}
         <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10">

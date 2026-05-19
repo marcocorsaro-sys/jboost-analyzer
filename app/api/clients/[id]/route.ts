@@ -154,11 +154,9 @@ export async function DELETE(
     }
 
     // Authorize: owner OR admin. RLS DELETE policy on `clients` enforces the
-    // same predicate, but a plain user-role .delete() silently returns 0 rows
-    // when RLS filters the row out — so we authorize explicitly here and then
-    // use the service role to actually delete, which guarantees the row goes
-    // away (and so do all the FK-cascaded children: analyses, client_martech,
-    // client_memory, knowledge_*, monitoring, members, etc.).
+    // same predicate so a successful user-role delete returns rows; we still
+    // check explicitly here so we can return a clean 403 instead of a silent
+    // 0-row no-op when the policy blocks.
     const [{ data: isAdmin }, { data: isOwner }] = await Promise.all([
       supabase.rpc('jboost_is_admin'),
       supabase.rpc('user_is_client_owner', { p_client_id: params.id }),
@@ -170,22 +168,34 @@ export async function DELETE(
       )
     }
 
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
-    if (!serviceRoleKey || !supabaseUrl) {
-      return NextResponse.json(
-        { error: 'Service role not configured on server.' },
-        { status: 500 }
-      )
-    }
-    const admin = createAdminClient(supabaseUrl, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    })
-
-    const { error, count } = await admin
+    // Try the user-role delete first. RLS allows it for owners/admins, and FK
+    // cascades to children fire at the DB level regardless of which role
+    // issues the delete. Service-role fallback handles the rare case where
+    // RLS blocks despite the explicit auth check (e.g. policy drift).
+    let { error, count } = await supabase
       .from('clients')
       .delete({ count: 'exact' })
       .eq('id', params.id)
+
+    if (error || !count) {
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
+      if (serviceRoleKey && supabaseUrl) {
+        console.warn(
+          `[clients:delete] user-role delete returned ${count ?? 'null'} rows (err=${error?.message ?? 'none'}), falling back to service role`,
+        )
+        const admin = createAdminClient(supabaseUrl, serviceRoleKey, {
+          auth: { autoRefreshToken: false, persistSession: false },
+        })
+        const adminRes = await admin
+          .from('clients')
+          .delete({ count: 'exact' })
+          .eq('id', params.id)
+        error = adminRes.error
+        count = adminRes.count
+      }
+    }
+
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
