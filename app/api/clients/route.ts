@@ -40,32 +40,48 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Enrich with analysis stats
-  const enriched = await Promise.all(
-    (clients || []).map(async (client) => {
-      const { count } = await supabase
-        .from('analyses')
-        .select('*', { count: 'exact', head: true })
-        .eq('client_id', client.id)
-        .eq('status', 'completed')
+  // Enrich with analysis stats. Previously this fired 2 queries per client
+  // (count + latest) — an N+1 that scaled with the client list. Instead pull
+  // every completed analysis for the whole list in ONE query (newest-first)
+  // and fold the per-client count + latest in memory.
+  const clientIds = (clients || []).map((c) => c.id)
+  const statsByClient = new Map<
+    string,
+    { count: number; latest_score: number | null; latest_analysis_at: string | null }
+  >()
 
-      const { data: latest } = await supabase
-        .from('analyses')
-        .select('overall_score, completed_at')
-        .eq('client_id', client.id)
-        .eq('status', 'completed')
-        .order('completed_at', { ascending: false })
-        .limit(1)
-        .single()
+  if (clientIds.length > 0) {
+    const { data: analyses } = await supabase
+      .from('analyses')
+      .select('client_id, overall_score, completed_at')
+      .in('client_id', clientIds)
+      .eq('status', 'completed')
+      .order('completed_at', { ascending: false })
 
-      return {
-        ...client,
-        analyses_count: count ?? 0,
-        latest_score: latest?.overall_score ?? null,
-        latest_analysis_at: latest?.completed_at ?? null,
+    for (const a of analyses || []) {
+      const cur = statsByClient.get(a.client_id)
+      if (!cur) {
+        // First row for this client = its latest completed analysis.
+        statsByClient.set(a.client_id, {
+          count: 1,
+          latest_score: a.overall_score ?? null,
+          latest_analysis_at: a.completed_at ?? null,
+        })
+      } else {
+        cur.count += 1
       }
-    })
-  )
+    }
+  }
+
+  const enriched = (clients || []).map((client) => {
+    const stats = statsByClient.get(client.id)
+    return {
+      ...client,
+      analyses_count: stats?.count ?? 0,
+      latest_score: stats?.latest_score ?? null,
+      latest_analysis_at: stats?.latest_analysis_at ?? null,
+    }
+  })
 
   return NextResponse.json({ clients: enriched })
 }
