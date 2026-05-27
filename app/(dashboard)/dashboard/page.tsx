@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { getScoreBand } from '@/lib/constants'
 import Link from 'next/link'
@@ -12,55 +12,71 @@ const BAND_COLORS: Record<string, string> = {
 }
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getUser()
   if (!user) redirect('/login')
 
-  // Fetch active clients with latest scores.
+  const supabase = await createClient()
+
+  // Fetch active clients + the two KPI counts concurrently — they're
+  // independent, so there's no reason to await them one after another.
   // NOTE: filter by lifecycle_stage='active' so prospects (which still have
   // the legacy status='active') do not pollute the dashboard counters.
   // Access is enforced by RLS via client_members (no user_id filter needed).
-  const { data: clients } = await supabase
-    .from('clients')
-    .select('id, name, domain, industry')
-    .eq('lifecycle_stage', 'active')
-    .neq('status', 'archived')
-    .order('updated_at', { ascending: false })
-    .limit(6)
+  const [
+    { data: clients },
+    { count: totalClients },
+    { count: totalAnalyses },
+  ] = await Promise.all([
+    supabase
+      .from('clients')
+      .select('id, name, domain, industry')
+      .eq('lifecycle_stage', 'active')
+      .neq('status', 'archived')
+      .order('updated_at', { ascending: false })
+      .limit(6),
+    supabase
+      .from('clients')
+      .select('*', { count: 'exact', head: true })
+      .eq('lifecycle_stage', 'active')
+      .neq('status', 'archived'),
+    supabase
+      .from('analyses')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('status', 'completed'),
+  ])
 
-  // Enrich clients with latest score
-  const topClients = await Promise.all(
-    (clients || []).map(async (c) => {
-      const { data: latest } = await supabase
-        .from('analyses')
-        .select('overall_score, completed_at')
-        .eq('client_id', c.id)
-        .eq('status', 'completed')
-        .order('completed_at', { ascending: false })
-        .limit(1)
-        .single()
+  // Enrich clients with their latest score using a single batched query
+  // (was N+1: one query per client). Rows come back newest-first, so the
+  // first row seen per client_id is its latest completed analysis.
+  const clientIds = (clients || []).map((c) => c.id)
+  const latestByClient = new Map<string, { overall_score: number | null; completed_at: string | null }>()
+  if (clientIds.length > 0) {
+    const { data: latestAnalyses } = await supabase
+      .from('analyses')
+      .select('client_id, overall_score, completed_at')
+      .in('client_id', clientIds)
+      .eq('status', 'completed')
+      .order('completed_at', { ascending: false })
 
-      return {
-        ...c,
-        latest_score: latest?.overall_score ?? null,
-        latest_analysis_at: latest?.completed_at ?? null,
+    for (const a of latestAnalyses || []) {
+      if (!latestByClient.has(a.client_id)) {
+        latestByClient.set(a.client_id, {
+          overall_score: a.overall_score,
+          completed_at: a.completed_at,
+        })
       }
-    })
-  )
+    }
+  }
 
-  // Counts — only truly active (lifecycle) clients, not prospects.
-  // Access is enforced by RLS via client_members.
-  const { count: totalClients } = await supabase
-    .from('clients')
-    .select('*', { count: 'exact', head: true })
-    .eq('lifecycle_stage', 'active')
-    .neq('status', 'archived')
-
-  const { count: totalAnalyses } = await supabase
-    .from('analyses')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-    .eq('status', 'completed')
+  const topClients = (clients || []).map((c) => {
+    const latest = latestByClient.get(c.id)
+    return {
+      ...c,
+      latest_score: latest?.overall_score ?? null,
+      latest_analysis_at: latest?.completed_at ?? null,
+    }
+  })
 
   // Average score across latest analyses
   const avgScore = topClients.length > 0

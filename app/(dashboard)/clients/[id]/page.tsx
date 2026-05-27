@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getUser, getClientById } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { getScoreBand } from '@/lib/constants'
 import { calcDelta } from '@/lib/trends/calculate'
@@ -53,137 +53,141 @@ export default async function ClientOverviewPage({
 }: {
   params: { id: string }
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  // user + client are already loaded (and request-cached) by the surrounding
+  // client-detail layout, so these resolve without extra round-trips.
+  const [user, client] = await Promise.all([getUser(), getClientById(params.id)])
   if (!user) redirect('/login')
-
-  const { data: client } = await supabase
-    .from('clients')
-    .select('*')
-    .eq('id', params.id)
-    .single()
-
   if (!client) redirect('/clients')
 
-  // Fetch current user profile to determine admin privileges.
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
+  const supabase = await createClient()
+
+  // The remaining reads are independent (they only need the authenticated
+  // user + params.id), so fire them concurrently instead of awaiting each in
+  // turn — this collapses ~8 sequential round-trips into a single batch.
+  const [
+    { data: profile },
+    { data: myMembership },
+    { data: subscription },
+    { data: recentAnalyses },
+    { data: allAnalyses },
+    { count: analysesCount },
+    { count: martechCount },
+    { count: filesCount },
+    { data: memoryRow },
+  ] = await Promise.all([
+    supabase.from('profiles').select('role').eq('id', user.id).single(),
+    supabase
+      .from('client_members')
+      .select('role')
+      .eq('client_id', params.id)
+      .eq('user_id', user.id)
+      .maybeSingle(),
+    supabase
+      .from('client_update_subscriptions')
+      .select('is_active')
+      .eq('client_id', params.id)
+      .maybeSingle(),
+    supabase
+      .from('analyses')
+      .select('id, overall_score, completed_at, domain')
+      .eq('client_id', params.id)
+      .eq('status', 'completed')
+      .order('completed_at', { ascending: false })
+      .limit(2),
+    supabase
+      .from('analyses')
+      .select('id, overall_score, completed_at')
+      .eq('client_id', params.id)
+      .eq('status', 'completed')
+      .order('completed_at', { ascending: true }),
+    supabase
+      .from('analyses')
+      .select('*', { count: 'exact', head: true })
+      .eq('client_id', params.id)
+      .eq('status', 'completed'),
+    supabase
+      .from('client_martech')
+      .select('*', { count: 'exact', head: true })
+      .eq('client_id', params.id),
+    supabase
+      .from('client_files')
+      .select('*', { count: 'exact', head: true })
+      .eq('client_id', params.id),
+    supabase
+      .from('client_memory')
+      .select('profile')
+      .eq('client_id', params.id)
+      .maybeSingle(),
+  ])
+
   const isAdmin = profile?.role === 'admin'
 
-  // Fetch caller's membership on this client to determine action permissions
-  // (Stage 4B). canEdit covers most lifecycle actions, canManageOwners is
-  // restricted to archive + hard-delete (and member management).
-  const { data: myMembership } = await supabase
-    .from('client_members')
-    .select('role')
-    .eq('client_id', params.id)
-    .eq('user_id', user.id)
-    .maybeSingle()
+  // canEdit covers most lifecycle actions, canManageOwners is restricted to
+  // archive + hard-delete (and member management).
   const myRole = myMembership?.role ?? null
   const canEdit = isAdmin || myRole === 'owner' || myRole === 'editor'
   const canManageOwners = isAdmin || myRole === 'owner'
 
-  // Fetch monitoring subscription so the lifecycle panel can render the
-  // pause/resume action correctly.
-  const { data: subscription } = await supabase
-    .from('client_update_subscriptions')
-    .select('is_active')
-    .eq('client_id', params.id)
-    .maybeSingle()
   const subscriptionActive: boolean | null = subscription?.is_active ?? null
 
   const lifecycleStage = (client.lifecycle_stage ?? 'prospect') as ClientLifecycleStage
   const stageColors = STAGE_COLORS[lifecycleStage]
   const stageLabelKey = STAGE_LABEL_KEYS[lifecycleStage]
 
-  // Fetch last 2 completed analyses for delta calculation
-  const { data: recentAnalyses } = await supabase
-    .from('analyses')
-    .select('id, overall_score, completed_at, domain')
-    .eq('client_id', params.id)
-    .eq('status', 'completed')
-    .order('completed_at', { ascending: false })
-    .limit(2)
-
   const latestAnalysis = recentAnalyses?.[0] ?? null
   const previousAnalysis = recentAnalyses?.[1] ?? null
 
-  // Fetch driver scores for latest + previous
-  let driverScores: { driver_name: string; score: number | null; status: string }[] = []
-  let prevDriverScores: Record<string, number | null> = {}
+  // Pull every driver_result for this client's completed analyses in ONE query
+  // (was N+1: one query per analysis for the trend chart, plus two more for
+  // latest/previous). We then group the rows in memory.
+  const analysisIds = Array.from(
+    new Set([
+      ...(allAnalyses ?? []).map((a) => a.id),
+      ...(recentAnalyses ?? []).map((a) => a.id),
+    ]),
+  )
 
-  if (latestAnalysis) {
+  let allDriverRows: { analysis_id: string; driver_name: string; score: number | null; status: string }[] = []
+  if (analysisIds.length > 0) {
     const { data } = await supabase
       .from('driver_results')
-      .select('driver_name, score, status')
-      .eq('analysis_id', latestAnalysis.id)
-    driverScores = data || []
+      .select('analysis_id, driver_name, score, status')
+      .in('analysis_id', analysisIds)
+    allDriverRows = data || []
   }
 
+  const driverScores: { driver_name: string; score: number | null; status: string }[] = latestAnalysis
+    ? allDriverRows
+        .filter((d) => d.analysis_id === latestAnalysis.id)
+        .map(({ driver_name, score, status }) => ({ driver_name, score, status }))
+    : []
+
+  const prevDriverScores: Record<string, number | null> = {}
   if (previousAnalysis) {
-    const { data } = await supabase
-      .from('driver_results')
-      .select('driver_name, score')
-      .eq('analysis_id', previousAnalysis.id)
-    for (const d of (data || [])) {
-      prevDriverScores[d.driver_name] = d.score
+    for (const d of allDriverRows) {
+      if (d.analysis_id === previousAnalysis.id) prevDriverScores[d.driver_name] = d.score
     }
   }
 
-  // Fetch ALL completed analyses for trend chart
-  const { data: allAnalyses } = await supabase
-    .from('analyses')
-    .select('id, overall_score, completed_at')
-    .eq('client_id', params.id)
-    .eq('status', 'completed')
-    .order('completed_at', { ascending: true })
+  // Build trend data (allAnalyses is ordered ascending by completed_at)
+  const driverRowsByAnalysis = new Map<string, typeof allDriverRows>()
+  for (const d of allDriverRows) {
+    const arr = driverRowsByAnalysis.get(d.analysis_id)
+    if (arr) arr.push(d)
+    else driverRowsByAnalysis.set(d.analysis_id, [d])
+  }
 
-  // Build trend data
   const trendData: { date: string; overall_score: number | null; [key: string]: string | number | null }[] = []
-  if (allAnalyses && allAnalyses.length > 0) {
-    for (const a of allAnalyses) {
-      const { data: drivers } = await supabase
-        .from('driver_results')
-        .select('driver_name, score')
-        .eq('analysis_id', a.id)
-
-      const point: Record<string, string | number | null> = {
-        date: a.completed_at || a.id,
-        overall_score: a.overall_score,
-      }
-      for (const d of (drivers || [])) {
-        point[d.driver_name] = d.score
-      }
-      trendData.push(point as typeof trendData[0])
+  for (const a of allAnalyses ?? []) {
+    const point: Record<string, string | number | null> = {
+      date: a.completed_at || a.id,
+      overall_score: a.overall_score,
     }
+    for (const d of driverRowsByAnalysis.get(a.id) ?? []) {
+      point[d.driver_name] = d.score
+    }
+    trendData.push(point as typeof trendData[0])
   }
-
-  // Counts
-  const { count: analysesCount } = await supabase
-    .from('analyses')
-    .select('*', { count: 'exact', head: true })
-    .eq('client_id', params.id)
-    .eq('status', 'completed')
-
-  const { count: martechCount } = await supabase
-    .from('client_martech')
-    .select('*', { count: 'exact', head: true })
-    .eq('client_id', params.id)
-
-  const { count: filesCount } = await supabase
-    .from('client_files')
-    .select('*', { count: 'exact', head: true })
-    .eq('client_id', params.id)
-
-  // Phase 5D — onboarding status for the CTA card.
-  const { data: memoryRow } = await supabase
-    .from('client_memory')
-    .select('profile')
-    .eq('client_id', params.id)
-    .maybeSingle()
   const onboardingState =
     ((memoryRow?.profile as MemoryProfile | null)?.onboarding) ?? {
       version: 1,
