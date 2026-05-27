@@ -8,7 +8,7 @@ export const maxDuration = 180 // increased for web_search + multi-page crawl
 
 // GET /api/clients/[id]/martech — get cached martech stack
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   const supabase = await createClient()
@@ -17,37 +17,50 @@ export async function GET(
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
 
-  // Access enforced by RLS via client_members.
-  const { data: client } = await supabase
-    .from('clients')
-    .select('id, domain')
-    .eq('id', params.id)
-    .single()
+  // `skipLiveCwv=1` keeps this read instant: it returns the already-saved
+  // stack + whatever CWV is cached, and never blocks on a live PageSpeed
+  // fetch (which can take tens of seconds). The page uses it for first paint
+  // and backfills CWV with a separate background request.
+  const skipLiveCwv = new URL(request.url).searchParams.get('skipLiveCwv') === '1'
+
+  // These reads are independent (keyed on client_id), so run them together
+  // instead of one-after-another. Access enforced by RLS via client_members.
+  const [
+    { data: client },
+    { data: martech, error },
+    { data: reportRow },
+    { data: latestAnalysis },
+  ] = await Promise.all([
+    supabase.from('clients').select('id, domain').eq('id', params.id).single(),
+    supabase
+      .from('client_martech')
+      .select('*')
+      .eq('client_id', params.id)
+      .order('category')
+      .order('tool_name'),
+    supabase
+      .from('client_martech_reports')
+      .select('completeness')
+      .eq('client_id', params.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('analyses')
+      .select('id, completed_at')
+      .eq('client_id', params.id)
+      .eq('status', 'completed')
+      .order('completed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
 
   if (!client) {
     return NextResponse.json({ error: 'Client not found' }, { status: 404 })
   }
-
-  // Fetch cached martech
-  const { data: martech, error } = await supabase
-    .from('client_martech')
-    .select('*')
-    .eq('client_id', params.id)
-    .order('category')
-    .order('tool_name')
-
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-
-  // Fetch cached report (completeness + maturity + gaps + recommendations)
-  const { data: reportRow } = await supabase
-    .from('client_martech_reports')
-    .select('completeness')
-    .eq('client_id', params.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
 
   const report = reportRow?.completeness || null
 
@@ -57,14 +70,6 @@ export async function GET(
   let cwvMobile: Record<string, unknown> | null = null
   let cwvDesktop: Record<string, unknown> | null = null
   let cwvAnalysisDate: string | null = null
-  const { data: latestAnalysis } = await supabase
-    .from('analyses')
-    .select('id, completed_at')
-    .eq('client_id', params.id)
-    .eq('status', 'completed')
-    .order('completed_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
 
   if (latestAnalysis?.id) {
     cwvAnalysisDate = latestAnalysis.completed_at
@@ -105,7 +110,7 @@ export async function GET(
       if (isEmpty(cwvDesktop) && !isEmpty(cache.desktop ?? null)) cwvDesktop = cache.desktop ?? null
     }
 
-    if (isEmpty(cwvMobile) || isEmpty(cwvDesktop)) {
+    if (!skipLiveCwv && (isEmpty(cwvMobile) || isEmpty(cwvDesktop))) {
       // Read PSI key from app_config (db) with env fallback. Skip if no key.
       let psiKey = process.env.GOOGLE_PSI_API_KEY || ''
       try {

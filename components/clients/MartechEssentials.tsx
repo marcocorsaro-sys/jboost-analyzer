@@ -28,6 +28,8 @@ interface MartechEssentialsProps {
   clientId?: string
   /** Called after a successful category rerun so the parent can refresh. */
   onCategoryRefreshed?: () => void
+  /** True while the live Core Web Vitals backfill is in flight. */
+  cwvLoading?: boolean
   cwv: {
     mobile: CwvData | null
     desktop: CwvData | null
@@ -130,20 +132,28 @@ function CategoryCard({
             type="button"
             onClick={handleRefresh}
             disabled={refreshing}
-            title={refreshing ? 'Sto rilanciando…' : `Rilancia solo ${label}`}
+            title={refreshing ? 'Sto rilanciando…' : `Rilancia solo ${label} (non ricarica la pagina)`}
             aria-label={`Rilancia ${label}`}
             style={{
-              background: 'transparent',
-              border: '1px solid #2a2d35',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+              background: refreshing ? '#2a2d35' : '#c8e64a14',
+              border: `1px solid ${refreshing ? '#2a2d35' : '#c8e64a55'}`,
               borderRadius: '6px',
-              color: refreshing ? '#6b7280' : '#9ca3af',
-              padding: '4px 8px',
+              color: refreshing ? '#6b7280' : '#c8e64a',
+              padding: '5px 10px',
               fontSize: '11px',
+              fontWeight: 700,
               fontFamily: "'JetBrains Mono', monospace",
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
               cursor: refreshing ? 'default' : 'pointer',
+              transition: 'all 0.15s',
             }}
           >
-            ↻
+            <span className={refreshing ? 'animate-spin' : undefined} style={{ display: 'inline-block', fontSize: '13px', lineHeight: 1 }}>↻</span>
+            {refreshing ? 'Rilancio…' : 'Rilancia'}
           </button>
         )}
       </div>
@@ -199,9 +209,11 @@ function CategoryCard({
 function CwvCard({
   label,
   data,
+  loading = false,
 }: {
   label: 'Mobile' | 'Desktop'
   data: CwvData | null
+  loading?: boolean
 }) {
   const perf = data?.performance_score ?? null
   const seo = data?.seo_score ?? null
@@ -229,6 +241,9 @@ function CwvCard({
       minHeight: '220px',
     }}>
       <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
         fontFamily: "'JetBrains Mono', monospace",
         fontSize: '11px',
         fontWeight: 700,
@@ -237,6 +252,16 @@ function CwvCard({
         letterSpacing: '1.5px',
       }}>
         Core Web Vitals · {label}
+        {loading && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#6b7280', fontWeight: 600, letterSpacing: 0 }}>
+            <span className="animate-spin" style={{
+              width: 10, height: 10, borderRadius: '50%',
+              border: '2px solid #2a2d35', borderTopColor: '#c8e64a',
+              display: 'inline-block',
+            }} />
+            aggiorno…
+          </span>
+        )}
       </div>
 
       {showFallback ? (
@@ -252,9 +277,11 @@ function CwvCard({
             —
           </div>
           <div style={{ fontSize: '12px', color: '#9ca3af', lineHeight: '1.4' }}>
-            {noData
-              ? `Dato ${label.toLowerCase()} non presente nell'ultima analisi. Rilancia un'analisi per popolarlo.`
-              : `PSI ha restituito 0 su tutte le categorie. Verifica GOOGLE_PSI_API_KEY in /admin > Integrations.`}
+            {loading
+              ? `Recupero i Core Web Vitals ${label.toLowerCase()} da PageSpeed…`
+              : noData
+                ? `Dato ${label.toLowerCase()} non presente nell'ultima analisi. Rilancia un'analisi per popolarlo.`
+                : `PSI ha restituito 0 su tutte le categorie. Verifica GOOGLE_PSI_API_KEY in /admin > Integrations.`}
           </div>
         </div>
       ) : (
@@ -297,7 +324,7 @@ function CwvCard({
   )
 }
 
-export default function MartechEssentials({ tools, cwv, clientId, onCategoryRefreshed }: MartechEssentialsProps) {
+export default function MartechEssentials({ tools, cwv, cwvLoading = false, clientId, onCategoryRefreshed }: MartechEssentialsProps) {
   const byCategory: Record<string, MartechTool[]> = {}
   for (const t of tools) {
     if (!t?.category) continue
@@ -326,8 +353,8 @@ export default function MartechEssentials({ tools, cwv, clientId, onCategoryRefr
           />
         ))}
 
-        <CwvCard label="Desktop" data={cwv?.desktop ?? null} />
-        <CwvCard label="Mobile" data={cwv?.mobile ?? null} />
+        <CwvCard label="Desktop" data={cwv?.desktop ?? null} loading={cwvLoading} />
+        <CwvCard label="Mobile" data={cwv?.mobile ?? null} loading={cwvLoading} />
       </div>
 
       {desktopMissing && (
