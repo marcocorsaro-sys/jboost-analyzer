@@ -26,12 +26,16 @@ export interface OpenGraphTags {
 /**
  * Pull all `<script type="application/ld+json">…</script>` blocks. Returns the
  * raw text payloads — parsing/normalization is the caller's job.
+ *
+ * The regex is intentionally permissive: it accepts single or double quotes
+ * around `type`, optional whitespace around `=`, and extra parameters on the
+ * media type itself (e.g. `application/ld+json; charset=utf-8`, which a lot
+ * of CMS templates emit). Real-world sites get these wrong constantly — a
+ * stricter match silently drops valid JSON-LD.
  */
 export function extractJsonLdScripts(html: string): string[] {
   const out: string[] = []
-  // Tolerant regex: arbitrary attribute order around type=…ld+json, optional
-  // whitespace, no closing-script greediness.
-  const re = /<script\b[^>]*?type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
+  const re = /<script\b[^>]*?\btype\s*=\s*["']?\s*application\/ld\+json\b[^>]*>([\s\S]*?)<\/script>/gi
   let m: RegExpExecArray | null
   while ((m = re.exec(html)) !== null) {
     const inner = m[1]

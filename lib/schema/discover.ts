@@ -165,6 +165,18 @@ export async function fetchSitemapUrls(
 }
 
 /**
+ * Same-site check that treats `www.example.com` and `example.com` as the same
+ * origin. Sitemaps very often list `https://www.X/...` even when the homepage
+ * is reachable on `https://X/` (or vice versa); without this normalization,
+ * the whole sitemap gets filtered out as off-site.
+ */
+function sameSite(a: URL, b: URL): boolean {
+  if (a.protocol !== b.protocol) return false
+  const stripWww = (h: string) => h.replace(/^www\./i, '')
+  return stripWww(a.hostname.toLowerCase()) === stripWww(b.hostname.toLowerCase())
+}
+
+/**
  * Sample `target` URLs that maximize template diversity. Always pins the
  * homepage, then walks the role buckets round-robin so we hit every page type
  * before piling on duplicates of the largest bucket.
@@ -174,7 +186,7 @@ export function sampleByRole(
   homepageUrl: string,
   target = DEFAULT_SAMPLE_SIZE,
 ): DiscoveredUrl[] {
-  const origin = new URL(homepageUrl).origin
+  const homepageUrlObj = new URL(homepageUrl)
   const buckets = new Map<PageRole, string[]>()
 
   // Always seed the homepage bucket with the canonical homepage URL so it's
@@ -188,10 +200,9 @@ export function sampleByRole(
     } catch {
       continue
     }
-    // Same-origin only — third-party URLs in sitemaps happen on multi-domain
-    // sites and would lead to scraping the wrong host.
-    if (parsed.origin !== origin) continue
-    const role = classifyUrl(u, origin)
+    // Same-site only (apex + www. variants are accepted as one site).
+    if (!sameSite(parsed, homepageUrlObj)) continue
+    const role = classifyUrl(u, homepageUrlObj.origin)
     const arr = buckets.get(role) ?? []
     if (arr.includes(u)) continue
     arr.push(u)

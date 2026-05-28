@@ -76,7 +76,7 @@ export interface SchemaRadiographyReport {
   version: 1
   generatedAt: string
   /** Pages we actually scraped (some discovery URLs may fail). */
-  pagesAnalyzed: { url: string; role: PageRole; jsonLdBlocks: number; openGraphTags: number; status: 'ok' | 'failed'; error?: string }[]
+  pagesAnalyzed: { url: string; role: PageRole; jsonLdBlocks: number; openGraphTags: number; htmlSize: number; status: 'ok' | 'failed'; error?: string }[]
   /** Total JSON-LD blocks detected across all pages. */
   totalBlocks: number
   /** Per-template aggregates with score + projected score + enrichment. */
@@ -256,6 +256,7 @@ export async function runRadiography(opts: RadiographyOptions): Promise<SchemaRa
     role: p.role,
     jsonLdBlocks: p.blocks.length,
     openGraphTags: Object.keys(p.openGraph.tags).length,
+    htmlSize: p.scrape.html?.length ?? 0,
     status: p.scrape.ok ? 'ok' : 'failed',
     error: p.scrape.ok ? undefined : `${p.scrape.status}${p.scrape.detail ? ' — ' + p.scrape.detail : ''}`,
   }))
