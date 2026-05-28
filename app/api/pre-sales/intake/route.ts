@@ -9,6 +9,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { scrapeWithFirecrawl } from '@/lib/integrations/providers/firecrawl/client'
+import { enforceSpendLimit } from '@/lib/tracking/spend-limit'
 
 export const maxDuration = 90
 export const dynamic = 'force-dynamic'
@@ -105,6 +106,9 @@ export async function POST(request: Request) {
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
+
+  const limited = await enforceSpendLimit(supabase)
+  if (limited) return limited
 
   let body: { url?: string } = {}
   try {

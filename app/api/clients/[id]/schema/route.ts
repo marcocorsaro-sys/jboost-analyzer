@@ -10,6 +10,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { logActivity } from '@/lib/tracking/activity'
 import { trackLlmUsage } from '@/lib/tracking/llm-usage'
+import { enforceSpendLimit } from '@/lib/tracking/spend-limit'
 import { runRadiography, type SchemaRadiographyReport } from '@/lib/schema/pipeline'
 
 export const maxDuration = 300 // up to 5 min for 30 Firecrawl scrapes + LLM enrichments
@@ -56,6 +57,9 @@ export async function POST(
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
+
+  const limited = await enforceSpendLimit(supabase)
+  if (limited) return limited
 
   const { data: client } = await supabase
     .from('clients')

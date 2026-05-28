@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { createClient, getUser } from '@/lib/supabase/server'
 import { LocaleProvider, isValidLocale, type Locale } from '@/lib/i18n'
 import { Shell } from '@/components/layout/shell'
+import SpendLimitBanner from '@/components/layout/SpendLimitBanner'
 
 export default async function DashboardLayout({
   children,
@@ -31,6 +32,7 @@ export default async function DashboardLayout({
   return (
     <LocaleProvider initialLocale={cookieLocale}>
       <Shell userEmail={user?.email} isAdmin={isAdmin}>
+        <SpendLimitBanner />
         <main className="flex-1 p-4 md:p-6">{children}</main>
       </Shell>
     </LocaleProvider>

@@ -1,10 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-
-// Pricing per 1M tokens (USD) — update as prices change
-const PRICING: Record<string, { input: number; output: number }> = {
-  'claude-sonnet-4-20250514': { input: 3.0, output: 15.0 },
-  'gpt-4-turbo': { input: 10.0, output: 30.0 },
-}
+import { estimateCost } from './pricing'
 
 export interface TrackLlmUsageParams {
   userId: string
@@ -17,14 +12,10 @@ export interface TrackLlmUsageParams {
   metadata?: Record<string, unknown>
 }
 
-function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
-  const rates = PRICING[model]
-  if (!rates) return 0
-  return (inputTokens * rates.input + outputTokens * rates.output) / 1_000_000
-}
-
 /**
  * Track LLM API usage. Non-blocking — never throws.
+ * Cost estimation lives in lib/tracking/pricing.ts so new model IDs only
+ * need to land there for the cost dashboard + spend limit to stay accurate.
  */
 export async function trackLlmUsage(params: TrackLlmUsageParams): Promise<void> {
   try {
@@ -46,3 +37,6 @@ export async function trackLlmUsage(params: TrackLlmUsageParams): Promise<void> 
     console.error('[trackLlmUsage] Failed:', err)
   }
 }
+
+// Re-export so callers don't reach into pricing.ts directly.
+export { estimateCost } from './pricing'

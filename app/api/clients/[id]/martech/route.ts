@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { trackLlmUsage } from '@/lib/tracking/llm-usage'
 import { logActivity } from '@/lib/tracking/activity'
+import { enforceSpendLimit } from '@/lib/tracking/spend-limit'
 import { martechAgent, runAgentWithQuality } from '@/lib/agents'
 
 export const maxDuration = 180 // increased for web_search + multi-page crawl
@@ -184,6 +185,9 @@ export async function POST(
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
+
+  const limited = await enforceSpendLimit(supabase)
+  if (limited) return limited
 
   // Access enforced by RLS; edit permission is enforced implicitly by the
   // client_members policies on downstream writes (client_martech_reports / client_martech).
