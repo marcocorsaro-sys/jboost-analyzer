@@ -157,8 +157,11 @@ interface PageScrapeResult {
 }
 
 async function scrapeAndExtract(target: DiscoveredUrl): Promise<PageScrapeResult> {
+  // `rawHtml` is critical here: Firecrawl's `html` format returns CLEANED
+  // body content (no <head>, no <script>) which strips both JSON-LD and the
+  // OpenGraph meta tags we need. `rawHtml` gives us the unmodified document.
   const scrape = await scrapeWithFirecrawl(target.url, {
-    formats: ['html', 'markdown'],
+    formats: ['rawHtml', 'markdown'],
     waitFor: SCRAPE_WAIT_MS,
   })
   if (!scrape.ok || !scrape.html) {
@@ -434,7 +437,7 @@ export async function refreshTemplate(opts: {
   sampleUrl: string
 }): Promise<TemplateReport | null> {
   const scrape = await scrapeWithFirecrawl(opts.sampleUrl, {
-    formats: ['html', 'markdown'],
+    formats: ['rawHtml', 'markdown'],
     waitFor: SCRAPE_WAIT_MS,
   })
   if (!scrape.ok || !scrape.html) return null
