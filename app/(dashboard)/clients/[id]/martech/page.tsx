@@ -87,6 +87,20 @@ const DIAG_COLORS: Record<string, string> = {
   info: '#6b7280',
 }
 
+const CWV_SCORE_KEYS = ['performance_score', 'seo_score', 'accessibility_score', 'best_practices_score'] as const
+
+function cwvScoresEmpty(d: Record<string, number> | null | undefined): boolean {
+  if (!d) return true
+  return CWV_SCORE_KEYS.every(k => !d[k])
+}
+
+function cwvNeedsBackfill(
+  cwv: { mobile: Record<string, number> | null; desktop: Record<string, number> | null } | null | undefined,
+): boolean {
+  if (!cwv) return true
+  return cwvScoresEmpty(cwv.mobile) || cwvScoresEmpty(cwv.desktop)
+}
+
 export default function ClientMartechPage() {
   const params = useParams()
   const clientId = params.id as string
@@ -106,6 +120,7 @@ export default function ClientMartechPage() {
   } | null>(null)
   const [loading, setLoading] = useState(true)
   const [detecting, setDetecting] = useState(false)
+  const [cwvLoading, setCwvLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showDiagnostics, setShowDiagnostics] = useState(false)
   // PR6: full grid + maturity + diagnostics + gap analysis + recommendations
@@ -114,14 +129,29 @@ export default function ClientMartechPage() {
   const [showFullStack, setShowFullStack] = useState(false)
 
   useEffect(() => {
-    fetchMartech()
+    let cancelled = false
+    ;(async () => {
+      const data = await fetchMartech()
+      if (cancelled || !data) return
+      // The previously-saved stack renders instantly above. Only the live
+      // Core Web Vitals backfill (a slow PageSpeed call) is deferred so it
+      // never blocks first paint — kick it in the background if needed.
+      if (data.domain && cwvNeedsBackfill(data.cwv)) {
+        fetchCwvLive()
+      }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId])
 
-  async function fetchMartech() {
-    setLoading(true)
+  // Loads the cached MarTech snapshot. `skipLiveCwv=1` keeps it instant.
+  // Pass { silent } to refresh in place (e.g. after a per-category rerun)
+  // without blanking the page with the full-page loading state.
+  async function fetchMartech(opts?: { silent?: boolean }) {
+    if (!opts?.silent) setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/clients/${clientId}/martech`)
+      const res = await fetch(`/api/clients/${clientId}/martech?skipLiveCwv=1`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Fetch failed')
       setTools(data.martech || [])
@@ -132,10 +162,28 @@ export default function ClientMartechPage() {
       setGapAnalysis(data.gapAnalysis || [])
       setRecommendations(data.recommendations || [])
       setCwv(data.cwv ?? null)
+      return data
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error loading data')
+      return null
+    } finally {
+      if (!opts?.silent) setLoading(false)
     }
-    setLoading(false)
+  }
+
+  // Background-only: fills the CWV cards via the live PageSpeed path without
+  // ever touching the page-level loading state.
+  async function fetchCwvLive() {
+    setCwvLoading(true)
+    try {
+      const res = await fetch(`/api/clients/${clientId}/martech`)
+      const data = await res.json()
+      if (res.ok && data.cwv) setCwv(data.cwv)
+    } catch {
+      /* best-effort — keep whatever the instant load showed */
+    } finally {
+      setCwvLoading(false)
+    }
   }
 
   async function runDetection() {
@@ -236,21 +284,65 @@ export default function ClientMartechPage() {
         </button>
       </div>
 
-      {/* PR6: Essentials — the only thing surfaced by default */}
-      {!loading && !detecting && tools.length > 0 && (
-        <div style={{ marginBottom: '20px' }}>
+      {/* Compact, non-destructive progress strip for a full re-analyze.
+          The existing data stays on screen (dimmed below) instead of being
+          replaced by a full-page spinner. */}
+      {detecting && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          flexWrap: 'wrap',
+          background: '#1a1c24',
+          border: '1px solid #c8e64a40',
+          borderRadius: '10px',
+          padding: '12px 16px',
+          marginBottom: '20px',
+        }}>
+          <span
+            className="animate-spin"
+            style={{
+              width: 16,
+              height: 16,
+              borderRadius: '50%',
+              border: '2px solid #2a2d35',
+              borderTopColor: '#c8e64a',
+              display: 'inline-block',
+              flexShrink: 0,
+            }}
+          />
+          <span style={{ fontSize: '13px', fontWeight: 600, color: '#c8e64a', fontFamily: "'JetBrains Mono', monospace" }}>
+            {t('martech.auditInProgress')}
+          </span>
+          <span style={{ fontSize: '12px', color: '#6b7280' }}>
+            {t('martech.auditSteps')}
+          </span>
+        </div>
+      )}
+
+      {/* PR6: Essentials — the only thing surfaced by default. Stays visible
+          (dimmed) during a full re-analyze so the page never blanks out;
+          per-category reruns refresh it silently in place. */}
+      {!loading && tools.length > 0 && (
+        <div style={{
+          marginBottom: '20px',
+          opacity: detecting ? 0.5 : 1,
+          pointerEvents: detecting ? 'none' : 'auto',
+          transition: 'opacity 0.2s',
+        }}>
           <MartechEssentials
             tools={tools}
             cwv={cwv}
+            cwvLoading={cwvLoading}
             clientId={clientId}
-            onCategoryRefreshed={fetchMartech}
+            onCategoryRefreshed={() => fetchMartech({ silent: true })}
           />
         </div>
       )}
 
       {/* PR6: full stack details collapsed behind a toggle.
           Everything below this only renders when the user opts in. */}
-      {!loading && !detecting && tools.length > 0 && (
+      {!loading && tools.length > 0 && (
         <button
           onClick={() => setShowFullStack(s => !s)}
           style={{
@@ -272,7 +364,7 @@ export default function ClientMartechPage() {
       )}
 
       {/* Maturity Score + Completeness Row */}
-      {showFullStack && maturityScore !== null && !detecting && (
+      {showFullStack && maturityScore !== null && (
         <div style={{
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
@@ -414,7 +506,7 @@ export default function ClientMartechPage() {
       )}
 
       {/* Diagnostics (collapsible) */}
-      {showFullStack && showDiagnostics && completeness && completeness.diagnostics.length > 0 && !detecting && (
+      {showFullStack && showDiagnostics && completeness && completeness.diagnostics.length > 0 && (
         <div style={{
           background: '#111318',
           borderRadius: '8px',
@@ -446,7 +538,7 @@ export default function ClientMartechPage() {
       )}
 
       {/* Gap Analysis */}
-      {showFullStack && gapAnalysis.length > 0 && !detecting && (
+      {showFullStack && gapAnalysis.length > 0 && (
         <div style={{
           background: '#1a1c24',
           borderRadius: '12px',
@@ -517,7 +609,7 @@ export default function ClientMartechPage() {
       )}
 
       {/* Recommendations */}
-      {showFullStack && recommendations.length > 0 && !detecting && (
+      {showFullStack && recommendations.length > 0 && (
         <div style={{
           background: '#1a1c24',
           borderRadius: '12px',
@@ -572,56 +664,6 @@ export default function ClientMartechPage() {
                   {rec.description}
                 </p>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Detecting spinner */}
-      {detecting && (
-        <div style={{
-          background: '#1a1c24',
-          borderRadius: '12px',
-          border: '1px solid #2a2d35',
-          padding: '40px',
-          textAlign: 'center',
-          marginBottom: '20px',
-        }}>
-          <div style={{
-            fontSize: '14px',
-            color: '#c8e64a',
-            fontFamily: "'JetBrains Mono', monospace",
-            marginBottom: '8px',
-          }}>
-            {t('martech.auditInProgress')}
-          </div>
-          <p style={{ fontSize: '12px', color: '#6b7280', maxWidth: '600px', margin: '0 auto' }}>
-            {t('martech.auditSteps')}
-          </p>
-          <div style={{
-            marginTop: '16px',
-            display: 'flex',
-            justifyContent: 'center',
-            gap: '8px',
-            flexWrap: 'wrap',
-          }}>
-            {[
-              t('martech.stepFetching'),
-              t('martech.stepPatterns'),
-              t('martech.stepWebSearch'),
-              t('martech.stepAI'),
-              t('martech.stepMaturity'),
-            ].map((step, i) => (
-              <span key={i} style={{
-                padding: '4px 10px',
-                background: '#111318',
-                borderRadius: '4px',
-                fontSize: '10px',
-                color: '#6b7280',
-                fontFamily: "'JetBrains Mono', monospace",
-              }}>
-                {step}
-              </span>
             ))}
           </div>
         </div>

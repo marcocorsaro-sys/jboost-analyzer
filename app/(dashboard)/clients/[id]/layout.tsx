@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { getUser, getClientById } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import ClientTabs from '@/components/clients/ClientTabs'
@@ -10,18 +10,10 @@ export default async function ClientDetailLayout({
   children: React.ReactNode
   params: { id: string }
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
   // RLS enforces access via client_members; do NOT filter by user_id here
   // otherwise editors/viewers shared on the client would be locked out.
-  const { data: client } = await supabase
-    .from('clients')
-    .select('*')
-    .eq('id', params.id)
-    .single()
-
+  const [user, client] = await Promise.all([getUser(), getClientById(params.id)])
+  if (!user) redirect('/login')
   if (!client) redirect('/clients')
 
   return (

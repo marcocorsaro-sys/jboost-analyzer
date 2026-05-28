@@ -7,11 +7,23 @@ import { DRIVERS, getScoreBand } from '@/lib/constants'
 import { useLocale } from '@/lib/i18n/context'
 import { formatLocalDate } from '@/lib/i18n'
 import type { TranslationKey } from '@/lib/i18n'
+import dynamic from 'next/dynamic'
 import ScoreDisplay from '@/components/analyzer/ScoreDisplay'
-import SpiderChart from '@/components/analyzer/SpiderChart'
 import DriverDetail from '@/components/analyzer/DriverDetail'
 import PriorityMatrix from '@/components/analyzer/PriorityMatrix'
 import Link from 'next/link'
+
+// recharts is heavy and only powers this radar — load it lazily so it lands
+// in its own chunk instead of bloating the page's initial JS.
+const SpiderChart = dynamic(() => import('@/components/analyzer/SpiderChart'), {
+  ssr: false,
+  loading: () => (
+    <div
+      style={{ height: 444, background: '#1a1d24', borderRadius: '12px', border: '1px solid #2a2d35' }}
+      aria-hidden
+    />
+  ),
+})
 
 interface DriverResultRow {
   driver_name: string
