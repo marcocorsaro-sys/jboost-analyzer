@@ -12,6 +12,7 @@ const TABS = [
   { label: 'Analisi', path: '/analyses', icon: '◎' },
   { label: 'Summary', path: '/executive-summary', icon: '◆' },
   { label: 'MarTech', path: '/martech', icon: '⚡' },
+  { label: 'Structured Data', path: '/schema', icon: '◇' },
   { label: 'Knowledge', path: '/knowledge', icon: '◫' },
   { label: 'Ask J', path: '/chat', icon: '◈' },
 ]
