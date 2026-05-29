@@ -10,6 +10,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { logActivity } from '@/lib/tracking/activity'
+import { enforceSpendLimit } from '@/lib/tracking/spend-limit'
 import {
   detectMartechCategoryLlm,
   scrapeWithFirecrawl,
@@ -71,6 +72,9 @@ export async function POST(
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
+
+  const limited = await enforceSpendLimit(supabase)
+  if (limited) return limited
 
   let body: { category?: string } = {}
   try {

@@ -20,6 +20,7 @@ import type { MemoryGap, MemoryProfile } from '@/lib/types/client'
 import { buildGapsFromSkippedFields } from '@/lib/onboarding/gap-templates'
 import { refreshClientMemory } from '@/lib/memory/refresh'
 import { ONBOARDING_VERSION } from '@/lib/onboarding/sections'
+import { enforceSpendLimit } from '@/lib/tracking/spend-limit'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -35,6 +36,9 @@ export async function POST(
     if (!user) {
       return Response.json({ error: 'Not authenticated' }, { status: 401 })
     }
+
+    const limited = await enforceSpendLimit(supabase)
+    if (limited) return limited
 
     const clientId = params.id
 

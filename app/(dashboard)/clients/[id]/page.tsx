@@ -1,4 +1,4 @@
-import { createClient, getUser, getClientById } from '@/lib/supabase/server'
+import { createClient, getUser, getClientById, getProfileRole } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { getScoreBand } from '@/lib/constants'
 import { calcDelta } from '@/lib/trends/calculate'
@@ -63,9 +63,10 @@ export default async function ClientOverviewPage({
 
   // The remaining reads are independent (they only need the authenticated
   // user + params.id), so fire them concurrently instead of awaiting each in
-  // turn — this collapses ~8 sequential round-trips into a single batch.
+  // turn. profile.role is request-cached by the dashboard layout, so it
+  // resolves instantly here without an extra query.
   const [
-    { data: profile },
+    role,
     { data: myMembership },
     { data: subscription },
     { data: recentAnalyses },
@@ -75,7 +76,7 @@ export default async function ClientOverviewPage({
     { count: filesCount },
     { data: memoryRow },
   ] = await Promise.all([
-    supabase.from('profiles').select('role').eq('id', user.id).single(),
+    getProfileRole(user.id),
     supabase
       .from('client_members')
       .select('role')
@@ -120,7 +121,7 @@ export default async function ClientOverviewPage({
       .maybeSingle(),
   ])
 
-  const isAdmin = profile?.role === 'admin'
+  const isAdmin = role === 'admin'
 
   // canEdit covers most lifecycle actions, canManageOwners is restricted to
   // archive + hard-delete (and member management).

@@ -46,3 +46,16 @@ export const getClientById = cache(async (id: string) => {
   const { data } = await supabase.from('clients').select('*').eq('id', id).single()
   return data
 })
+
+// Request-scoped role lookup. The dashboard layout + several server pages
+// each independently check whether the current user is admin; without this,
+// every navigation pays for the profile fetch twice (layout + page).
+export const getProfileRole = cache(async (userId: string): Promise<string | null> => {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single()
+  return (data?.role as string | null) ?? null
+})
