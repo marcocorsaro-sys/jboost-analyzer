@@ -1,8 +1,62 @@
 import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js'
+import { cookies, headers } from 'next/headers'
 import { cache } from 'react'
 
-export async function createClient() {
+// Reads `Authorization: Bearer <jwt>` from the current request, if present.
+// External callers (e.g. the MCP server at /api/mcp, or any programmatic API
+// consumer) authenticate with a Supabase JWT instead of a browser cookie
+// session. Returns the raw token or null.
+async function getBearerToken(): Promise<string | null> {
+  try {
+    const h = await headers()
+    const auth = h.get('authorization')
+    if (auth && auth.toLowerCase().startsWith('bearer ')) {
+      const token = auth.slice(7).trim()
+      return token.length > 0 ? token : null
+    }
+  } catch {
+    // headers() is unavailable outside a request scope — fall through to cookies.
+  }
+  return null
+}
+
+// Returns a request-scoped Supabase client. Two authentication modes:
+//
+//  1. Bearer mode — when the request carries `Authorization: Bearer <jwt>`
+//     (external / MCP / programmatic callers). The client runs under that
+//     user's JWT, so RLS applies exactly as for a browser session.
+//  2. Cookie mode — the default for browser-driven requests (server
+//     components, route handlers reached from the dashboard).
+//
+// Both branches return a structurally identical SupabaseClient, so every
+// existing API route keeps working unchanged while also becoming callable
+// from outside with a bearer token.
+export async function createClient(): Promise<SupabaseClient> {
+  const bearer = await getBearerToken()
+
+  if (bearer) {
+    const supabase = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+          detectSessionInUrl: false,
+        },
+        // PostgREST queries run under the caller's JWT → RLS enforced per-user.
+        global: { headers: { Authorization: `Bearer ${bearer}` } },
+      }
+    )
+    // Establish the session so that `auth.getUser()` (no-arg, as every route
+    // calls it) resolves the authenticated user. setSession validates the
+    // token against GoTrue; an invalid/expired token leaves the client
+    // unauthenticated and routes return 401, same as a missing cookie.
+    await supabase.auth.setSession({ access_token: bearer, refresh_token: bearer })
+    return supabase
+  }
+
   const cookieStore = await cookies()
 
   return createServerClient(
@@ -25,7 +79,7 @@ export async function createClient() {
         },
       },
     }
-  )
+  ) as unknown as SupabaseClient
 }
 
 // Request-scoped memoization: layouts and pages in the same render both need
