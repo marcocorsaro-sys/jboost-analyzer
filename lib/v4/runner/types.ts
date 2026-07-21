@@ -24,11 +24,31 @@ export interface AnalysisSite {
   brand_variants?: string[]
 }
 
+/**
+ * One page template of one site (template_configs).
+ *
+ * Shared by Speed / Accessibility / Schema / Content: they must all measure
+ * the SAME pages, otherwise the scores are not comparable across the set.
+ */
+export interface TemplateConfig {
+  site_ref: SiteRef
+  template_key: string
+  /** null = the template does not exist on this site. */
+  url: string | null
+  applies_to: string[]
+}
+
 /** Everything a driver worker needs. No Supabase handle: workers stay pure-ish. */
 export interface DriverJobContext {
   analysisId: string
   driverKey: V4DriverKey
   sites: AnalysisSite[]
+  /**
+   * Page templates configured for this analysis (empty until the Block 3
+   * setup wizard exists). A worker that needs pages decides its own fallback
+   * and MUST record which URLs it actually measured.
+   */
+  templates: TemplateConfig[]
   /** Per-driver setup config (driver_runs.config). */
   config: Record<string, unknown>
   /** REF_DATE frozen at launch: last day of the last complete month. */

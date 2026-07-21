@@ -285,6 +285,9 @@ function fakeDb(state: FakeState) {
           select: () => ({ eq: () => ({ single: async () => ({ data: analysis, error: null }) }) }),
         }
       }
+      if (table === 'template_configs') {
+        return { select: () => ({ eq: async () => ({ data: [], error: null }) }) }
+      }
       return {
         select: () => ({
           eq: async () => ({ data: state.rows, error: null }),
@@ -395,6 +398,7 @@ test('execute: a successful job stores per-site raws and then normalizes them', 
     // The worker receives the whole set, resolved from the analysis row.
     assert.deepEqual(ctx.sites.map((s) => s.domain), ['client.com', 'comp1.com', 'comp2.com'])
     assert.equal(ctx.refDate, '2026-06-30')
+    assert.deepEqual(ctx.templates, [])
     return {
       status: 'done',
       sites: ctx.sites.map((s, i) => ({
@@ -432,9 +436,15 @@ test('execute: an unregistered driver key is a loud error, not a skip', async ()
   assert.equal(state.updates[0].patch.status, 'error')
 })
 
-test('execute: the shipped workers all fail loudly instead of returning a fake number', async () => {
-  const state: FakeState = { claimed: row({ attempts: 3, max_attempts: 3 }), updates: [], rows: [] }
-  const result = await executeDriverJob(fakeDb(state), 'analysis-1', 'authority')
+test('execute: a driver with no worker yet fails loudly instead of returning a fake number', async () => {
+  // 'traffic' lands in block 5; block 4 already implemented authority/speed/
+  // accessibility/compliance, which would hit the network here.
+  const state: FakeState = {
+    claimed: row({ driver_key: 'traffic', attempts: 3, max_attempts: 3 }),
+    updates: [],
+    rows: [],
+  }
+  const result = await executeDriverJob(fakeDb(state), 'analysis-1', 'traffic')
   assert.equal(result.status, 'error')
   assert.match(String(result.error), /no V4 worker yet/)
 })

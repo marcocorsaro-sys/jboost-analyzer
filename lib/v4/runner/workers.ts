@@ -19,6 +19,10 @@
 
 import type { V4DriverKey } from '@/lib/scoring/registry'
 import type { DriverWorker } from './types'
+import { authorityWorker } from '@/lib/v4/drivers/authority'
+import { speedWorker } from '@/lib/v4/drivers/speed'
+import { accessibilityWorker } from '@/lib/v4/drivers/accessibility'
+import { complianceWorker } from '@/lib/v4/drivers/compliance'
 
 function notImplemented(driverKey: V4DriverKey, block: number): DriverWorker {
   return async () => ({
@@ -33,10 +37,12 @@ function notImplemented(driverKey: V4DriverKey, block: number): DriverWorker {
  */
 export const DRIVER_WORKERS: Record<V4DriverKey, DriverWorker> = {
   // Block 4 — Development drivers whose data source already exists in V1.
-  authority: notImplemented('authority', 4),
-  speed: notImplemented('speed', 4),
-  accessibility: notImplemented('accessibility', 4),
-  compliance: notImplemented('compliance', 4),
+  // They reuse the V1 HTTP clients but never their mock fallbacks: see
+  // lib/v4/drivers/source.ts (requireLive).
+  authority: authorityWorker,
+  speed: speedWorker,
+  accessibility: accessibilityWorker,
+  compliance: complianceWorker,
 
   // Block 5 — rewritten or brand-new drivers.
   discoverability: notImplemented('discoverability', 5),

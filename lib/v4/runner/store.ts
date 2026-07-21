@@ -8,7 +8,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { AnalysisSite, DriverRunRow, SiteRef } from './types'
+import type { AnalysisSite, DriverRunRow, SiteRef, TemplateConfig } from './types'
 import type { PlannedRun } from './planner'
 
 const RUN_COLUMNS =
@@ -111,6 +111,24 @@ export async function listUndispatchedRuns(
     .order('created_at', { ascending: true })
     .limit(limit)
   return { rows: (data ?? []) as unknown as DriverRunRow[], error: error?.message ?? null }
+}
+
+/**
+ * Page templates of one analysis. Empty until the Block 3 setup wizard lands;
+ * every page-based driver must cope with that and say what it measured.
+ */
+export async function loadTemplateConfigs(
+  db: SupabaseClient,
+  analysisId: string,
+): Promise<{ templates: TemplateConfig[]; error: string | null }> {
+  const { data, error } = await db
+    .from('template_configs')
+    .select('site_ref, template_key, url, applies_to')
+    .eq('analysis_id', analysisId)
+  return {
+    templates: (data ?? []) as unknown as TemplateConfig[],
+    error: error?.message ?? null,
+  }
 }
 
 /** Stamp the moment a dispatcher handed these jobs to the worker route. */

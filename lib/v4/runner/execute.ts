@@ -27,6 +27,7 @@ import {
   listRunningRuns,
   listUndispatchedRuns,
   loadAnalysisSites,
+  loadTemplateConfigs,
   markDispatched,
   updateDriverRun,
 } from './store'
@@ -96,10 +97,15 @@ export async function executeDriverJob(
     return { claimed: true, status: 'error', error: sitesError ?? 'no sites' }
   }
 
+  // Templates are shared across the page-based drivers; loading them here
+  // keeps workers free of any DB handle.
+  const { templates } = await loadTemplateConfigs(db, analysisId)
+
   const ctx: DriverJobContext = {
     analysisId,
     driverKey: row.driver_key,
     sites,
+    templates,
     config: row.config ?? {},
     refDate,
     country,
