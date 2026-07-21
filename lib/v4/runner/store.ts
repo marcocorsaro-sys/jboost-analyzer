@@ -13,7 +13,8 @@ import type { PlannedRun } from './planner'
 
 const RUN_COLUMNS =
   'id, analysis_id, driver_key, enabled, config, status, raw_value, score_absolute, ' +
-  'score_relative, tier_used, raw_payload, decision_request, decision_taken, error, ' +
+  'score_relative, comment_absolute, comment_relative, tier_used, raw_payload, '+
+  'decision_request, decision_taken, error, ' +
   'edited, attempts, max_attempts, started_at, completed_at, lease_expires_at, ' +
   'dispatched_at, created_at'
 

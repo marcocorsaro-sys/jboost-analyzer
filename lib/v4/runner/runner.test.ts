@@ -41,6 +41,8 @@ function row(overrides: Partial<DriverRunRow> = {}): DriverRunRow {
     raw_value: null,
     score_absolute: null,
     score_relative: null,
+    comment_absolute: null,
+    comment_relative: null,
     tier_used: null,
     raw_payload: {},
     decision_request: null,
@@ -436,9 +438,10 @@ test('execute: an unregistered driver key is a loud error, not a skip', async ()
   assert.equal(state.updates[0].patch.status, 'error')
 })
 
-test('execute: a driver with no worker yet fails loudly instead of returning a fake number', async () => {
-  // 'traffic' lands in block 5; block 4 already implemented authority/speed/
-  // accessibility/compliance, which would hit the network here.
+test('execute: a driver whose source does not exist refuses explicitly', async () => {
+  // Traffic is wired to a worker that only ever refuses: the SimilarWeb source
+  // the spec mandates is not integrated. The refusal must name that, so nobody
+  // reads it as "the site has no traffic".
   const state: FakeState = {
     claimed: row({ driver_key: 'traffic', attempts: 3, max_attempts: 3 }),
     updates: [],
@@ -446,5 +449,6 @@ test('execute: a driver with no worker yet fails loudly instead of returning a f
   }
   const result = await executeDriverJob(fakeDb(state), 'analysis-1', 'traffic')
   assert.equal(result.status, 'error')
-  assert.match(String(result.error), /no V4 worker yet/)
+  assert.match(String(result.error), /SimilarWeb/)
+  assert.equal(state.updates[0].patch.raw_value, undefined)
 })

@@ -46,11 +46,15 @@ export default async function V4SetupPage({
           lineHeight: 1.6,
         }}
       >
-        <strong>Stato della pipeline V4.</strong> Sono implementati 4 driver su 10 — Authority,
-        Speed, Accessibility e Compliance. Gli altri sei sono selezionabili ma falliranno con un
-        errore esplicito («no V4 worker yet»): è voluto, un driver che non sa misurare non deve
-        produrre un numero. Compliance richiede un progetto Site Audit configurato su SEMrush per
-        ogni dominio, cosa che i competitor tipicamente non hanno.
+        <strong>Stato della pipeline V4.</strong> Tutti e 10 i driver hanno un worker, ma tre vanno
+        letti con attenzione. <strong>Traffic</strong> rifiuta sempre: la fonte prevista dalla spec
+        (SimilarWeb) non è integrata e le alternative misurano il traffico organico stimato, non le
+        visite totali. <strong>AI Visibility</strong> non ha una fonte automatica per scelta: si
+        ferma e chiede il punteggio letto su J-Horizon. <strong>Compliance</strong> e{' '}
+        <strong>Content</strong> richiedono un progetto Site Audit configurato su SEMrush per ogni
+        dominio, cosa che i competitor tipicamente non hanno. I punteggi di <strong>Schema</strong>{' '}
+        usano una knowledge base ricostruita dalla documentazione Google/schema.org, non trascritta
+        dal foglio 6 della Bibbia: da verificare prima di mostrarli a un cliente.
       </div>
 
       <SetupWizard clientId={client ?? null} />

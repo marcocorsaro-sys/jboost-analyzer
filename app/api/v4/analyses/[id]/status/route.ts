@@ -56,6 +56,8 @@ export async function GET(
       raw_value: r.raw_value,
       score_absolute: r.score_absolute,
       score_relative: r.score_relative,
+      comment_absolute: r.comment_absolute,
+      comment_relative: r.comment_relative,
       tier_used: r.tier_used,
       edited: r.edited,
       attempts: r.attempts,

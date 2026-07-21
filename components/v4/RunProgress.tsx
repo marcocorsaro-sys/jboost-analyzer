@@ -26,6 +26,8 @@ interface DriverRow {
   raw_value: number | null
   score_absolute: number | null
   score_relative: number | null
+  comment_absolute: string | null
+  comment_relative: string | null
   tier_used: string | null
   edited: boolean
   attempts: number
@@ -61,6 +63,8 @@ export default function RunProgress({ analysisId }: { analysisId: string }) {
   const [data, setData] = useState<StatusResponse | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
+  const [drafts, setDrafts] = useState(0)
+  const [publishState, setPublishState] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -72,6 +76,14 @@ export default function RunProgress({ analysisId }: { analysisId: string }) {
       }
       setData(body as StatusResponse)
       setLoadError(null)
+
+      // Draft edits live in their own table; the status route is about the
+      // measurement, not about what the analyst changed on top of it.
+      const editsRes = await fetch(`/api/v4/analyses/${analysisId}/publish`, { cache: 'no-store' })
+      if (editsRes.ok) {
+        const editsBody = await editsRes.json()
+        setDrafts(editsBody.drafts ?? 0)
+      }
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'errore di rete')
     }
@@ -100,6 +112,22 @@ export default function RunProgress({ analysisId }: { analysisId: string }) {
       await load()
     } finally {
       setStarting(false)
+    }
+  }
+
+  const publish = async () => {
+    setPublishState('Pubblico…')
+    try {
+      const res = await fetch(`/api/v4/analyses/${analysisId}/publish`, { method: 'POST' })
+      const body = await res.json()
+      setPublishState(
+        res.ok
+          ? `Pubblicate ${body.editsPublished} modifiche.`
+          : (body.error ?? 'pubblicazione fallita'),
+      )
+      await load()
+    } catch (err) {
+      setPublishState(err instanceof Error ? err.message : 'errore di rete')
     }
   }
 
@@ -196,9 +224,52 @@ export default function RunProgress({ analysisId }: { analysisId: string }) {
         </button>
       )}
 
+      {progress.total > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '14px',
+            flexWrap: 'wrap',
+            padding: '14px 18px',
+            background: '#1a1c24',
+            border: '1px solid #2a2d35',
+            borderRadius: '12px',
+          }}
+        >
+          <button
+            type="button"
+            onClick={publish}
+            disabled={progress.pending > 0}
+            style={{
+              padding: '10px 20px',
+              background: progress.pending > 0 ? '#2a2d35' : '#c8e64a',
+              color: progress.pending > 0 ? '#6b7280' : '#111318',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: 700,
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: '13px',
+              cursor: progress.pending > 0 ? 'default' : 'pointer',
+            }}
+          >
+            Save &amp; Publish
+          </button>
+          <span style={{ fontSize: '13px', color: drafts > 0 ? '#f59e0b' : '#6b7280' }}>
+            {drafts > 0 ? `${drafts} modifiche in bozza` : 'nessuna modifica in bozza'}
+          </span>
+          {progress.pending > 0 && (
+            <span style={{ fontSize: '12px', color: '#6b7280' }}>
+              Non pubblicabile finché {progress.pending} driver sono ancora in corso.
+            </span>
+          )}
+          {publishState && <span style={{ fontSize: '12px', color: '#a0a0a0' }}>{publishState}</span>}
+        </div>
+      )}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {data.drivers.map((d) => (
-          <DriverCard key={d.driver_key} row={d} />
+          <DriverCard key={d.driver_key} row={d} analysisId={analysisId} onChanged={load} />
         ))}
       </div>
     </div>
@@ -224,9 +295,18 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
   )
 }
 
-function DriverCard({ row }: { row: DriverRow }) {
+function DriverCard({
+  row,
+  analysisId,
+  onChanged,
+}: {
+  row: DriverRow
+  analysisId: string
+  onChanged: () => void
+}) {
   const def = getV4Driver(row.driver_key)
   const s = STATUS_STYLE[row.status]
+  const [editing, setEditing] = useState(false)
 
   return (
     <div
@@ -277,6 +357,47 @@ function DriverCard({ row }: { row: DriverRow }) {
         </div>
       )}
 
+      {row.status === 'done' && (
+        <div style={{ marginTop: '10px' }}>
+          <button
+            type="button"
+            onClick={() => setEditing(!editing)}
+            style={{
+              background: 'transparent',
+              border: '1px solid #2a2d35',
+              borderRadius: '6px',
+              color: '#a0a0a0',
+              padding: '4px 12px',
+              fontSize: '12px',
+              cursor: 'pointer',
+            }}
+          >
+            {editing ? 'Chiudi' : 'Modifica punteggio e commento'}
+          </button>
+          {editing && (
+            <DriverEditor
+              row={row}
+              analysisId={analysisId}
+              onSaved={() => {
+                setEditing(false)
+                onChanged()
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      {row.status === 'needs_decision' && (
+        <DecisionForm row={row} analysisId={analysisId} onAnswered={onChanged} />
+      )}
+
+      {(row.comment_relative || row.comment_absolute) && (
+        <div style={{ marginTop: '10px', fontSize: '13px', color: '#a0a0a0', lineHeight: 1.5 }}>
+          {row.comment_relative && <div>Relativo: {row.comment_relative}</div>}
+          {row.comment_absolute && <div>Assoluto: {row.comment_absolute}</div>}
+        </div>
+      )}
+
       {row.status === 'done' && row.sites.length > 0 && (
         <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
           {row.sites.map((site) => (
@@ -317,4 +438,303 @@ function Metric({ label, value }: { label: string; value: string }) {
 /** null is "non misurato" and must never render as 0. */
 function fmt(value: number | null | undefined): string {
   return value === null || value === undefined ? '—' : String(value)
+}
+
+/**
+ * Inline editor for the analyst's judgement.
+ *
+ * Only the score and the comment: the raw is what the source reported, and
+ * editing it would silently move every other site's leader index. See
+ * lib/v4/edits.ts.
+ */
+function DriverEditor({
+  row,
+  analysisId,
+  onSaved,
+}: {
+  row: DriverRow
+  analysisId: string
+  onSaved: () => void
+}) {
+  const def = getV4Driver(row.driver_key)
+  const [scoreRelative, setScoreRelative] = useState(row.score_relative?.toString() ?? '')
+  const [scoreAbsolute, setScoreAbsolute] = useState(row.score_absolute?.toString() ?? '')
+  const [commentRelative, setCommentRelative] = useState(row.comment_relative ?? '')
+  const [commentAbsolute, setCommentAbsolute] = useState(row.comment_absolute ?? '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const save = async () => {
+    setSaving(true)
+    setError(null)
+    const body: Record<string, unknown> = {
+      score_relative: scoreRelative === '' ? null : scoreRelative,
+      comment_relative: commentRelative || null,
+    }
+    if (def?.hasAbsoluteView) {
+      body.score_absolute = scoreAbsolute === '' ? null : scoreAbsolute
+      body.comment_absolute = commentAbsolute || null
+    }
+
+    try {
+      const res = await fetch(`/api/v4/analyses/${analysisId}/drivers/${row.driver_key}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(Array.isArray(data.details) ? data.details.join(' | ') : (data.error ?? 'errore'))
+        setSaving(false)
+        return
+      }
+      if (data.warning) setError(data.warning)
+      onSaved()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'errore di rete')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div
+      style={{
+        marginTop: '12px',
+        padding: '16px',
+        background: '#111318',
+        border: '1px solid #2a2d35',
+        borderRadius: '8px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+      }}
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+        <div>
+          <label style={editLabel}>Punteggio relativo (0-100)</label>
+          <input
+            style={editInput}
+            value={scoreRelative}
+            onChange={(e) => setScoreRelative(e.target.value)}
+            placeholder="vuoto = nessun punteggio"
+          />
+        </div>
+        {def?.hasAbsoluteView && (
+          <div>
+            <label style={editLabel}>Punteggio assoluto (0-100)</label>
+            <input
+              style={editInput}
+              value={scoreAbsolute}
+              onChange={(e) => setScoreAbsolute(e.target.value)}
+              placeholder="vuoto = nessun punteggio"
+            />
+          </div>
+        )}
+      </div>
+
+      <div>
+        <label style={editLabel}>Commento (vista relativa)</label>
+        <textarea
+          style={{ ...editInput, minHeight: '64px', resize: 'vertical' }}
+          value={commentRelative}
+          onChange={(e) => setCommentRelative(e.target.value)}
+        />
+      </div>
+
+      {def?.hasAbsoluteView && (
+        <div>
+          <label style={editLabel}>Commento (vista assoluta)</label>
+          <textarea
+            style={{ ...editInput, minHeight: '64px', resize: 'vertical' }}
+            value={commentAbsolute}
+            onChange={(e) => setCommentAbsolute(e.target.value)}
+          />
+        </div>
+      )}
+
+      <div style={{ fontSize: '12px', color: '#6b7280' }}>
+        Il raw non è modificabile: è la misura della fonte. Per cambiarlo si rilancia il driver.
+        Una modifica salvata resta bozza finché non fai Save &amp; Publish.
+      </div>
+
+      {error && <div style={{ fontSize: '12px', color: '#ef4444' }}>{error}</div>}
+
+      <button
+        type="button"
+        onClick={save}
+        disabled={saving}
+        style={{
+          alignSelf: 'flex-start',
+          padding: '8px 18px',
+          background: '#c8e64a',
+          color: '#111318',
+          border: 'none',
+          borderRadius: '6px',
+          fontWeight: 700,
+          fontSize: '13px',
+          cursor: 'pointer',
+        }}
+      >
+        {saving ? 'Salvo…' : 'Salva modifica'}
+      </button>
+    </div>
+  )
+}
+
+/**
+ * Answer a paused job.
+ *
+ * Two shapes today: the Discoverability tier cascade and the manual
+ * AI Visibility score. Both go through the same decision endpoint, which
+ * re-queues the job — nothing is scored here.
+ */
+function DecisionForm({
+  row,
+  analysisId,
+  onAnswered,
+}: {
+  row: DriverRow
+  analysisId: string
+  onAnswered: () => void
+}) {
+  const request = (row.decision_request ?? {}) as {
+    reason?: string
+    message?: string
+    empty_players?: string[]
+    next_tier?: string | null
+  }
+  const [score, setScore] = useState('')
+  const [comment, setComment] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const send = async (decision: Record<string, unknown>) => {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(
+        `/api/v4/analyses/${analysisId}/drivers/${row.driver_key}/decision`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ decision }),
+        },
+      )
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error ?? 'errore')
+        setBusy(false)
+        return
+      }
+      onAnswered()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'errore di rete')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div
+      style={{
+        marginTop: '12px',
+        padding: '16px',
+        background: '#f59e0b10',
+        border: '1px solid #f59e0b40',
+        borderRadius: '8px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+      }}
+    >
+      {request.message && (
+        <div style={{ fontSize: '13px', color: '#f59e0b', lineHeight: 1.5 }}>{request.message}</div>
+      )}
+
+      {request.reason === 'empty_tier' && (
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          {request.next_tier && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => send({ tier: request.next_tier })}
+              style={decisionButton}
+            >
+              Estendi al tier {request.next_tier} (tutto il set)
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => send({ removed: request.empty_players ?? [] })}
+            style={decisionButton}
+          >
+            Rimuovi {(request.empty_players ?? []).join(', ')} dal set
+          </button>
+        </div>
+      )}
+
+      {request.reason === 'manual_input' && (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '12px' }}>
+            <input
+              style={editInput}
+              value={score}
+              onChange={(e) => setScore(e.target.value)}
+              placeholder="Punteggio 0-100"
+            />
+            <input
+              style={editInput}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Commento (opzionale)"
+            />
+          </div>
+          <button
+            type="button"
+            disabled={busy || score === ''}
+            onClick={() => send({ score: Number(score), comment: comment || null })}
+            style={decisionButton}
+          >
+            {busy ? 'Invio…' : 'Salva punteggio J-Horizon'}
+          </button>
+        </>
+      )}
+
+      {error && <div style={{ fontSize: '12px', color: '#ef4444' }}>{error}</div>}
+    </div>
+  )
+}
+
+const editLabel: React.CSSProperties = {
+  display: 'block',
+  fontSize: '11px',
+  fontWeight: 600,
+  color: '#6b7280',
+  marginBottom: '5px',
+  fontFamily: "'JetBrains Mono', monospace",
+  textTransform: 'uppercase',
+  letterSpacing: '0.5px',
+}
+
+const editInput: React.CSSProperties = {
+  width: '100%',
+  padding: '8px 12px',
+  background: '#0d0f14',
+  border: '1px solid #2a2d35',
+  borderRadius: '6px',
+  color: '#ffffff',
+  fontSize: '13px',
+  outline: 'none',
+  fontFamily: 'inherit',
+}
+
+const decisionButton: React.CSSProperties = {
+  padding: '8px 16px',
+  background: '#f59e0b',
+  color: '#111318',
+  border: 'none',
+  borderRadius: '6px',
+  fontSize: '13px',
+  fontWeight: 700,
+  cursor: 'pointer',
 }

@@ -5,16 +5,17 @@
  * queue, claim, lease, retry, normalize and reap a driver job, and it reaches
  * the actual measurement through exactly one function per driver.
  *
- * The workers themselves are NOT Block 2. Per the reuse map §7, the drivers
- * land in blocks 4 (Authority, Speed, Accessibility, Compliance — sources
- * already present in V1) and 5 (Discoverability, Awareness, Schema, Content,
- * Traffic, AI Visibility — rewritten or new). Until then every key resolves to
- * `notImplemented`, which fails the job LOUDLY with an explicit message.
+ * All ten keys now resolve to a real worker (blocks 4 and 5), with two that
+ * are deliberately not measurements:
+ *   - ai_visibility pauses on needs_decision — the score is typed in from
+ *     J-Horizon, there is no API by design.
+ *   - traffic refuses, naming the SimilarWeb source it needs and why the
+ *     Semrush/Ahrefs numbers on hand are not a substitute.
  *
- * That is deliberate. A placeholder returning raw 0 or a mock number would be
- * the exact V1 bug the V4 spec calls out by name — Ariston scoring 0/100 on
- * Schema because a detection failure was written as a real measurement. A
- * driver that cannot measure must say so, never quietly produce a number.
+ * Both are failures that SAY what is missing. That is the point: a placeholder
+ * returning 0 or a mock number would be the exact V1 bug the V4 spec calls out
+ * by name — Ariston scoring 0/100 on Schema because a detection failure was
+ * written as a real measurement.
  */
 
 import type { V4DriverKey } from '@/lib/scoring/registry'
@@ -23,13 +24,12 @@ import { authorityWorker } from '@/lib/v4/drivers/authority'
 import { speedWorker } from '@/lib/v4/drivers/speed'
 import { accessibilityWorker } from '@/lib/v4/drivers/accessibility'
 import { complianceWorker } from '@/lib/v4/drivers/compliance'
-
-function notImplemented(driverKey: V4DriverKey, block: number): DriverWorker {
-  return async () => ({
-    status: 'error',
-    error: `driver "${driverKey}" has no V4 worker yet (scheduled for block ${block} of the reuse map)`,
-  })
-}
+import { discoverabilityWorker } from '@/lib/v4/drivers/discoverability'
+import { awarenessWorker } from '@/lib/v4/drivers/awareness'
+import { contentWorker } from '@/lib/v4/drivers/content'
+import { aiVisibilityWorker } from '@/lib/v4/drivers/ai-visibility'
+import { trafficWorker } from '@/lib/v4/drivers/traffic'
+import { schemaWorker } from '@/lib/v4/drivers/schema'
 
 /**
  * driver_key -> worker. Register a real implementation here and the runner
@@ -45,12 +45,16 @@ export const DRIVER_WORKERS: Record<V4DriverKey, DriverWorker> = {
   compliance: complianceWorker,
 
   // Block 5 — rewritten or brand-new drivers.
-  discoverability: notImplemented('discoverability', 5),
-  awareness: notImplemented('awareness', 5),
-  schema: notImplemented('schema', 5),
-  content: notImplemented('content', 5),
-  traffic: notImplemented('traffic', 5),
-  ai_visibility: notImplemented('ai_visibility', 5),
+  discoverability: discoverabilityWorker,
+  awareness: awarenessWorker,
+  schema: schemaWorker,
+  content: contentWorker,
+  // No automatic source by design: pauses on needs_decision for the operator
+  // to type the J-Horizon score.
+  ai_visibility: aiVisibilityWorker,
+  // Implemented as an explicit, specific refusal — the SimilarWeb source the
+  // spec mandates is not integrated and no equivalent measures the same thing.
+  traffic: trafficWorker,
 }
 
 export function getWorker(driverKey: string): DriverWorker | undefined {

@@ -113,6 +113,9 @@ export interface DriverRunRow {
   raw_value: number | null
   score_absolute: number | null
   score_relative: number | null
+  /** Analyst-written explanations shown next to each view. */
+  comment_absolute: string | null
+  comment_relative: string | null
   tier_used: string | null
   raw_payload: Record<string, unknown>
   /** Pause payload written by the worker (what the analyst must choose). */
