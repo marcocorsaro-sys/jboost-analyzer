@@ -182,8 +182,13 @@ CREATE INDEX IF NOT EXISTS idx_deliverables_analysis
 -- ---------------------------------------------------------------------------
 -- 6. updated_at triggers (same convention as existing tables)
 -- ---------------------------------------------------------------------------
+-- search_path pinned: a trigger function with a mutable search_path is a
+-- privilege-escalation vector (same reason as the phase1 fix_function_search_path
+-- migration, and what the Supabase linter flags).
 CREATE OR REPLACE FUNCTION public.v4_touch_updated_at()
-RETURNS TRIGGER LANGUAGE plpgsql AS $$
+RETURNS TRIGGER LANGUAGE plpgsql
+SET search_path = public
+AS $$
 BEGIN
   NEW.updated_at = now();
   RETURN NEW;

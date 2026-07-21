@@ -55,10 +55,16 @@ AS $$
   RETURNING *;
 $$;
 
--- Only the runner may claim a job. Revoking PUBLIC drops the default EXECUTE
--- grant (which would otherwise reach anon/authenticated); service_role is the
--- single caller — the worker route runs with it and has no user session.
+-- Only the runner may claim a job. This function is SECURITY DEFINER and so
+-- bypasses RLS: left reachable, any logged-in user could flip driver_runs rows
+-- of analyses they cannot even read.
+--
+-- Revoking PUBLIC is NOT enough on Supabase: ALTER DEFAULT PRIVILEGES grants
+-- EXECUTE on public-schema functions to anon and authenticated explicitly, and
+-- an explicit grant survives a revoke on PUBLIC. Both roles must be named.
 REVOKE ALL ON FUNCTION public.v4_claim_driver_run(UUID, TEXT, INTEGER) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.v4_claim_driver_run(UUID, TEXT, INTEGER) FROM anon;
+REVOKE ALL ON FUNCTION public.v4_claim_driver_run(UUID, TEXT, INTEGER) FROM authenticated;
 GRANT EXECUTE ON FUNCTION public.v4_claim_driver_run(UUID, TEXT, INTEGER) TO service_role;
 
 -- ---------------------------------------------------------------------------
