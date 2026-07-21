@@ -131,6 +131,32 @@ export async function loadTemplateConfigs(
   }
 }
 
+/**
+ * Replace the template set of an analysis.
+ *
+ * Upsert rather than insert so re-running setup on an existing analysis is
+ * idempotent; a template the analyst cleared is stored with url NULL ("this
+ * site does not have this template"), which is information, not absence.
+ */
+export async function saveTemplateConfigs(
+  db: SupabaseClient,
+  analysisId: string,
+  templates: TemplateConfig[],
+): Promise<{ error: string | null }> {
+  if (templates.length === 0) return { error: null }
+  const { error } = await db.from('template_configs').upsert(
+    templates.map((t) => ({
+      analysis_id: analysisId,
+      site_ref: t.site_ref,
+      template_key: t.template_key,
+      url: t.url,
+      applies_to: t.applies_to ?? [],
+    })),
+    { onConflict: 'analysis_id,site_ref,template_key' },
+  )
+  return { error: error?.message ?? null }
+}
+
 /** Stamp the moment a dispatcher handed these jobs to the worker route. */
 export async function markDispatched(
   db: SupabaseClient,

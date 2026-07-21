@@ -16,6 +16,9 @@ const NAV_MAIN: { href: string; labelKey: TranslationKey; icon: string }[] = [
 
 const NAV_TOOLS: { href: string; labelKey: TranslationKey; icon: string }[] = [
   { href: '/analyzer', labelKey: 'nav.analyzeDomain', icon: '⊕' },
+  // V4 pipeline (Driver Intelligence Platform). Coexists with the V1 analyzer
+  // above until the migration completes.
+  { href: '/analyzer/v4', labelKey: 'nav.analyzeV4', icon: '⊛' },
   { href: '/results', labelKey: 'nav.results', icon: '◫' },
 ]
 
@@ -46,6 +49,9 @@ export default function Sidebar({
       // Avoid false positive when the user is on /prospects; /prospects does
       // not start with "/clients" so the default check is safe.
     }
+    // /analyzer/v4 is its own entry, so the V1 /analyzer link must not also
+    // light up when the user is inside it.
+    if (href === '/analyzer') return pathname === href
     return pathname === href || pathname.startsWith(href + '/')
   }
 

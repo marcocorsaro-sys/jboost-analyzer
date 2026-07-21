@@ -3,6 +3,7 @@ const it = {
   'nav.dashboard': 'Dashboard',
   'nav.clients': 'Clienti',
   'nav.askJ': 'Ask J',
+  'nav.analyzeV4': 'Analisi V4',
   'nav.analyzeDomain': 'Analizza Dominio',
   'nav.results': 'Risultati',
   'nav.settings': 'Impostazioni',
