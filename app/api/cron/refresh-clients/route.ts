@@ -1,6 +1,8 @@
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { runMonitoringForClient } from '@/lib/monitoring/run'
+import { reapStaleRuns } from '@/lib/v4/runner/execute'
+import { resolveBaseUrl } from '@/lib/v4/runner/dispatch'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60 // Vercel Hobby allows up to 60s for serverless funcs
@@ -93,10 +95,24 @@ export async function GET(request: Request) {
   eligible.forEach((sub, i) => buckets[i % concurrency].push(sub))
   await Promise.all(buckets.map(worker))
 
+  // 6. V4 runner reaper. Piggy-backs on this cron on purpose (reuse map §6):
+  // a driver job whose invocation died leaves a 'running' row with an expired
+  // lease, and a failed fan-out leaves a 'queued' row nobody collected. This
+  // is the only pass that notices either. Never let it fail the cron: the
+  // monitoring work above already succeeded.
+  let v4Reaper: Awaited<ReturnType<typeof reapStaleRuns>> | { error: string }
+  try {
+    v4Reaper = await reapStaleRuns(supabase, resolveBaseUrl(request))
+  } catch (err) {
+    v4Reaper = { error: err instanceof Error ? err.message : String(err) }
+    console.error('[cron/refresh-clients] v4 reaper threw:', err)
+  }
+
   return NextResponse.json({
     picked: eligible.length,
     started,
     errors,
+    v4Reaper,
     timestamp: nowIso,
   })
 }
