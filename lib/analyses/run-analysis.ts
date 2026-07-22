@@ -1400,7 +1400,7 @@ async function fetchCompanyContext(domain: string, competitors: string[], target
       const res = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, messages: [{ role: 'user', content: `You are a market analyst. Output only valid JSON.\n\n${prompt}` }] }),
+        body: JSON.stringify({ model: 'claude-sonnet-5', thinking: { type: 'disabled' }, max_tokens: 1000, messages: [{ role: 'user', content: `You are a market analyst. Output only valid JSON.\n\n${prompt}` }] }),
         timeoutMs: 12000,
       });
       if (!res.ok) throw new Error(`Anthropic ${res.status}`);
@@ -1590,7 +1590,7 @@ async function callLLM(prompt: string, jsonSchema: boolean, openaiKey: string, p
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 2000, messages: [{ role: 'user', content: `You are an SEO expert. Output only valid JSON.\n\n${prompt}` }] }),
+        body: JSON.stringify({ model: 'claude-sonnet-5', thinking: { type: 'disabled' }, max_tokens: 2000, messages: [{ role: 'user', content: `You are an SEO expert. Output only valid JSON.\n\n${prompt}` }] }),
       });
       if (!res.ok) throw new Error(`Anthropic ${res.status}`);
       const d = await res.json();

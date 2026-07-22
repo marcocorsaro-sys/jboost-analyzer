@@ -14,7 +14,7 @@ import { enforceSpendLimit } from '@/lib/tracking/spend-limit'
 export const maxDuration = 90
 export const dynamic = 'force-dynamic'
 
-const SONNET_MODEL = 'claude-sonnet-4-20250514'
+const SONNET_MODEL = 'claude-sonnet-5'
 const MAX_OUTPUT_TOKENS = 1200
 
 interface IntakeResult {
@@ -160,6 +160,9 @@ export async function POST(request: Request) {
           body: JSON.stringify({
             model: SONNET_MODEL,
             max_tokens: MAX_OUTPUT_TOKENS,
+            // Sonnet 5 thinks by default; this is structured extraction on a
+            // tight budget, so keep the pre-migration behaviour.
+            thinking: { type: 'disabled' },
             system: SYSTEM_PROMPT,
             messages: [{ role: 'user', content: userPrompt }],
           }),

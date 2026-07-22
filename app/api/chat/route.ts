@@ -56,18 +56,17 @@ export async function POST(req: Request) {
 
     // Stream response from Claude
     const result = streamText({
-      model: anthropic('claude-sonnet-4-20250514'),
+      model: anthropic('claude-sonnet-5'),
       system: systemPrompt,
       messages,
       maxTokens: 4096,
-      temperature: 0.7,
       async onFinish({ text, usage }) {
         // Track LLM cost (non-blocking)
         trackLlmUsage({
           userId: user.id,
           clientId: clientId || null,
           provider: 'anthropic',
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-5',
           operation: 'chat',
           inputTokens: usage.promptTokens || 0,
           outputTokens: usage.completionTokens || 0,
