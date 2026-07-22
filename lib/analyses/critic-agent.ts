@@ -84,7 +84,7 @@ Rules:
 - Questions must be answerable in 1-2 sentences OR via the "options" list (max 4 options).
 - Skip both lists silently when the output looks healthy and no context is needed.`;
 
-const ANTHROPIC_MODEL = 'claude-sonnet-4-20250514';
+const ANTHROPIC_MODEL = 'claude-sonnet-5';
 const REQUEST_TIMEOUT_MS = 20_000;
 
 function clamp<T>(arr: T[] | undefined, max: number): T[] {

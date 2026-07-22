@@ -97,18 +97,17 @@ export async function POST(
 
     // Stream response from Claude
     const result = streamText({
-      model: anthropic('claude-sonnet-4-20250514'),
+      model: anthropic('claude-sonnet-5'),
       system: EXECUTIVE_SUMMARY_SYSTEM_PROMPT,
       prompt: `Analizza i seguenti dati e produci l'Executive Summary:\n\n${dataBlock}`,
       maxTokens: 4096,
-      temperature: 0.3,
       async onFinish({ text, usage }) {
         // Track LLM cost (non-blocking)
         trackLlmUsage({
           userId: user.id,
           clientId,
           provider: 'anthropic',
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-5',
           operation: 'executive_summary',
           inputTokens: usage.promptTokens || 0,
           outputTokens: usage.completionTokens || 0,
@@ -129,7 +128,7 @@ export async function POST(
               client_id: clientId,
               analysis_id: ctx.latestAnalysis!.id,
               content: text,
-              model: 'claude-sonnet-4-20250514',
+              model: 'claude-sonnet-5',
             })
           } catch (err) {
             console.error('[Executive Summary] Failed to persist:', err)

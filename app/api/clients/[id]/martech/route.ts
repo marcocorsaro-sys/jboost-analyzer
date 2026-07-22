@@ -225,7 +225,7 @@ export async function POST(
       userId: user.id,
       clientId: params.id,
       provider: 'anthropic',
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       operation: 'martech_detect_v3',
       inputTokens: usage.input_tokens,
       outputTokens: usage.output_tokens,

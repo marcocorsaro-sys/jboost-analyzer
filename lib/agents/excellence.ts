@@ -8,7 +8,7 @@
 // uniformly. New drivers opt in by calling produceExcellence() inside
 // their execute() and merging the result into their output.
 
-const ANTHROPIC_MODEL = 'claude-sonnet-4-20250514';
+const ANTHROPIC_MODEL = 'claude-sonnet-5';
 const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_OUTPUT_TOKENS = 1500;
 

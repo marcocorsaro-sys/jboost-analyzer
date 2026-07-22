@@ -508,11 +508,10 @@ export async function refreshClientMemory(
     log.info(clientId, `calling Claude (sonnet-4)`)
 
     const result = await generateObject({
-      model: anthropic('claude-sonnet-4-20250514'),
+      model: anthropic('claude-sonnet-5'),
       schema: FullMemorySchema,
       system: MEMORY_SYNTHESIS_SYSTEM_PROMPT,
       prompt: `Analizza i seguenti dati del cliente e genera la memoria strutturata.\n\n${assembled.inputText}`,
-      temperature: 0.3,
       maxTokens: 8192,
     })
 
@@ -564,7 +563,7 @@ export async function refreshClientMemory(
       userId,
       clientId,
       provider: 'anthropic',
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       operation: 'memory_refresh',
       inputTokens: result.usage?.promptTokens || 0,
       outputTokens: result.usage?.completionTokens || 0,
@@ -626,11 +625,10 @@ export async function partialRefreshMemory(
     }
 
     const result = await generateObject({
-      model: anthropic('claude-sonnet-4-20250514'),
+      model: anthropic('claude-sonnet-5'),
       schema: PartialRefreshSchema,
       system: PARTIAL_REFRESH_SYSTEM_PROMPT,
       prompt: `Profilo attuale del cliente (sintesi): ${profileSummary}\n\nDomanda: ${question}\nRisposta dell'utente: ${answer}\n\nEstrai fatti, suggerisci aggiornamenti al profilo, e identifica nuovi gap.`,
-      temperature: 0.2,
       maxTokens: 2048,
     })
 
@@ -678,7 +676,7 @@ export async function partialRefreshMemory(
       userId,
       clientId,
       provider: 'anthropic',
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       operation: 'memory_partial_refresh',
       inputTokens: result.usage?.promptTokens || 0,
       outputTokens: result.usage?.completionTokens || 0,

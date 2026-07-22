@@ -21,11 +21,10 @@ export async function GET() {
 
   try {
     const result = streamText({
-      model: anthropic('claude-sonnet-4-20250514'),
+      model: anthropic('claude-sonnet-5'),
       system: 'Sei un assistente. Rispondi in una frase.',
       messages: [{ role: 'user' as const, content: 'Ciao, funzioni?' }],
       maxTokens: 100,
-      temperature: 0.7,
     })
 
     let fullText = ''
@@ -35,7 +34,7 @@ export async function GET() {
 
     diagnostics.sdk_test = {
       success: true,
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       response_length: fullText.length,
       response_preview: fullText.slice(0, 200),
     }
@@ -69,11 +68,10 @@ export async function POST(req: Request) {
     const messages = body.messages || [{ role: 'user', content: 'Ciao, funzioni?' }]
 
     const result = streamText({
-      model: anthropic('claude-sonnet-4-20250514'),
+      model: anthropic('claude-sonnet-5'),
       system: 'Sei Ask J, un assistente AI. Rispondi in italiano in modo conciso.',
       messages,
       maxTokens: 200,
-      temperature: 0.7,
     })
 
     // This is the exact same return method used in /api/chat
