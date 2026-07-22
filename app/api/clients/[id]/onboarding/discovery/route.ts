@@ -22,6 +22,7 @@ import { z } from 'zod'
 import type { MemoryFact, MemoryFactCategory, MemoryProfile } from '@/lib/types/client'
 import { DISCOVERY_CHAT_SYSTEM_PROMPT } from '@/lib/onboarding/prompts'
 import { trackLlmUsage } from '@/lib/tracking/llm-usage'
+import { enforceSpendLimit } from '@/lib/tracking/spend-limit'
 
 export const maxDuration = 60
 
@@ -45,6 +46,9 @@ export async function POST(
         headers: { 'Content-Type': 'application/json' },
       })
     }
+
+    const limited = await enforceSpendLimit(supabase)
+    if (limited) return limited
 
     const clientId = params.id
     const body = await req.json().catch(() => ({}))

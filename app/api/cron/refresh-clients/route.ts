@@ -1,6 +1,7 @@
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { runMonitoringForClient } from '@/lib/monitoring/run'
+import { getSpendStatus } from '@/lib/tracking/spend-limit'
 import { reapStaleRuns } from '@/lib/v4/runner/execute'
 import { resolveBaseUrl } from '@/lib/v4/runner/dispatch'
 
@@ -79,8 +80,23 @@ export async function GET(request: Request) {
   let started = 0
   const errors: { clientId: string; error: string }[] = []
 
+  // Defensive: never let the cron blow past the global daily spend limit.
+  // Each kicked-off analysis still pays for its own enforceSpendLimit check
+  // at /api/analyses/run, but checking once before each client here avoids
+  // even queueing work that we already know will be refused downstream.
+  let halted = false
   async function worker(items: typeof eligible) {
     for (const sub of items) {
+      if (halted) break
+      const status = await getSpendStatus(supabase as unknown as Parameters<typeof getSpendStatus>[0])
+      if (status.blocked) {
+        halted = true
+        errors.push({
+          clientId: sub.client_id,
+          error: `daily LLM spend limit hit (€${status.spentTodayEur.toFixed(2)}/${status.limitEur.toFixed(2)})`,
+        })
+        break
+      }
       const result = await runMonitoringForClient(supabase, sub.client_id)
       if (result.error) {
         errors.push({ clientId: sub.client_id, error: result.error })

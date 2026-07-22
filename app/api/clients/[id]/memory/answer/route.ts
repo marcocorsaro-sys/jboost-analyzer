@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextRequest } from 'next/server'
 import { partialRefreshMemory } from '@/lib/memory/refresh'
 import type { ClientMemory, MemoryAnswer, MemoryGap } from '@/lib/types/client'
+import { enforceSpendLimit } from '@/lib/tracking/spend-limit'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -22,6 +23,9 @@ export async function POST(
     if (!user) {
       return Response.json({ error: 'Not authenticated' }, { status: 401 })
     }
+
+    const limited = await enforceSpendLimit(supabase)
+    if (limited) return limited
 
     const clientId = params.id
     const body = await req.json()

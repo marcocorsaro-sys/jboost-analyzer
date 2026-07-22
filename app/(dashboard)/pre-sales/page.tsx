@@ -1,147 +1,64 @@
-'use client'
+import { createClient, getUser } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+import ProspectsListWrapper from '@/components/clients/ProspectsListWrapper'
+import type { ClientData } from '@/components/clients/ClientsListWrapper'
 
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import ClientCard from '@/components/clients/ClientCard'
-import { useLocale } from '@/lib/i18n'
-import type { ClientLifecycleStage } from '@/lib/types/client'
+// Server-rendered: prospects + their analysis stats arrive in the first HTML
+// response. Replaces a /api/clients?stage=prospect fetch + spinner with one
+// DB query plus a single batched analyses lookup.
+export default async function ProspectsPage() {
+  const user = await getUser()
+  if (!user) redirect('/login')
 
-interface ClientData {
-  id: string
-  name: string
-  domain: string | null
-  industry: string | null
-  status: 'active' | 'archived'
-  lifecycle_stage: ClientLifecycleStage
-  analyses_count: number
-  latest_score: number | null
-  latest_analysis_at: string | null
-}
+  const supabase = await createClient()
+  const { data: rawProspects } = await supabase
+    .from('clients')
+    .select('id, name, domain, industry, status, lifecycle_stage, updated_at')
+    .eq('lifecycle_stage', 'prospect')
+    .order('updated_at', { ascending: false })
 
-export default function ProspectsPage() {
-  const { t } = useLocale()
-  const [prospects, setProspects] = useState<ClientData[]>([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const prospectList = rawProspects ?? []
+  const prospectIds = prospectList.map(c => c.id)
 
-  useEffect(() => {
-    fetchProspects()
-  }, [])
-
-  const fetchProspects = async () => {
-    try {
-      const res = await fetch('/api/clients?stage=prospect')
-      const data = await res.json()
-      setProspects(data.clients || [])
-    } catch (err) {
-      console.error('Failed to fetch prospects:', err)
-    } finally {
-      setLoading(false)
+  const statsByClient = new Map<
+    string,
+    { count: number; latest_score: number | null; latest_analysis_at: string | null }
+  >()
+  if (prospectIds.length > 0) {
+    const { data: analyses } = await supabase
+      .from('analyses')
+      .select('client_id, overall_score, completed_at')
+      .in('client_id', prospectIds)
+      .eq('status', 'completed')
+      .order('completed_at', { ascending: false })
+    for (const a of analyses ?? []) {
+      const cur = statsByClient.get(a.client_id)
+      if (!cur) {
+        statsByClient.set(a.client_id, {
+          count: 1,
+          latest_score: a.overall_score ?? null,
+          latest_analysis_at: a.completed_at ?? null,
+        })
+      } else {
+        cur.count += 1
+      }
     }
   }
 
-  const filtered = prospects.filter((c) => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    return (
-      c.name.toLowerCase().includes(q) ||
-      (c.domain && c.domain.toLowerCase().includes(q)) ||
-      (c.industry && c.industry.toLowerCase().includes(q))
-    )
+  const enriched: ClientData[] = prospectList.map(c => {
+    const stats = statsByClient.get(c.id)
+    return {
+      id: c.id,
+      name: c.name,
+      domain: c.domain ?? null,
+      industry: c.industry ?? null,
+      status: (c.status as 'active' | 'archived') ?? 'active',
+      lifecycle_stage: c.lifecycle_stage,
+      analyses_count: stats?.count ?? 0,
+      latest_score: stats?.latest_score ?? null,
+      latest_analysis_at: stats?.latest_analysis_at ?? null,
+    }
   })
 
-  return (
-    <div>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <div>
-          <h1 style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '24px',
-            fontWeight: 700,
-            color: '#ffffff',
-          }}>
-            {t('clients.prospects_page_title')}
-          </h1>
-          <p style={{ fontSize: '14px', color: '#6b7280', marginTop: '4px' }}>
-            {t('clients.prospects_page_subtitle')} · {prospects.length}
-          </p>
-        </div>
-        <Link
-          href="/pre-sales/new"
-          style={{
-            padding: '10px 20px',
-            background: '#c8e64a',
-            color: '#111318',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: 700,
-            textDecoration: 'none',
-            fontFamily: "'JetBrains Mono', monospace",
-          }}
-        >
-          {t('clients.new_prospect_button')}
-        </Link>
-      </div>
-
-      {/* Search */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>
-        <input
-          type="text"
-          placeholder={t('clients.search_placeholder')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{
-            flex: 1,
-            padding: '10px 14px',
-            background: '#1a1c24',
-            border: '1px solid #2a2d35',
-            borderRadius: '8px',
-            color: '#ffffff',
-            fontSize: '14px',
-            outline: 'none',
-          }}
-        />
-      </div>
-
-      {/* Grid */}
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px 0', color: '#6b7280' }}>
-          {t('common.loading')}
-        </div>
-      ) : filtered.length === 0 ? (
-        <div style={{
-          textAlign: 'center',
-          padding: '60px 0',
-          color: '#6b7280',
-        }}>
-          <p style={{ fontSize: '16px', marginBottom: '12px' }}>
-            {search ? t('clients.empty_search') : t('clients.empty_prospects')}
-          </p>
-          {!search && (
-            <Link
-              href="/pre-sales/new"
-              style={{ color: '#c8e64a', textDecoration: 'underline', fontSize: '14px' }}
-            >
-              {t('clients.create_first_prospect')}
-            </Link>
-          )}
-        </div>
-      ) : (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-          gap: '16px',
-        }}>
-          {filtered.map((client) => (
-            <ClientCard
-              key={client.id}
-              {...client}
-              onDeleted={(id) => setProspects((prev) => prev.filter((c) => c.id !== id))}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  )
+  return <ProspectsListWrapper initialProspects={enriched} />
 }

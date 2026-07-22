@@ -4,6 +4,7 @@ import { streamText } from 'ai'
 import { CONTEXTUAL_SYSTEM_PROMPT, ASSISTANT_SYSTEM_PROMPT } from '@/lib/chat/system-prompts'
 import { buildClientContextWithMemory } from '@/lib/chat/context-builder'
 import { trackLlmUsage } from '@/lib/tracking/llm-usage'
+import { enforceSpendLimit } from '@/lib/tracking/spend-limit'
 
 export const maxDuration = 60
 
@@ -18,6 +19,9 @@ export async function POST(req: Request) {
         headers: { 'Content-Type': 'application/json' },
       })
     }
+
+    const limited = await enforceSpendLimit(supabase)
+    if (limited) return limited
 
     const body = await req.json()
     const { messages, clientId, conversationId } = body

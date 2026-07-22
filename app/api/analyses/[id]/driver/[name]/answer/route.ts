@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { driverAgent, type DriverTurn, type DriverVerdict, MAX_AGENT_TURNS } from '@/lib/analyses/driver-agent';
 import { DRIVERS } from '@/lib/constants';
+import { enforceSpendLimit } from '@/lib/tracking/spend-limit';
 
 // POST /api/analyses/[id]/driver/[name]/answer
 //
@@ -41,6 +42,9 @@ export async function POST(
   if (authErr || !user) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
+
+  const limited = await enforceSpendLimit(supabase);
+  if (limited) return limited;
 
   let parsed;
   try { parsed = Body.parse(await request.json()); }

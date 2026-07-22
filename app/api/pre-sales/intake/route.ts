@@ -9,6 +9,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { scrapeWithFirecrawl } from '@/lib/integrations/providers/firecrawl/client'
+import { enforceSpendLimit } from '@/lib/tracking/spend-limit'
 
 export const maxDuration = 90
 export const dynamic = 'force-dynamic'
@@ -106,6 +107,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
 
+  const limited = await enforceSpendLimit(supabase)
+  if (limited) return limited
+
   let body: { url?: string } = {}
   try {
     body = await request.json()
@@ -156,8 +160,8 @@ export async function POST(request: Request) {
           body: JSON.stringify({
             model: SONNET_MODEL,
             max_tokens: MAX_OUTPUT_TOKENS,
-            // Sonnet 5 thinks by default; these calls are structured extraction
-            // on a tight token budget, so keep the pre-migration behaviour.
+            // Sonnet 5 thinks by default; this is structured extraction on a
+            // tight budget, so keep the pre-migration behaviour.
             thinking: { type: 'disabled' },
             system: SYSTEM_PROMPT,
             messages: [{ role: 'user', content: userPrompt }],

@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { trackLlmUsage } from '@/lib/tracking/llm-usage'
+import { enforceSpendLimit } from '@/lib/tracking/spend-limit'
 
 const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY ?? '' })
 
@@ -24,6 +25,9 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const limited = await enforceSpendLimit(supabase)
+    if (limited) return limited
 
     const { analysisId, domain, targetTopic, clientId } = await req.json()
 

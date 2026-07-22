@@ -1,7 +1,41 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { getSpendStatus } from '@/lib/tracking/spend-limit'
+import { estimateCost } from '@/lib/tracking/pricing'
 
 export const dynamic = 'force-dynamic'
+
+interface UsageRow {
+  id: string
+  user_id: string
+  client_id: string | null
+  provider: string
+  model: string
+  operation: string
+  input_tokens: number | null
+  output_tokens: number | null
+  estimated_cost_usd: number | string | null
+  created_at: string
+}
+
+interface Bucket {
+  cost: number
+  calls: number
+  input: number
+  output: number
+}
+
+function emptyBucket(): Bucket {
+  return { cost: 0, calls: 0, input: 0, output: 0 }
+}
+
+/** Resolve the per-row cost — falls back to live pricing when the stored
+ *  value is 0 because the model wasn't in the pricing dict at insert time. */
+function rowCostUsd(r: UsageRow): number {
+  const stored = Number(r.estimated_cost_usd) || 0
+  if (stored > 0) return stored
+  return estimateCost(r.model ?? '', r.input_tokens ?? 0, r.output_tokens ?? 0)
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -11,7 +45,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check admin role
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
@@ -22,7 +55,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Parse period
     const period = req.nextUrl.searchParams.get('period') || '7d'
     let daysAgo = 7
     if (period === 'today') daysAgo = 1
@@ -32,112 +64,87 @@ export async function GET(req: NextRequest) {
     since.setDate(since.getDate() - daysAgo)
     const sinceISO = since.toISOString()
 
-    // 1. Totals for period
-    const { data: totals } = await supabase
-      .from('llm_usage')
-      .select('estimated_cost_usd, input_tokens, output_tokens')
-      .gte('created_at', sinceISO)
-
-    const totalCost = (totals || []).reduce((sum, r) => sum + Number(r.estimated_cost_usd || 0), 0)
-    const totalCalls = (totals || []).length
-    const totalInputTokens = (totals || []).reduce((sum, r) => sum + (r.input_tokens || 0), 0)
-    const totalOutputTokens = (totals || []).reduce((sum, r) => sum + (r.output_tokens || 0), 0)
-
-    // 2. By user
-    const { data: byUserRaw } = await supabase
-      .from('llm_usage')
-      .select('user_id, estimated_cost_usd, input_tokens, output_tokens')
-      .gte('created_at', sinceISO)
-
-    const userMap: Record<string, { cost: number; calls: number; input: number; output: number }> = {}
-    for (const r of (byUserRaw || [])) {
-      if (!userMap[r.user_id]) userMap[r.user_id] = { cost: 0, calls: 0, input: 0, output: 0 }
-      userMap[r.user_id].cost += Number(r.estimated_cost_usd || 0)
-      userMap[r.user_id].calls += 1
-      userMap[r.user_id].input += r.input_tokens || 0
-      userMap[r.user_id].output += r.output_tokens || 0
-    }
-
-    // Fetch user names
-    const userIds = Object.keys(userMap)
-    let userNames: Record<string, string> = {}
-    if (userIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .in('id', userIds)
-      for (const p of (profiles || [])) {
-        userNames[p.id] = p.full_name || 'N/A'
-      }
-    }
-
-    const byUser = Object.entries(userMap)
-      .map(([id, v]) => ({ user_id: id, user_name: userNames[id] || 'N/A', ...v }))
-      .sort((a, b) => b.cost - a.cost)
-
-    // 3. By client
-    const { data: byClientRaw } = await supabase
-      .from('llm_usage')
-      .select('client_id, estimated_cost_usd, input_tokens, output_tokens')
-      .gte('created_at', sinceISO)
-      .not('client_id', 'is', null)
-
-    const clientMap: Record<string, { cost: number; calls: number; input: number; output: number }> = {}
-    for (const r of (byClientRaw || [])) {
-      const cid = r.client_id || 'unknown'
-      if (!clientMap[cid]) clientMap[cid] = { cost: 0, calls: 0, input: 0, output: 0 }
-      clientMap[cid].cost += Number(r.estimated_cost_usd || 0)
-      clientMap[cid].calls += 1
-      clientMap[cid].input += r.input_tokens || 0
-      clientMap[cid].output += r.output_tokens || 0
-    }
-
-    const clientIds = Object.keys(clientMap)
-    let clientNames: Record<string, string> = {}
-    if (clientIds.length > 0) {
-      const { data: clients } = await supabase
-        .from('clients')
-        .select('id, name')
-        .in('id', clientIds)
-      for (const c of (clients || [])) {
-        clientNames[c.id] = c.name || 'N/A'
-      }
-    }
-
-    const byClient = Object.entries(clientMap)
-      .map(([id, v]) => ({ client_id: id, client_name: clientNames[id] || 'N/A', ...v }))
-      .sort((a, b) => b.cost - a.cost)
-
-    // 4. By operation
-    const { data: byOpRaw } = await supabase
-      .from('llm_usage')
-      .select('operation, estimated_cost_usd, input_tokens, output_tokens')
-      .gte('created_at', sinceISO)
-
-    const opMap: Record<string, { cost: number; calls: number; input: number; output: number }> = {}
-    for (const r of (byOpRaw || [])) {
-      if (!opMap[r.operation]) opMap[r.operation] = { cost: 0, calls: 0, input: 0, output: 0 }
-      opMap[r.operation].cost += Number(r.estimated_cost_usd || 0)
-      opMap[r.operation].calls += 1
-      opMap[r.operation].input += r.input_tokens || 0
-      opMap[r.operation].output += r.output_tokens || 0
-    }
-
-    const byOperation = Object.entries(opMap)
-      .map(([op, v]) => ({ operation: op, ...v }))
-      .sort((a, b) => b.cost - a.cost)
-
-    // 5. Recent operations (last 50)
-    const { data: recent } = await supabase
+    // One single read of the window — aggregate in memory instead of firing
+    // four near-identical queries (totals + byUser + byClient + byOperation).
+    const { data: rowsRaw, error: usageErr } = await supabase
       .from('llm_usage')
       .select('id, user_id, client_id, provider, model, operation, input_tokens, output_tokens, estimated_cost_usd, created_at')
       .gte('created_at', sinceISO)
       .order('created_at', { ascending: false })
-      .limit(50)
+    if (usageErr) {
+      return NextResponse.json({ error: usageErr.message }, { status: 500 })
+    }
+    const rows = (rowsRaw ?? []) as UsageRow[]
 
-    // Enrich recent with names
-    const recentEnriched = (recent || []).map(r => ({
+    const userBuckets: Record<string, Bucket> = {}
+    const clientBuckets: Record<string, Bucket> = {}
+    const opBuckets: Record<string, Bucket> = {}
+    let totalCost = 0
+    let totalInputTokens = 0
+    let totalOutputTokens = 0
+
+    for (const r of rows) {
+      const cost = rowCostUsd(r)
+      const input = r.input_tokens ?? 0
+      const output = r.output_tokens ?? 0
+
+      totalCost += cost
+      totalInputTokens += input
+      totalOutputTokens += output
+
+      if (!userBuckets[r.user_id]) userBuckets[r.user_id] = emptyBucket()
+      userBuckets[r.user_id].cost += cost
+      userBuckets[r.user_id].calls += 1
+      userBuckets[r.user_id].input += input
+      userBuckets[r.user_id].output += output
+
+      if (r.client_id) {
+        if (!clientBuckets[r.client_id]) clientBuckets[r.client_id] = emptyBucket()
+        clientBuckets[r.client_id].cost += cost
+        clientBuckets[r.client_id].calls += 1
+        clientBuckets[r.client_id].input += input
+        clientBuckets[r.client_id].output += output
+      }
+
+      if (!opBuckets[r.operation]) opBuckets[r.operation] = emptyBucket()
+      opBuckets[r.operation].cost += cost
+      opBuckets[r.operation].calls += 1
+      opBuckets[r.operation].input += input
+      opBuckets[r.operation].output += output
+    }
+
+    // Names lookup — only the ids we actually saw, in parallel.
+    const userIds = Object.keys(userBuckets)
+    const clientIds = Object.keys(clientBuckets)
+    const [{ data: profiles }, { data: clients }, spendStatus] = await Promise.all([
+      userIds.length > 0
+        ? supabase.from('profiles').select('id, full_name').in('id', userIds)
+        : Promise.resolve({ data: [] as { id: string; full_name: string | null }[] }),
+      clientIds.length > 0
+        ? supabase.from('clients').select('id, name').in('id', clientIds)
+        : Promise.resolve({ data: [] as { id: string; name: string | null }[] }),
+      getSpendStatus(supabase),
+    ])
+
+    const userNames: Record<string, string> = {}
+    for (const p of (profiles ?? [])) userNames[p.id] = p.full_name || 'N/A'
+    const clientNames: Record<string, string> = {}
+    for (const c of (clients ?? [])) clientNames[c.id] = c.name || 'N/A'
+
+    const byUser = Object.entries(userBuckets)
+      .map(([id, v]) => ({ user_id: id, user_name: userNames[id] || 'N/A', ...v }))
+      .sort((a, b) => b.cost - a.cost)
+    const byClient = Object.entries(clientBuckets)
+      .map(([id, v]) => ({ client_id: id, client_name: clientNames[id] || 'N/A', ...v }))
+      .sort((a, b) => b.cost - a.cost)
+    const byOperation = Object.entries(opBuckets)
+      .map(([op, v]) => ({ operation: op, ...v }))
+      .sort((a, b) => b.cost - a.cost)
+
+    // Recent = first 50 (already sorted desc).
+    const recentEnriched = rows.slice(0, 50).map(r => ({
       ...r,
+      estimated_cost_usd: rowCostUsd(r),
       user_name: userNames[r.user_id] || 'N/A',
       client_name: r.client_id ? (clientNames[r.client_id] || 'N/A') : '—',
     }))
@@ -146,7 +153,7 @@ export async function GET(req: NextRequest) {
       period,
       totals: {
         cost: totalCost,
-        calls: totalCalls,
+        calls: rows.length,
         input_tokens: totalInputTokens,
         output_tokens: totalOutputTokens,
       },
@@ -154,6 +161,7 @@ export async function GET(req: NextRequest) {
       byClient,
       byOperation,
       recent: recentEnriched,
+      spendStatus,
     })
   } catch (err) {
     console.error('[Admin Costs] Error:', err)

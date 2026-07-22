@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { runAnalysis } from '@/lib/analyses/run-analysis';
+import { enforceSpendLimit } from '@/lib/tracking/spend-limit';
 
 const Body = z.object({ analysisId: z.string().uuid() });
 
@@ -15,6 +16,9 @@ export async function POST(request: Request) {
   if (authErr || !user) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
+
+  const limited = await enforceSpendLimit(supabase);
+  if (limited) return limited;
 
   // 2. Parse + validate
   let parsed;

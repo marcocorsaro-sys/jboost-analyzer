@@ -14,6 +14,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { enforceSpendLimit } from '@/lib/tracking/spend-limit'
 import {
   DRIVER_AGENTS,
   runAgentWithQuality,
@@ -68,6 +69,9 @@ export async function POST(
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
+
+  const limited = await enforceSpendLimit(supabase)
+  if (limited) return limited
 
   // 1. Resolve analysis + client + permissions. RLS will filter, but we
   //    also need the client_id, domain, country, etc. for the context.

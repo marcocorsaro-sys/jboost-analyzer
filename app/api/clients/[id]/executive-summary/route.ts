@@ -8,6 +8,7 @@ import {
 } from '@/lib/chat/context-builder'
 import { NextRequest } from 'next/server'
 import { trackLlmUsage } from '@/lib/tracking/llm-usage'
+import { enforceSpendLimit } from '@/lib/tracking/spend-limit'
 import { logActivity } from '@/lib/tracking/activity'
 
 export const maxDuration = 60
@@ -73,6 +74,9 @@ export async function POST(
     if (!user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const limited = await enforceSpendLimit(supabase)
+    if (limited) return limited
 
     // Build comprehensive context
     const ctx = await buildExecutiveSummaryContext(clientId, user.id)
