@@ -101,11 +101,10 @@ export async function POST(
 
     // Stream the discovery chat with the save_fact tool.
     const result = streamText({
-      model: anthropic('claude-sonnet-4-20250514'),
+      model: anthropic('claude-sonnet-5'),
       system: DISCOVERY_CHAT_SYSTEM_PROMPT,
       messages,
       maxTokens: 1500,
-      temperature: 0.7,
       tools: {
         save_fact: tool({
           description:
@@ -188,7 +187,7 @@ export async function POST(
           userId: user.id,
           clientId,
           provider: 'anthropic',
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-5',
           operation: 'onboarding_discovery',
           inputTokens: usage.promptTokens || 0,
           outputTokens: usage.completionTokens || 0,

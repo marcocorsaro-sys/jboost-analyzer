@@ -717,9 +717,9 @@ async function callAnthropicWithSearch(
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured')
 
   const body = JSON.stringify({
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-5',
+    thinking: { type: 'disabled' },
     max_tokens: maxTokens,
-    temperature: 0.1,
     system: systemPrompt,
     messages: [{ role: 'user', content: userMessage }],
     tools: [
@@ -786,9 +786,9 @@ async function callAnthropicBasic(
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured')
 
   const body = JSON.stringify({
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-5',
+    thinking: { type: 'disabled' },
     max_tokens: maxTokens,
-    temperature: 0.1,
     system: systemPrompt,
     messages: [{ role: 'user', content: userMessage }],
   })

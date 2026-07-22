@@ -89,7 +89,7 @@ Rules:
 - Never invent data. If a signal is missing or null, just acknowledge that.
 - Never repeat a question the user has already answered in the conversation history.`;
 
-const ANTHROPIC_MODEL = 'claude-sonnet-4-20250514';
+const ANTHROPIC_MODEL = 'claude-sonnet-5';
 const REQUEST_TIMEOUT_MS = 15_000;
 
 function clamp<T>(arr: T[] | undefined, max: number): T[] {

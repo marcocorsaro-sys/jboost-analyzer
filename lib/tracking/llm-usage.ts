@@ -2,6 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 
 // Pricing per 1M tokens (USD) — update as prices change
 const PRICING: Record<string, { input: number; output: number }> = {
+  'claude-sonnet-5': { input: 3.0, output: 15.0 },
+  // Retired 2026-06-15. Kept because historical llm_usage rows still carry
+  // this id — removing it would silently recost them to 0.
   'claude-sonnet-4-20250514': { input: 3.0, output: 15.0 },
   'gpt-4-turbo': { input: 10.0, output: 30.0 },
 }

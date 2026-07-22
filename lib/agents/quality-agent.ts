@@ -9,7 +9,7 @@
 
 import type { QualityVerdict, QualityVerdictKind } from './types';
 
-const ANTHROPIC_MODEL = 'claude-sonnet-4-20250514';
+const ANTHROPIC_MODEL = 'claude-sonnet-5';
 const REQUEST_TIMEOUT_MS = 15_000;
 const MAX_OUTPUT_TOKENS = 600;
 
