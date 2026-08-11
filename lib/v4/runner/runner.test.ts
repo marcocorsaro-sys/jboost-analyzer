@@ -438,10 +438,11 @@ test('execute: an unregistered driver key is a loud error, not a skip', async ()
   assert.equal(state.updates[0].patch.status, 'error')
 })
 
-test('execute: a driver whose source does not exist refuses explicitly', async () => {
-  // Traffic is wired to a worker that only ever refuses: the SimilarWeb source
-  // the spec mandates is not integrated. The refusal must name that, so nobody
-  // reads it as "the site has no traffic".
+test('execute: a driver whose credentials are missing refuses explicitly', async () => {
+  // Traffic uses Similarweb and nothing else. Without the API key the worker
+  // must name the missing credential, so nobody reads the failure as "the
+  // site has no traffic".
+  delete process.env.SIMILARWEB_API_KEY
   const state: FakeState = {
     claimed: row({ driver_key: 'traffic', attempts: 3, max_attempts: 3 }),
     updates: [],
@@ -449,6 +450,6 @@ test('execute: a driver whose source does not exist refuses explicitly', async (
   }
   const result = await executeDriverJob(fakeDb(state), 'analysis-1', 'traffic')
   assert.equal(result.status, 'error')
-  assert.match(String(result.error), /SimilarWeb/)
+  assert.match(String(result.error), /SIMILARWEB_API_KEY/)
   assert.equal(state.updates[0].patch.raw_value, undefined)
 })

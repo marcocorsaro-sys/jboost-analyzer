@@ -5,17 +5,14 @@
  * queue, claim, lease, retry, normalize and reap a driver job, and it reaches
  * the actual measurement through exactly one function per driver.
  *
- * All ten keys now resolve to a real worker (blocks 4 and 5), with two that
- * are deliberately not measurements:
- *   - ai_visibility pauses on needs_decision — the score is typed in from
- *     J-Horizon, there is no API by design.
- *   - traffic refuses, naming the SimilarWeb source it needs and why the
- *     Semrush/Ahrefs numbers on hand are not a substitute.
- *
- * Both are failures that SAY what is missing. That is the point: a placeholder
- * returning 0 or a mock number would be the exact V1 bug the V4 spec calls out
- * by name — Ariston scoring 0/100 on Schema because a detection failure was
- * written as a real measurement.
+ * All ten keys resolve to a real worker (blocks 4 and 5). One is deliberately
+ * not an automatic measurement: ai_visibility pauses on needs_decision with a
+ * copy-prompt — the paste-driven J-Horizon flow (Bibbia sheets 3/7), where the
+ * operator pastes the chatbot answer back and one LLM call extracts the GEO
+ * scores. A pause that SAYS what is missing, never a placeholder number — a
+ * mock would be the exact V1 bug the V4 spec calls out by name (Ariston
+ * scoring 0/100 on Schema because a detection failure was written as a real
+ * measurement).
  */
 
 import type { V4DriverKey } from '@/lib/scoring/registry'
@@ -49,11 +46,11 @@ export const DRIVER_WORKERS: Record<V4DriverKey, DriverWorker> = {
   awareness: awarenessWorker,
   schema: schemaWorker,
   content: contentWorker,
-  // No automatic source by design: pauses on needs_decision for the operator
-  // to type the J-Horizon score.
+  // No automatic source by design: pauses on needs_decision with the
+  // J-Horizon copy-prompt, then extracts the pasted answer via one LLM call.
   ai_visibility: aiVisibilityWorker,
-  // Implemented as an explicit, specific refusal — the SimilarWeb source the
-  // spec mandates is not integrated and no equivalent measures the same thing.
+  // Similarweb total visits, mean of the last 3 available months. Below-
+  // coverage competitors alert instead of blocking (sheet 17).
   traffic: trafficWorker,
 }
 
