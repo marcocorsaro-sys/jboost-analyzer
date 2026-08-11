@@ -106,36 +106,32 @@ test('mean/round: empty means null, not zero', () => {
 })
 
 // ---------------------------------------------------------------------------
-// compliance — the spec formula, pure
+// compliance — raw = Semrush Site Health (Bibbia, Resolved 2026-06-22)
 // ---------------------------------------------------------------------------
 
 function issue(title: string, pages: number, type: SemrushSiteIssue['type'] = 'error'): SemrushSiteIssue {
   return { id: title, title, type, pages_count: pages }
 }
 
-test('compliance: score = 100 * (1 - errors/crawled_pages)', () => {
-  const c = computeCompliance([issue('Broken internal links', 10), issue('4xx errors', 15)], 100)
-  assert.equal(c.totalErrors, 25)
-  assert.equal(c.score, 75)
+test('compliance: raw IS the Site Health score, no custom formula', () => {
+  const c = computeCompliance(82, [issue('Broken internal links', 10), issue('4xx errors', 15)])
+  assert.equal(c.siteHealth, 82)
 })
 
-test('compliance: only errors count — warnings and notices do not', () => {
-  const c = computeCompliance(
-    [issue('4xx errors', 10), issue('Low word count', 50, 'warning'), issue('Blocked by robots', 30, 'notice')],
-    100,
-  )
-  assert.equal(c.totalErrors, 10)
-  assert.equal(c.score, 90)
+test('compliance: issues feed the qualitative table only, never the score', () => {
+  const many = computeCompliance(82, [issue('4xx errors', 5000)])
+  const none = computeCompliance(82, [])
+  assert.equal(many.siteHealth, none.siteHealth)
 })
 
-test('compliance: structured-data errors belong to Schema and are excluded', () => {
-  const c = computeCompliance(
-    [issue('Invalid structured data items', 40), issue('4xx errors', 10)],
-    100,
-  )
-  assert.equal(c.totalErrors, 10)
-  assert.equal(c.score, 90)
-  assert.deepEqual(c.excluded, ['Invalid structured data items'])
+test('compliance: the issues table is top-10 by pages, with ownership', () => {
+  const issues = Array.from({ length: 15 }, (_, i) => issue(`Issue ${i}`, i + 1))
+  issues.push(issue('Invalid structured data items', 100))
+  const c = computeCompliance(50, issues)
+  assert.equal(c.topIssues.length, 10)
+  assert.equal(c.topIssues[0].title, 'Invalid structured data items')
+  assert.equal(c.topIssues[0].owned_by, 'schema')
+  assert.equal(c.topIssues[1].owned_by, 'compliance')
 })
 
 test('compliance: recognises the structured-data issue wordings', () => {
@@ -150,17 +146,13 @@ test('compliance: recognises the structured-data issue wordings', () => {
   assert.equal(isStructuredDataIssue(issue('Broken internal links', 1)), false)
 })
 
-test('compliance: more errors than pages floors at 0, never goes negative', () => {
-  const c = computeCompliance([issue('4xx errors', 500)], 100)
-  assert.equal(c.score, 0)
+test('compliance: a missing Site Health is an error, never a 0', () => {
+  assert.throws(() => computeCompliance(null, []), DriverSourceError)
 })
 
-test('compliance: a clean site scores 100', () => {
-  assert.equal(computeCompliance([], 250).score, 100)
-})
-
-test('compliance: zero crawled pages is an error, not a 100', () => {
-  assert.throws(() => computeCompliance([issue('4xx errors', 1)], 0), DriverSourceError)
+test('compliance: an out-of-range Site Health is rejected, not clamped', () => {
+  assert.throws(() => computeCompliance(140, []), DriverSourceError)
+  assert.throws(() => computeCompliance(-3, []), DriverSourceError)
 })
 
 // ---------------------------------------------------------------------------
@@ -295,6 +287,42 @@ test('speed: averages the category over every (page, strategy) pair', async () =
       const client = out.sites.find((s) => s.site_ref === 'client')
       assert.equal(client?.raw, 60)
       assert.equal((client?.evidence as { measured_runs: number }).measured_runs, 2)
+    },
+  )
+})
+
+test('compliance: the worker scores the Site Health of the live snapshot', async () => {
+  process.env.SEMRUSH_API_KEY = 'test-key'
+  await withFetch(
+    (url) => {
+      if (url.includes('/projects?')) {
+        return {
+          body: [
+            { project_url: 'https://client.com', project_id: 1 },
+            { project_url: 'https://comp1.com', project_id: 2 },
+          ],
+        }
+      }
+      if (url.includes('siteaudit/info')) {
+        return {
+          body: {
+            quality: { value: url.includes('/1/') ? 82 : 64, delta: 1.5 },
+            pages_crawled: 900,
+          },
+        }
+      }
+      return { body: { issues: [{ id: '1', title: '4xx errors', type: 'error', pages_count: 12 }] } }
+    },
+    async () => {
+      const out = await complianceWorker(ctx())
+      assert.equal(out.status, 'done')
+      if (out.status !== 'done') return
+      const client = out.sites.find((s) => s.site_ref === 'client')
+      assert.equal(client?.raw, 82)
+      assert.equal(client?.score_absolute, 82)
+      const ev = client?.evidence as { site_health_delta: number }
+      assert.equal(ev.site_health_delta, 1.5)
+      assert.equal(out.sites.find((s) => s.site_ref === 'competitor_1')?.raw, 64)
     },
   )
 })

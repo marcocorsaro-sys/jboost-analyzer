@@ -1,31 +1,35 @@
 /**
  * V4 driver — Compliance.
  *
- * Source: SEMrush Site Audit (single source, no fallback).
- * Formula (spec):
- *   ratio = total_errors / crawled_pages
- *   score = 100 * (1 - ratio), floored at 0 and capped at 100
- * counting only non-structured-data errors (the structured-data issues belong
- * to the Schema driver and must not be charged twice).
+ * Source: Semrush Site Audit, READ-ONLY (single source, no fallback).
  *
- * IMPORTANT operational note: SEMrush Site Audit only returns data for domains
- * that have a configured project in the SEMrush account. Competitor domains
- * almost never do. In V1 that returned a mock and the driver silently produced
- * a plausible score; here it blocks with an explicit reason, which is the
- * behaviour the spec mandates and the only honest one.
+ * SCORE (Bibbia, Resolved 2026-06-22): raw = the Semrush SITE HEALTH score
+ * (info.quality.value, natively 0-100). NO custom formula — the earlier
+ * errors/crawled_pages ratio is superseded; it needed calibration Semrush
+ * has already done.
+ *
+ * The issue breakdown (meta_issues + issue_details) feeds the QUALITATIVE
+ * issues table only, never the score. Structured-data issues are flagged as
+ * belonging to the Schema driver so the table can show ownership without
+ * double-charging.
+ *
+ * Operationally: the USER creates the Semrush project and runs the crawl in
+ * Semrush; the app only reads the latest snapshot. A domain with no project
+ * (competitors, usually) is unmeasured with a reason — in V1 that returned a
+ * mock and silently produced a plausible score, which is the exact bug the
+ * V4 spec calls out.
  */
 
 import { fetchSiteHealth } from '@/lib/seo-apis/semrush'
 import type { SemrushSiteIssue } from '@/lib/seo-apis/types'
 import type { DriverWorker, SiteRawValue } from '@/lib/v4/runner/types'
-import { DriverSourceError, assertDeadline, mapPool, requireLive, round } from './source'
+import { DriverSourceError, assertDeadline, mapPool, requireLive } from './source'
 
 /**
- * Structured-data issues are scored by the Schema driver, not here.
- *
- * SEMrush exposes issues as free-text titles, so this is a keyword match, not
- * a stable taxonomy: the excluded titles are recorded in the evidence so the
- * exclusion can be audited rather than trusted.
+ * Structured-data issues belong to the Schema driver. Semrush exposes issues
+ * as free-text titles, so this is a keyword match, not a stable taxonomy:
+ * flagged issues stay visible in the qualitative table, marked with their
+ * owner, so the classification can be audited rather than trusted.
  */
 const STRUCTURED_DATA_RE = /structured data|schema\.org|schema markup|json-?ld|microdata|rich (result|snippet)/i
 
@@ -33,40 +37,49 @@ export function isStructuredDataIssue(issue: SemrushSiteIssue): boolean {
   return STRUCTURED_DATA_RE.test(issue.title)
 }
 
-export interface ComplianceComputation {
-  score: number
-  totalErrors: number
-  pagesCrawled: number
-  excluded: string[]
-  counted: Array<{ title: string; pages_count: number }>
+export interface ComplianceRaw {
+  siteHealth: number
+  topIssues: Array<{
+    title: string
+    type: SemrushSiteIssue['type']
+    pages_count: number
+    owned_by: 'compliance' | 'schema'
+  }>
 }
 
-/** Pure: the spec formula, so it can be tested without touching the network. */
+/**
+ * Pure: raw = Site Health, issues classified for the qualitative table.
+ * A missing Site Health is a hard error — the project exists but the crawl
+ * has not produced a quality value, so there is nothing to score. Never 0.
+ */
 export function computeCompliance(
+  siteHealth: number | null,
   issues: SemrushSiteIssue[],
-  pagesCrawled: number,
-): ComplianceComputation {
-  if (!Number.isFinite(pagesCrawled) || pagesCrawled <= 0) {
+): ComplianceRaw {
+  if (siteHealth === null || !Number.isFinite(siteHealth)) {
     throw new DriverSourceError(
-      'SEMrush Site Audit reported 0 crawled pages: there is no denominator, so no score can be computed',
+      'Semrush Site Audit reported no Site Health score: the crawl has not completed ' +
+        '(or the project has never been crawled), so there is nothing to score',
+    )
+  }
+  if (siteHealth < 0 || siteHealth > 100) {
+    throw new DriverSourceError(
+      `Semrush Site Health out of range: ${siteHealth} (expected 0-100)`,
     )
   }
 
-  const errorIssues = issues.filter((i) => i.type === 'error')
-  const excluded = errorIssues.filter(isStructuredDataIssue)
-  const counted = errorIssues.filter((i) => !isStructuredDataIssue(i))
+  const topIssues = issues
+    .slice()
+    .sort((a, b) => (b.pages_count || 0) - (a.pages_count || 0))
+    .slice(0, 10)
+    .map((i) => ({
+      title: i.title,
+      type: i.type,
+      pages_count: i.pages_count,
+      owned_by: (isStructuredDataIssue(i) ? 'schema' : 'compliance') as 'compliance' | 'schema',
+    }))
 
-  const totalErrors = counted.reduce((sum, i) => sum + (i.pages_count || 0), 0)
-  const ratio = totalErrors / pagesCrawled
-  const score = Math.min(100, Math.max(0, 100 * (1 - ratio)))
-
-  return {
-    score: round(score, 1),
-    totalErrors,
-    pagesCrawled,
-    excluded: excluded.map((i) => i.title),
-    counted: counted.map((i) => ({ title: i.title, pages_count: i.pages_count })),
-  }
+  return { siteHealth, topIssues }
 }
 
 export const complianceWorker: DriverWorker = async (ctx) => {
@@ -79,19 +92,19 @@ export const complianceWorker: DriverWorker = async (ctx) => {
         await fetchSiteHealth(site.domain),
         `Compliance for ${site.domain}`,
       )
-      const computed = computeCompliance(health.issues, health.pages_crawled)
+      const computed = computeCompliance(health.site_health_score, health.issues)
       return {
         site_ref: site.site_ref,
         domain: site.domain,
-        raw: computed.score,
-        score_absolute: Math.round(computed.score),
+        raw: computed.siteHealth,
+        score_absolute: Math.round(computed.siteHealth),
         evidence: {
-          total_errors: computed.totalErrors,
-          pages_crawled: computed.pagesCrawled,
-          counted_issues: computed.counted,
-          excluded_structured_data_issues: computed.excluded,
-          site_health_score: health.site_health_score,
-          endpoint: 'semrush:management/v1/siteaudit',
+          site_health: computed.siteHealth,
+          site_health_delta: health.site_health_delta,
+          pages_crawled: health.pages_crawled,
+          top_issues: computed.topIssues,
+          note: 'score = Semrush Site Health (info.quality.value); issues are qualitative only',
+          endpoint: 'semrush:management/v1/siteaudit (read-only)',
         },
       }
     } catch (err) {
@@ -118,8 +131,8 @@ export const complianceWorker: DriverWorker = async (ctx) => {
     rawPayload: {
       source: 'semrush:site-audit',
       note:
-        'Requires a configured SEMrush Site Audit project per domain; domains without one are ' +
-        'reported as unmeasured, never scored.',
+        'Score = Site Health, read from the user-provisioned Semrush project (the app never ' +
+        'starts crawls). Domains without a project are reported as unmeasured, never scored.',
       unmeasured: ctx.sites
         .filter((s) => !measured.some((m) => m.site_ref === s.site_ref))
         .map((s) => s.domain),

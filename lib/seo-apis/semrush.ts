@@ -179,7 +179,7 @@ export async function fetchSiteHealth(
     if (!project) {
       console.warn(`[${source}] No SEMrush project found for domain: ${domain}`)
       return mockResponse<SemrushSiteHealth>(
-        { site_health_score: null, issues: [], pages_crawled: 0 },
+        { site_health_score: null, site_health_delta: null, issues: [], pages_crawled: 0 },
         source
       )
     }
@@ -191,6 +191,7 @@ export async function fetchSiteHealth(
     const audit = await auditRes.json()
 
     const healthScore = audit.quality?.value ?? audit.site_health_score ?? null
+    const healthDelta = audit.quality?.delta ?? null
     const pagesCrawled = audit.pages_crawled ?? audit.checked_pages ?? 0
 
     // Step 3: Get issues
@@ -208,13 +209,13 @@ export async function fetchSiteHealth(
     }
 
     return realResponse<SemrushSiteHealth>(
-      { site_health_score: healthScore, issues, pages_crawled: pagesCrawled },
+      { site_health_score: healthScore, site_health_delta: healthDelta, issues, pages_crawled: pagesCrawled },
       source
     )
   } catch (err) {
     console.error(`[${source}]`, err)
     return mockResponse<SemrushSiteHealth>(
-      { site_health_score: null, issues: [], pages_crawled: 0 },
+      { site_health_score: null, site_health_delta: null, issues: [], pages_crawled: 0 },
       source
     )
   }

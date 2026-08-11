@@ -33,6 +33,8 @@ export interface SemrushRankHistory {
 
 export interface SemrushSiteHealth {
   site_health_score: number | null
+  /** Change vs the previous audit (Semrush info.quality.delta), when reported. */
+  site_health_delta: number | null
   issues: SemrushSiteIssue[]
   pages_crawled: number
 }

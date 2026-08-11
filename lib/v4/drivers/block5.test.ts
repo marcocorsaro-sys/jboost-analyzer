@@ -16,7 +16,7 @@ import {
   tierRule,
   discoverabilityWorker,
 } from './discoverability'
-import { brandCluster, awarenessWorker } from './awareness'
+import { brandTerms, domainSegment, sumBrandedVolume, awarenessWorker } from './awareness'
 import { classifyIssue, computeContent } from './content'
 import { parseAiVisibilityDecision, aiVisibilityWorker } from './ai-visibility'
 import { trafficWorker } from './traffic'
@@ -189,39 +189,77 @@ test('discoverability: an Ahrefs 403 on the client blocks the driver', async () 
 // Awareness
 // ---------------------------------------------------------------------------
 
-test('awareness: the cluster is the brand plus its variants, deduped', () => {
-  assert.deepEqual(brandCluster(SITES[0]), ['client', 'client group'])
+test('awareness: brand terms = seed + variants + domain segment + space-less variants', () => {
+  assert.deepEqual(brandTerms(SITES[0]), ['client', 'client group', 'clientgroup'])
+  // The domain segment is always part of the terms (Bibbia 8c).
   assert.deepEqual(
-    brandCluster({ ...SITES[0], brand_name: 'Client', brand_variants: ['CLIENT', 'x'] }),
-    ['client', 'x'],
+    brandTerms({ ...SITES[1], brand_name: null, brand_variants: [] }),
+    ['comp1'],
   )
+  assert.equal(domainSegment('www.benetton.com'), 'benetton')
 })
 
-test('awareness: a site with no brand name is left unmeasured, not guessed from the domain', async () => {
+test('awareness: domain-grounded — only the domain keywords containing a brand term count', () => {
+  const { total, matched } = sumBrandedVolume(
+    [
+      { keyword: 'client shoes', volume: 1000, position: 3 },
+      { keyword: 'best client group offers', volume: 250, position: 40 },
+      { keyword: 'running shoes', volume: 99999, position: 2 }, // non-brand: never counted
+    ],
+    ['client', 'client group'],
+  )
+  assert.equal(total, 1250)
+  assert.equal(matched.length, 2)
+})
+
+test('awareness: an ambiguous token cannot inflate — the domain does not rank for it', () => {
+  // The "brendan fraser" case: on the keyword UNIVERSE this exploded; on the
+  // domain's own keywords the unrelated term simply is not in the list.
+  const { total } = sumBrandedVolume(
+    [{ keyword: 'fraser yachts charter', volume: 800, position: 5 }],
+    ['fraser'],
+  )
+  assert.equal(total, 800)
+})
+
+test('awareness: a site with no seed is measured from the domain segment, flagged', async () => {
   process.env.AHREFS_API_KEY = 'test-key'
   await withFetch(
-    () => ({ body: { keywords: [{ keyword: 'client', volume: 100 }] } }),
+    () => ({ body: { keywords: [{ keyword: 'comp1 reviews', volume: 120, best_position: 8 }] } }),
     async () => {
       const sites = [SITES[0], { ...SITES[1], brand_name: null, brand_variants: [] }]
       const out = await awarenessWorker(ctx({ sites }))
       assert.equal(out.status, 'done')
       if (out.status !== 'done') return
-      assert.deepEqual(out.sites.map((s) => s.site_ref), ['client'])
-      const errors = (out.rawPayload as { errors: string[] }).errors
-      assert.ok(errors.some((e) => e.includes('no brand name')))
+      const comp = out.sites.find((s) => s.site_ref === 'competitor_1')
+      assert.equal(comp?.raw, 120)
+      assert.equal((comp?.evidence as { seed_only_from_domain: boolean }).seed_only_from_domain, true)
     },
   )
 })
 
-test('awareness: the raw is the summed volume of the cluster', async () => {
+test('awareness: the raw is the branded volume captured by the domain', async () => {
   process.env.AHREFS_API_KEY = 'test-key'
   await withFetch(
-    () => ({ body: { keywords: [{ keyword: 'a', volume: 1000 }, { keyword: 'b', volume: 250 }] } }),
+    () => ({
+      body: {
+        keywords: [
+          { keyword: 'client store', volume: 1000, best_position: 1 },
+          { keyword: 'client group careers', volume: 250, best_position: 12 },
+        ],
+      },
+    }),
     async () => {
       const out = await awarenessWorker(ctx())
       assert.equal(out.status, 'done')
       if (out.status !== 'done') return
       assert.equal(out.sites.find((s) => s.site_ref === 'client')?.raw, 1250)
+      const ev = out.sites.find((s) => s.site_ref === 'client')?.evidence as {
+        method: string
+        kw_count: number
+      }
+      assert.equal(ev.method, 'domain-grounded')
+      assert.equal(ev.kw_count, 2)
     },
   )
 })

@@ -16,8 +16,8 @@
  */
 
 import { DISCO_TIERS, type DiscoTierKey } from '@/lib/scoring/registry'
-import { fetchOrganicKeywords, type OrganicKeyword } from './ahrefs'
-import type { DriverWorker, SiteRawValue } from '@/lib/v4/runner/types'
+import { fetchOrganicKeywords, tierWhere, type OrganicKeyword } from './ahrefs'
+import type { AnalysisSite, DriverWorker, SiteRawValue } from '@/lib/v4/runner/types'
 import { assertDeadline, mapPool } from './source'
 
 export interface TierRule {
@@ -34,9 +34,37 @@ export function tierRule(key: DiscoTierKey): TierRule {
   return { key: found.key, pos: found.pos, vol: found.vol }
 }
 
-/** Pure: how many keywords of this domain qualify at the given tier. */
+/**
+ * Pure: which keywords qualify at the given tier.
+ *
+ * The tier filter is ALSO applied server-side (tierWhere in the Ahrefs
+ * `where` param — the cost lever, ~13 units/row gated on limit × cost).
+ * This local re-check is belt and braces: it keeps the counting rule
+ * testable without the network and guards against a provider ignoring or
+ * loosening the filter.
+ */
 export function countAtTier(keywords: OrganicKeyword[], rule: TierRule): OrganicKeyword[] {
   return keywords.filter((k) => k.position <= rule.pos && k.volume >= rule.vol)
+}
+
+/**
+ * Bibbia decision 2026-06-22 (no-brand filter): besides `is_branded=false`
+ * server-side, strip anything containing the site's own brand name or the
+ * manually entered variants — `is_branded` flags ANY brand, so the site's
+ * own brand terms are the part it can miss.
+ */
+export function stripBrandTerms(
+  keywords: OrganicKeyword[],
+  site: AnalysisSite,
+): OrganicKeyword[] {
+  const terms = [site.brand_name ?? '', ...(site.brand_variants ?? [])]
+    .map((t) => t.trim().toLowerCase())
+    .filter(Boolean)
+  if (terms.length === 0) return keywords
+  return keywords.filter((k) => {
+    const kw = k.keyword.toLowerCase()
+    return !terms.some((t) => kw.includes(t))
+  })
 }
 
 /** The tier the analyst extended to, or the strict default. */
@@ -67,8 +95,11 @@ export const discoverabilityWorker: DriverWorker = async (ctx) => {
   const measured = await mapPool(targets, 3, async (site) => {
     try {
       assertDeadline(ctx.deadlineAt, `Discoverability for ${site.domain}`)
-      const keywords = await fetchOrganicKeywords(site.domain, ctx.country ?? 'it', ctx.refDate)
-      const qualifying = countAtTier(keywords, tier)
+      const keywords = await fetchOrganicKeywords(site.domain, ctx.country ?? 'it', ctx.refDate, {
+        where: tierWhere(tier.pos, tier.vol),
+        what: `Discoverability for ${site.domain}`,
+      })
+      const qualifying = stripBrandTerms(countAtTier(keywords, tier), site)
       return { site, keywords, qualifying }
     } catch (err) {
       errors.push(err instanceof Error ? err.message : String(err))
