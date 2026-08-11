@@ -1,133 +1,175 @@
 /**
  * V4 driver — Content.
  *
- * Source: SEMrush Site Audit — the SAME snapshot Compliance reads (spec:
- * "stesso snapshot di Compliance"), filtered on the content issues instead of
- * the technical ones.
+ * Source: the ANALYST QUESTIONNAIRE of Bibbia sheets 9a/9b (registry:
+ * "Analyst questionnaire per template"), replacing the earlier SEMrush-slice
+ * method which the spec superseded. There is no API: the measurement is a
+ * human assessment, per page template, with four graded answers per question
+ * whose points are embedded in the bank (lib/v4/content/bank.ts —
+ * authoritative per the 9a note).
  *
- * Formula: identical to Compliance —
- *   score = 100 * (1 - content_errors / crawled_pages), clamped to [0, 100]
+ * Scoring (lib/v4/content/score.ts):
+ *   template_score = 100 * points / max points of the template (round 0.1)
+ *   site raw       = mean of the site's COMPILED templates (round 0.1)
+ * Templates not compiled are EXCLUDED, never scored 0 (9a rule). The
+ * per-template normalization is the project decision (2026-08-11) that
+ * absorbs the Article anomaly documented in the bank header.
  *
- * The two drivers must not double-charge the same issue: Compliance counts
- * everything that is NOT content and NOT structured data, Content counts only
- * the content issues, Schema owns structured data. The split lives in one
- * place (classifyIssue) so it stays a partition rather than three
- * independent guesses.
+ * Like AI Visibility, a run without input is a PAUSE, not a failure: the
+ * client questionnaire missing yields `needs_decision`, the analyst fills
+ * the form (POST /api/v4/analyses/[id]/content-answers), answers the
+ * decision, and the requeued job re-reads content_answers via the context
+ * (ctx.contentAnswers, loaded by execute — the worker holds no DB handle).
  *
- * Same operational caveat as Compliance: SEMrush only answers for domains
- * with a configured Site Audit project.
+ * Competitors are OPTIONAL (Content is a Development driver, 9a v5): a
+ * competitor with no complete template stays unmeasured — writing 0 would
+ * claim we assessed its content as "all very bad", which we did not.
  */
 
-import { fetchSiteHealth } from '@/lib/seo-apis/semrush'
-import type { SemrushSiteIssue } from '@/lib/seo-apis/types'
-import type { DriverWorker, SiteRawValue } from '@/lib/v4/runner/types'
-import { isStructuredDataIssue } from './compliance'
-import { DriverSourceError, assertDeadline, mapPool, requireLive, round } from './source'
+import { getContentTemplate } from '@/lib/v4/content/bank'
+import { band, overallContent, templateScore } from '@/lib/v4/content/score'
+import type { ContentAnswerKey } from '@/lib/v4/content/bank'
+import type { ContentAnswerRow, DriverWorker, SiteRawValue, SiteRef } from '@/lib/v4/runner/types'
+
+interface SiteTemplateEvidence {
+  template: string
+  score: number
+  band: string
+  /** Questions answered (= all of them: only complete templates are scored). */
+  answered: number
+}
+
+export interface SiteContentComputation {
+  /** null = no fully compiled template: the site is not measured. */
+  overall: number | null
+  perTemplate: SiteTemplateEvidence[]
+  /** Templates with some answers but not all — visible, never silently dropped. */
+  incomplete: Array<{ template: string; answered: number; total: number }>
+}
 
 /**
- * The content issues of sheet 5: thin pages, duplication, missing or
- * duplicated title/description/H1, images without alt text.
+ * Pure: score one site from its answer rows.
  *
- * SEMrush exposes issues as free-text titles, so this is a keyword match on
- * a moving target. Every issue that matches nothing is listed in the evidence
- * as `unclassified` rather than dropped silently — an issue we failed to
- * recognise must be visible, not invisible.
+ * Only templates the analyst COMPLETELY answered are scored; partially
+ * answered ones are reported as incomplete (a draft is not a measurement).
+ * Rows with an unknown template key are ignored defensively — the DB CHECK
+ * and the API route both validate against the bank, so they should not
+ * exist, but an unknown key must not crash the whole site.
  */
-const CONTENT_RE =
-  /word count|thin content|duplicate content|duplicate title|duplicate meta|duplicate h1|missing (title|meta description|h1)|title too (long|short)|meta description|h1 tag|alt attribute|missing alt/i
-
-export type IssueClass = 'content' | 'structured_data' | 'technical'
-
-export function classifyIssue(issue: SemrushSiteIssue): IssueClass {
-  if (isStructuredDataIssue(issue)) return 'structured_data'
-  return CONTENT_RE.test(issue.title) ? 'content' : 'technical'
-}
-
-export interface ContentComputation {
-  score: number
-  contentErrors: number
-  pagesCrawled: number
-  counted: Array<{ title: string; pages_count: number }>
-  otherClasses: Array<{ title: string; klass: IssueClass }>
-}
-
-/** Pure: the spec formula on the content slice of the audit. */
-export function computeContent(
-  issues: SemrushSiteIssue[],
-  pagesCrawled: number,
-): ContentComputation {
-  if (!Number.isFinite(pagesCrawled) || pagesCrawled <= 0) {
-    throw new DriverSourceError(
-      'SEMrush Site Audit reported 0 crawled pages: there is no denominator, so no score can be computed',
-    )
+export function computeSiteContent(rows: ContentAnswerRow[]): SiteContentComputation {
+  const byTemplate = new Map<string, Map<number, ContentAnswerKey>>()
+  for (const row of rows) {
+    if (!row.selected) continue // draft row without a choice: not an answer
+    if (!getContentTemplate(row.template_key)) continue
+    let bucket = byTemplate.get(row.template_key)
+    if (!bucket) {
+      bucket = new Map()
+      byTemplate.set(row.template_key, bucket)
+    }
+    bucket.set(row.question_num, row.selected)
   }
 
-  const errorIssues = issues.filter((i) => i.type === 'error')
-  const counted = errorIssues.filter((i) => classifyIssue(i) === 'content')
-  const contentErrors = counted.reduce((sum, i) => sum + (i.pages_count || 0), 0)
-  const score = Math.min(100, Math.max(0, 100 * (1 - contentErrors / pagesCrawled)))
+  const perTemplate: SiteTemplateEvidence[] = []
+  const incomplete: SiteContentComputation['incomplete'] = []
+
+  for (const [templateKey, answered] of byTemplate) {
+    const template = getContentTemplate(templateKey)
+    if (!template) continue
+    const complete = template.questions.every((q) => answered.has(q.id))
+    if (!complete) {
+      incomplete.push({
+        template: templateKey,
+        answered: answered.size,
+        total: template.questions.length,
+      })
+      continue
+    }
+    const result = templateScore(templateKey, Object.fromEntries(answered))
+    perTemplate.push({
+      template: templateKey,
+      score: result.score,
+      band: band(result.score),
+      answered: result.perQuestion.length,
+    })
+  }
 
   return {
-    score: round(score, 1),
-    contentErrors,
-    pagesCrawled,
-    counted: counted.map((i) => ({ title: i.title, pages_count: i.pages_count })),
-    otherClasses: errorIssues
-      .filter((i) => classifyIssue(i) !== 'content')
-      .map((i) => ({ title: i.title, klass: classifyIssue(i) })),
+    overall: overallContent(perTemplate.map((t) => t.score)),
+    perTemplate,
+    incomplete,
   }
 }
 
 export const contentWorker: DriverWorker = async (ctx) => {
-  const errors: string[] = []
+  const answers = ctx.contentAnswers ?? []
 
-  const measured = await mapPool(ctx.sites, 2, async (site): Promise<SiteRawValue | null> => {
-    try {
-      assertDeadline(ctx.deadlineAt, `Content for ${site.domain}`)
-      const health = requireLive(await fetchSiteHealth(site.domain), `Content for ${site.domain}`)
-      const computed = computeContent(health.issues, health.pages_crawled)
-      return {
-        site_ref: site.site_ref,
-        domain: site.domain,
-        raw: computed.score,
-        score_absolute: Math.round(computed.score),
-        evidence: {
-          content_errors: computed.contentErrors,
-          pages_crawled: computed.pagesCrawled,
-          counted_issues: computed.counted,
-          issues_owned_by_other_drivers: computed.otherClasses,
-          endpoint: 'semrush:management/v1/siteaudit',
-        },
-      }
-    } catch (err) {
-      errors.push(err instanceof Error ? err.message : String(err))
-      return null
-    }
-  })
+  const bySite = new Map<SiteRef, ContentAnswerRow[]>()
+  for (const row of answers) {
+    const bucket = bySite.get(row.site_ref) ?? []
+    bucket.push(row)
+    bySite.set(row.site_ref, bucket)
+  }
 
-  const sites = measured.filter((s): s is SiteRawValue => s !== null)
+  const measured: SiteRawValue[] = []
+  const incompleteBySite: Record<string, SiteContentComputation['incomplete']> = {}
+
+  for (const site of ctx.sites) {
+    const computed = computeSiteContent(bySite.get(site.site_ref) ?? [])
+    if (computed.incomplete.length > 0) incompleteBySite[site.site_ref] = computed.incomplete
+    if (computed.overall === null) continue // no compiled template: unmeasured, never 0
+    measured.push({
+      site_ref: site.site_ref,
+      domain: site.domain,
+      raw: computed.overall,
+      score_absolute: Math.round(computed.overall),
+      evidence: {
+        per_template: computed.perTemplate,
+        templates_evaluated: computed.perTemplate.length,
+        templates_incomplete: computed.incomplete,
+        method: 'questionnaire_9a_9b',
+      },
+    })
+  }
 
   const clientRef = ctx.sites.find((s) => s.is_client)?.site_ref
-  if (!sites.some((s) => s.site_ref === clientRef)) {
+  if (!measured.some((s) => s.site_ref === clientRef)) {
+    // The client questionnaire is the mandatory input; without it the job
+    // pauses for the analyst (same pattern as AI Visibility) instead of
+    // failing or — worse — writing a score for an assessment nobody made.
+    const clientIncomplete = clientRef ? incompleteBySite[clientRef] ?? [] : []
     return {
-      status: 'error',
-      error: `Content could not be measured for the client site. ${
-        errors.join(' | ') || 'no reason reported'
-      }`,
-      rawPayload: { errors },
+      status: 'needs_decision',
+      decisionRequest: {
+        reason: 'questionnaire_missing',
+        message:
+          'Il driver Content si misura con il questionario delle Bibbia 9a/9b: nessun template ' +
+          'risulta compilato integralmente per il sito cliente. Compila il questionario Content ' +
+          '(tutte le domande di almeno un template) e poi rispondi a questa decisione per far ' +
+          'ripartire il job.' +
+          (clientIncomplete.length > 0
+            ? ` Template iniziati ma incompleti: ${clientIncomplete
+                .map((t) => `${t.template} (${t.answered}/${t.total})`)
+                .join(', ')}.`
+            : ''),
+        incomplete_templates: clientIncomplete,
+      },
+      rawPayload: { source: 'questionnaire:9a_9b', answers_seen: answers.length },
     }
   }
 
   return {
     status: 'done',
-    sites,
+    sites: measured,
     rawPayload: {
-      source: 'semrush:site-audit',
-      note: 'Same audit snapshot as Compliance, filtered on content issues.',
+      source: 'questionnaire:9a_9b',
+      note:
+        'Score = mean of the fully compiled templates per site (9a). Competitors without a ' +
+        'compiled questionnaire are unmeasured — Content is a Development driver, competitor ' +
+        'forms are optional.',
       unmeasured: ctx.sites
-        .filter((s) => !sites.some((m) => m.site_ref === s.site_ref))
+        .filter((s) => !measured.some((m) => m.site_ref === s.site_ref))
         .map((s) => s.domain),
-      errors,
+      incomplete_by_site: incompleteBySite,
     },
   }
 }

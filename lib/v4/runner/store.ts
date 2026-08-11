@@ -8,7 +8,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { AnalysisSite, DriverRunRow, SiteRef, TemplateConfig } from './types'
+import type { AnalysisSite, ContentAnswerRow, DriverRunRow, SiteRef, TemplateConfig } from './types'
 import type { PlannedRun } from './planner'
 
 const RUN_COLUMNS =
@@ -128,6 +128,29 @@ export async function loadTemplateConfigs(
     .eq('analysis_id', analysisId)
   return {
     templates: (data ?? []) as unknown as TemplateConfig[],
+    error: error?.message ?? null,
+  }
+}
+
+/**
+ * Questionnaire answers of one analysis (content_answers, sheets 9a/9b).
+ *
+ * Loaded by execute() only for the Content driver and handed to the worker
+ * through the context — the worker itself never holds a DB handle, exactly
+ * like `templates`. Points are NOT read back: the bank
+ * (lib/v4/content/bank.ts) is the authority for points at scoring time; the
+ * denormalized `points` column exists for audit, not for computation.
+ */
+export async function loadContentAnswers(
+  db: SupabaseClient,
+  analysisId: string,
+): Promise<{ answers: ContentAnswerRow[]; error: string | null }> {
+  const { data, error } = await db
+    .from('content_answers')
+    .select('site_ref, template_key, question_num, selected')
+    .eq('analysis_id', analysisId)
+  return {
+    answers: (data ?? []) as unknown as ContentAnswerRow[],
     error: error?.message ?? null,
   }
 }

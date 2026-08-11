@@ -38,6 +38,18 @@ export interface TemplateConfig {
   applies_to: string[]
 }
 
+/**
+ * One questionnaire answer row (content_answers), as the Content worker
+ * reads it. `selected` is nullable in the DB: a row can exist as a draft
+ * before the analyst picks an option.
+ */
+export interface ContentAnswerRow {
+  site_ref: SiteRef
+  template_key: string
+  question_num: number
+  selected: 'A' | 'B' | 'C' | 'D' | null
+}
+
 /** Everything a driver worker needs. No Supabase handle: workers stay pure-ish. */
 export interface DriverJobContext {
   analysisId: string
@@ -49,6 +61,12 @@ export interface DriverJobContext {
    * and MUST record which URLs it actually measured.
    */
   templates: TemplateConfig[]
+  /**
+   * Questionnaire answers (sheets 9a/9b), loaded only for the Content
+   * driver — every other job leaves it undefined. Kept in the context so
+   * the worker stays DB-free, same as `templates`.
+   */
+  contentAnswers?: ContentAnswerRow[]
   /** Per-driver setup config (driver_runs.config). */
   config: Record<string, unknown>
   /** REF_DATE frozen at launch: last day of the last complete month. */

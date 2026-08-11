@@ -27,6 +27,7 @@ import {
   listRunningRuns,
   listUndispatchedRuns,
   loadAnalysisSites,
+  loadContentAnswers,
   loadTemplateConfigs,
   markDispatched,
   updateDriverRun,
@@ -101,11 +102,34 @@ export async function executeDriverJob(
   // keeps workers free of any DB handle.
   const { templates } = await loadTemplateConfigs(db, analysisId)
 
+  // Questionnaire answers are Content's single source (sheets 9a/9b); no
+  // other driver reads them, so they are loaded only for that one job.
+  let contentAnswers: DriverJobContext['contentAnswers']
+  if (row.driver_key === 'content') {
+    const { answers, error: answersError } = await loadContentAnswers(db, analysisId)
+    if (answersError) {
+      // A failed read must NOT masquerade as "questionnaire not filled":
+      // the worker would pause on needs_decision and ask the analyst to
+      // redo work that may already exist. Fail the run instead, retryable
+      // through the normal attempt cycle.
+      const retryable = row.attempts < row.max_attempts
+      await writeOutcome(
+        db,
+        row.id,
+        { status: 'error', error: `content_answers read failed: ${answersError}` },
+        retryable,
+      )
+      return { claimed: true, status: retryable ? 'queued' : 'error', requeued: retryable, error: answersError }
+    }
+    contentAnswers = answers
+  }
+
   const ctx: DriverJobContext = {
     analysisId,
     driverKey: row.driver_key,
     sites,
     templates,
+    contentAnswers,
     config: row.config ?? {},
     refDate,
     country,
