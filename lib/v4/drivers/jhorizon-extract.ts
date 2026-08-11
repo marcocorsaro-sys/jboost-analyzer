@@ -94,14 +94,67 @@ export function buildExtractionPrompt(pasted: string, sites: AnalysisSite[]): st
   ].join('\n')
 }
 
+/** Options for callers that need a different model/budget than the extraction. */
+export interface AnthropicCallOptions {
+  model?: string
+  maxTokens?: number
+  /**
+   * Only sent when the model accepts it (see modelAcceptsTemperature): the
+   * claude-sonnet-5 family rejects the parameter outright (commit #42),
+   * while the Opus 4.x tier accepts it (the Executive Summary runs at 0.4,
+   * Bibbia sheet 16 C).
+   */
+  temperature?: number
+  system?: string
+  timeoutMs?: number
+}
+
+export interface AnthropicCallResult {
+  text: string
+  model: string
+  inputTokens: number
+  outputTokens: number
+}
+
 /**
- * Minimal Anthropic Messages call. Throws DriverSourceError on any transport
- * or API failure — the caller treats it like any other blocked source.
+ * claude-sonnet-5 (and its dated variants) rejects the temperature parameter;
+ * older Sonnet generations and the Opus tier accept it. Centralized here so
+ * every V4 call site respects the per-model difference the same way.
  */
-export async function callAnthropic(prompt: string, what: string): Promise<string> {
+export function modelAcceptsTemperature(model: string): boolean {
+  return !model.startsWith('claude-sonnet-5')
+}
+
+/**
+ * Minimal Anthropic Messages call, with token usage for cost tracking.
+ * Throws DriverSourceError on any transport or API failure — the caller
+ * treats it like any other blocked source. Shared by the J-Horizon
+ * extraction and the sheet 15/16 insight orchestrator (lib/v4/llm).
+ */
+export async function callAnthropicWithUsage(
+  prompt: string,
+  what: string,
+  options: AnthropicCallOptions = {},
+): Promise<AnthropicCallResult> {
   const key = process.env.ANTHROPIC_API_KEY
   if (!key) {
     throw new DriverSourceError(`${what} — ANTHROPIC_API_KEY is not configured`)
+  }
+
+  const model = options.model ?? EXTRACTION_MODEL
+
+  // Thinking disabled for every call: the token budgets are sized for the
+  // JSON alone and an enabled thinking block would truncate it (same choice
+  // as the MarTech detector). Temperature only where the model accepts it.
+  const payload: Record<string, unknown> = {
+    model,
+    max_tokens: options.maxTokens ?? 1500,
+    thinking: { type: 'disabled' },
+    messages: [{ role: 'user', content: prompt }],
+  }
+  if (options.system) payload.system = options.system
+  if (options.temperature !== undefined && modelAcceptsTemperature(model)) {
+    payload.temperature = options.temperature
   }
 
   let res: Response
@@ -113,15 +166,8 @@ export async function callAnthropic(prompt: string, what: string): Promise<strin
         'x-api-key': key,
         'anthropic-version': '2023-06-01',
       },
-      // No temperature: claude-sonnet-5 rejects it. Thinking disabled: the
-      // token budget is tight and a thinking block would truncate the JSON.
-      body: JSON.stringify({
-        model: EXTRACTION_MODEL,
-        max_tokens: 1500,
-        thinking: { type: 'disabled' },
-        messages: [{ role: 'user', content: prompt }],
-      }),
-      signal: AbortSignal.timeout(60_000),
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(options.timeoutMs ?? 60_000),
     })
   } catch (err) {
     throw new DriverSourceError(
@@ -133,14 +179,27 @@ export async function callAnthropic(prompt: string, what: string): Promise<strin
     throw new DriverSourceError(`${what} — Anthropic answered ${res.status}`)
   }
 
-  const body = (await res.json()) as { content?: Array<{ text?: unknown }> }
+  const body = (await res.json()) as {
+    content?: Array<{ text?: unknown }>
+    usage?: { input_tokens?: unknown; output_tokens?: unknown }
+  }
   const text = (body.content ?? [])
     .map((block) => (typeof block.text === 'string' ? block.text : ''))
     .join('')
   if (!text.trim()) {
     throw new DriverSourceError(`${what} — Anthropic returned no text`)
   }
-  return text
+  return {
+    text,
+    model,
+    inputTokens: Number(body.usage?.input_tokens) || 0,
+    outputTokens: Number(body.usage?.output_tokens) || 0,
+  }
+}
+
+/** Original text-only signature, kept for the extraction call sites. */
+export async function callAnthropic(prompt: string, what: string): Promise<string> {
+  return (await callAnthropicWithUsage(prompt, what)).text
 }
 
 /**
