@@ -662,6 +662,15 @@ clients are still touched only once a week.
 
 ---
 
+## 🔌 MCP Server
+
+L'app è esposta anche come **server MCP remoto** (`POST /api/mcp`, Streamable
+HTTP), così le sue capability — clienti, analisi 9-driver, knowledge base RAG,
+insight LLM — diventano richiamabili dall'esterno da qualunque client MCP
+(Claude Desktop/Code, IDE, agenti custom). Autenticazione via **bearer token =
+Supabase JWT**, con RLS e spend-limit invariati. Dettagli, lista tool e
+configurazione client in [`docs/MCP.md`](docs/MCP.md).
+
 ## 📚 API Documentation
 
 ### GET /api/clients
