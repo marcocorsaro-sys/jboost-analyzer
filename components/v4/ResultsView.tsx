@@ -133,6 +133,32 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
     }
   }, [analysisId, loadInsights])
 
+  const [retrying, setRetrying] = useState(false)
+  const [retryNote, setRetryNote] = useState<string | null>(null)
+
+  // "Rilancia analisi": reset + redispatch of error/stuck-queued drivers,
+  // without recreating the analysis. Done rows, edits and pauses survive.
+  const retryFailed = useCallback(async () => {
+    setRetrying(true)
+    setRetryNote(null)
+    try {
+      const res = await fetch(`/api/v4/analyses/${analysisId}/retry`, { method: 'POST' })
+      const body = await res.json()
+      if (!res.ok && res.status !== 207) {
+        setRetryNote(body.error ?? `errore ${res.status}`)
+      } else if (Array.isArray(body.dispatchErrors) && body.dispatchErrors.length > 0) {
+        setRetryNote(body.dispatchErrors.join(' | '))
+      } else if (Array.isArray(body.retried) && body.retried.length === 0) {
+        setRetryNote(body.message ?? null)
+      }
+      await loadStatus()
+    } catch (err) {
+      setRetryNote(err instanceof Error ? err.message : 'network error')
+    } finally {
+      setRetrying(false)
+    }
+  }, [analysisId, loadStatus])
+
   const startPending = useCallback(async () => {
     if (!status) return
     setStarting(true)
@@ -225,6 +251,18 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
             {progress.error} {t('v4res.state_error')}
           </span>
         )}
+        {(progress.error > 0 || progress.pending > 0) && (
+          <button
+            type="button"
+            onClick={retryFailed}
+            disabled={retrying}
+            style={{ ...ghostButton, borderColor: '#ef4444', color: retrying ? '#6b7280' : '#ef4444' }}
+            title={t('v4res.retry_hint')}
+          >
+            {retrying ? t('v4res.retrying') : t('v4res.retry')}
+          </button>
+        )}
+        {retryNote && <span style={{ fontSize: '12px', color: '#f59e0b' }}>{retryNote}</span>}
 
         {/* Absolute / Relative toggle (default Relative — sheet 6 v5). */}
         <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
