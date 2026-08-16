@@ -21,6 +21,7 @@ import { getWorker } from './workers'
 import { normalizeAnalysis, summarizeProgress } from './normalize'
 import { selectStaleRuns, selectUndispatchedRuns } from './reaper'
 import { dispatchDriverJob } from './dispatch'
+import { hydrateApiKeysFromConfig } from './hydrate-keys'
 import {
   claimDriverRun,
   listDriverRuns,
@@ -97,6 +98,10 @@ export async function executeDriverJob(
     })
     return { claimed: true, status: 'error', error: sitesError ?? 'no sites' }
   }
+
+  // Provider keys pasted into /admin live in app_config; hydrate them into
+  // the env (DB-first, V1 precedence) so the env-only source modules see them.
+  await hydrateApiKeysFromConfig(db)
 
   // Templates are shared across the page-based drivers; loading them here
   // keeps workers free of any DB handle.

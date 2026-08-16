@@ -33,6 +33,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { hydrateApiKeysFromConfig } from '@/lib/v4/runner/hydrate-keys'
 import { DISCO_TIERS, getV4Driver } from '@/lib/scoring/registry'
 import {
   callAnthropicWithUsage,
@@ -560,6 +561,10 @@ export async function generateInsights(
   const budgetMs = options.budgetMs ?? DEFAULT_BUDGET_MS
   const callModel = options.callModel ?? callAnthropicWithUsage
   const spendStatus = options.spendStatus ?? defaultSpendStatus
+
+  // Keys pasted into /admin live in app_config; hydrate them into the env
+  // (DB-first, V1 precedence) so the Anthropic client sees them.
+  await hydrateApiKeysFromConfig(db)
 
   const result: GenerateInsightsResult = {
     completed: false,
