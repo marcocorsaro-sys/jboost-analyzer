@@ -28,6 +28,41 @@ const en = {
   'nav.admin': 'Admin',
   'nav.me': 'Me',
 
+  // Navigation — V4 shell (UX-UI Bibbia 04: Home · New audit · Audits ·
+  // Clients · Settings; the parked V1 entries live under 'Legacy (V1)')
+  'nav.new_audit': 'New audit',
+  'nav.audits': 'Audits',
+  'nav.legacy': 'Legacy (V1)',
+
+  // Home (Bibbia 04 — headliner + primary CTA + widgets)
+  'home.start_new_audit': 'Start new audit',
+  'home.all_audits': 'All audits',
+  'home.all_clients': 'All clients',
+  'home.no_audits': 'No audits yet',
+  'home.no_clients': 'No active clients yet',
+
+  // Audits list (Bibbia 04 — one-off audits with score and date)
+  'audits.empty': 'No audits yet. Launch your first analysis.',
+  'audits.col_audit': 'Audit',
+  'audits.col_date': 'Date',
+  'audits.col_state': 'State',
+  'audits.col_score': 'Score',
+  'audits.col_actions': 'Actions',
+  'audits.open': 'Open',
+  'audits.switch_to_client': 'Switch to client',
+  'audits.switch_tooltip': 'Available in the ongoing phase (promotion to client)',
+
+  // Settings — APIs / data sources / defaults (Bibbia 04)
+  'settings.connectors': 'APIs & data sources',
+  'settings.connectors_hint': 'Key presence only — values are never shown. Run live health probes from the Admin panel.',
+  'settings.connector_configured': 'Configured',
+  'settings.connector_missing': 'Missing',
+  'settings.defaults': 'Defaults',
+  'settings.defaults_hint': 'V4 run defaults, read-only here. Edit them in Admin → Config (app_config).',
+  'settings.default_builtin': 'built-in default',
+  'settings.admin_hint': 'Integration probes, config editor, users and costs.',
+  'settings.open_admin': 'Open Admin',
+
   // Command palette
   'command.placeholder': 'Type a command or search…',
   'command.empty': 'No results found.',

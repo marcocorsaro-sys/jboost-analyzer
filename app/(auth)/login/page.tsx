@@ -36,7 +36,7 @@ function LoginForm() {
       body: JSON.stringify({ action: 'login' }),
     }).catch(() => {})
 
-    router.push('/analyzer')
+    router.push('/home')
     router.refresh()
   }
 

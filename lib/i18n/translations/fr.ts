@@ -582,6 +582,9 @@ const fr = {
   'common.askJ': 'Ask J',
 
   // TODO(v4): translate the 'v4res.*', 'v4content.*' and 'v4export.*' keys (see en.ts / it.ts).
+  // TODO(v4-shell): translate the 'home.*', 'audits.*' and new 'settings.*'/'nav.*'
+  // shell keys (see en.ts / it.ts). Note: 'nav.new_audit', 'nav.audits' and
+  // 'audits.switch_to_client' stay in English everywhere (Bibbia proper names).
   // Until then t() falls back to the English strings for this namespace.
 } as const
 

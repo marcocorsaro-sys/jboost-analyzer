@@ -28,6 +28,41 @@ const it = {
   'nav.admin': 'Admin',
   'nav.me': 'Io',
 
+  // Navigation — shell V4 (UX-UI Bibbia 04). 'New audit' e 'Audits' restano
+  // in inglese anche in italiano: sono i nomi propri delle voci della Bibbia.
+  'nav.new_audit': 'New audit',
+  'nav.audits': 'Audits',
+  'nav.legacy': 'Legacy (V1)',
+
+  // Home (Bibbia 04 — headliner + CTA primaria + widget)
+  'home.start_new_audit': 'Start new audit',
+  'home.all_audits': 'All audits',
+  'home.all_clients': 'All clients',
+  'home.no_audits': 'Nessun audit ancora',
+  'home.no_clients': 'Nessun cliente attivo',
+
+  // Lista Audits (Bibbia 04 — audit one-off con score e data)
+  'audits.empty': 'Nessun audit ancora. Lancia la prima analisi.',
+  'audits.col_audit': 'Audit',
+  'audits.col_date': 'Data',
+  'audits.col_state': 'Stato',
+  'audits.col_score': 'Score',
+  'audits.col_actions': 'Azioni',
+  'audits.open': 'Apri',
+  'audits.switch_to_client': 'Switch to client',
+  'audits.switch_tooltip': 'Disponibile nella fase ongoing (promozione a cliente)',
+
+  // Settings — API / data source / default (Bibbia 04)
+  'settings.connectors': 'API e data source',
+  'settings.connectors_hint': 'Solo presenza delle chiavi — i valori non vengono mai mostrati. I test live sono nel pannello Admin.',
+  'settings.connector_configured': 'Configurata',
+  'settings.connector_missing': 'Mancante',
+  'settings.defaults': 'Default',
+  'settings.defaults_hint': 'Default dei run V4, in sola lettura. Si modificano da Admin → Config (app_config).',
+  'settings.default_builtin': 'default integrato',
+  'settings.admin_hint': 'Probe integrazioni, editor config, utenti e costi.',
+  'settings.open_admin': 'Apri Admin',
+
   // Command palette
   'command.placeholder': 'Scrivi un comando o cerca…',
   'command.empty': 'Nessun risultato.',

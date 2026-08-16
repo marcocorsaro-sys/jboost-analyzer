@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
-import { Bell, Globe, LogOut, Search, Settings, Shield } from 'lucide-react'
+import { Bell, Globe, History, LogOut, Search, Settings, Shield } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -26,7 +26,8 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { PRIMARY_NAV } from '@/components/layout/nav-items'
+import { PRIMARY_NAV, LEGACY_NAV } from '@/components/layout/nav-items'
+import { showLegacy } from '@/lib/feature-flags'
 import { useCommandPalette } from '@/components/layout/command-palette'
 import { useLocale, LOCALE_LABELS, type Locale } from '@/lib/i18n'
 import { createClient } from '@/lib/supabase/client'
@@ -48,8 +49,14 @@ export function IconRail({
   const LOCALES: Locale[] = ['en', 'it', 'es', 'fr']
   const { setOpen } = useCommandPalette()
 
-  const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(href + '/')
+  const isActive = (href: string) => {
+    // Legacy /analyzer must not light up while the user is on /analyzer/v4
+    // (New audit): the V1 entry only matches itself.
+    if (href === '/analyzer') return pathname === href
+    return pathname === href || pathname.startsWith(href + '/')
+  }
+
+  const legacyEnabled = showLegacy()
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -71,7 +78,7 @@ export function IconRail({
       >
         {/* Logo */}
         <Link
-          href="/dashboard"
+          href="/home"
           className="mb-2 flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground"
           aria-label="JBoost"
         >
@@ -111,28 +118,78 @@ export function IconRail({
             )
           })}
 
+          {/* Legacy (V1) — collapsed section, only with NEXT_PUBLIC_JBA_LEGACY=1.
+              The parked V1 destinations (Comparazione 07) live in a dropdown
+              so the rail stays five-entry Bibbia-clean. */}
+          {legacyEnabled && (
+            <>
+              <Separator className="my-2 w-8" />
+              <DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label={t('nav.legacy')}
+                        className={cn(
+                          'flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground',
+                          LEGACY_NAV.some((i) => isActive(i.href)) &&
+                            'bg-accent text-accent-foreground'
+                        )}
+                      >
+                        <History className="h-5 w-5" />
+                      </button>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">{t('nav.legacy')}</TooltipContent>
+                </Tooltip>
+                <DropdownMenuContent side="right" align="start" className="w-56">
+                  <DropdownMenuLabel className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
+                    {t('nav.legacy')}
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {LEGACY_NAV.map((item) => {
+                    const Icon = item.icon
+                    return (
+                      <DropdownMenuItem
+                        key={item.href}
+                        onClick={() => router.push(item.href)}
+                      >
+                        <Icon />
+                        <span>{t(item.labelKey)}</span>
+                      </DropdownMenuItem>
+                    )
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          )}
+
           <Separator className="my-2 w-8" />
 
-          {/* Notifications */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-label={t('nav.notifications')}
-                className="relative flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-              >
-                <Bell className="h-5 w-5" />
-                {notificationCount > 0 && (
-                  <span className="absolute right-1.5 top-1.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">
-                    {notificationCount > 9 ? '9+' : notificationCount}
-                  </span>
-                )}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              {t('nav.notifications')}
-            </TooltipContent>
-          </Tooltip>
+          {/* Notifications — not part of the V4 one-off flow (Comparazione 07):
+              parked behind the legacy flag, never deleted. */}
+          {legacyEnabled && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={t('nav.notifications')}
+                  className="relative flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                >
+                  <Bell className="h-5 w-5" />
+                  {notificationCount > 0 && (
+                    <span className="absolute right-1.5 top-1.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">
+                      {notificationCount > 9 ? '9+' : notificationCount}
+                    </span>
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                {t('nav.notifications')}
+              </TooltipContent>
+            </Tooltip>
+          )}
 
           {/* Command palette trigger */}
           <Tooltip>

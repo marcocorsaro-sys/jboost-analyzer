@@ -53,7 +53,8 @@ export async function updateSession(request: NextRequest) {
 
   if (user && isPublicPath) {
     const url = request.nextUrl.clone()
-    url.pathname = '/analyzer'
+    // Bibbia 04: the post-login landing is Home.
+    url.pathname = '/home'
     const redirectResponse = NextResponse.redirect(url)
     // Carry over any refreshed session cookies to the redirect response
     supabaseResponse.cookies.getAll().forEach(cookie => {

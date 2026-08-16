@@ -24,7 +24,8 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command'
-import { PRIMARY_NAV } from '@/components/layout/nav-items'
+import { PRIMARY_NAV, LEGACY_NAV } from '@/components/layout/nav-items'
+import { showLegacy } from '@/lib/feature-flags'
 import { useLocale } from '@/lib/i18n'
 
 interface CommandPaletteContextValue {
@@ -97,7 +98,7 @@ export function CommandPaletteProvider({
           <CommandEmpty>{t('command.empty')}</CommandEmpty>
 
           <CommandGroup heading={t('command.navigation')}>
-            {PRIMARY_NAV.map((item) => {
+            {(showLegacy() ? [...PRIMARY_NAV, ...LEGACY_NAV] : PRIMARY_NAV).map((item) => {
               const Icon = item.icon
               return (
                 <CommandItem
@@ -115,33 +116,46 @@ export function CommandPaletteProvider({
           <CommandSeparator />
 
           <CommandGroup heading={t('command.quick_actions')}>
+            {/* V4 primary action (Bibbia 04): start a new audit. */}
             <CommandItem
-              value="new-prospect"
-              onSelect={() => runCommand(() => router.push('/pre-sales/new'))}
-            >
-              <Plus />
-              <span>{t('command.new_prospect')}</span>
-            </CommandItem>
-            <CommandItem
-              value="new-analysis"
-              onSelect={() => runCommand(() => router.push('/analyzer'))}
+              value="new-audit"
+              onSelect={() => runCommand(() => router.push('/analyzer/v4'))}
             >
               <Sparkles />
-              <span>{t('command.new_analysis')}</span>
+              <span>{t('nav.new_audit')}</span>
             </CommandItem>
+            {/* Legacy V1 quick actions — parked behind the flag (Comparazione 07). */}
+            {showLegacy() && (
+              <>
+                <CommandItem
+                  value="new-prospect"
+                  onSelect={() => runCommand(() => router.push('/pre-sales/new'))}
+                >
+                  <Plus />
+                  <span>{t('command.new_prospect')}</span>
+                </CommandItem>
+                <CommandItem
+                  value="new-analysis"
+                  onSelect={() => runCommand(() => router.push('/analyzer'))}
+                >
+                  <Sparkles />
+                  <span>{t('command.new_analysis')}</span>
+                </CommandItem>
+                <CommandItem
+                  value="ask-j"
+                  onSelect={() => runCommand(() => router.push('/ask-j'))}
+                >
+                  <MessageSquare />
+                  <span>{t('nav.ask_j')}</span>
+                </CommandItem>
+              </>
+            )}
             <CommandItem
               value="invite-member"
               onSelect={() => runCommand(() => router.push('/settings'))}
             >
               <UserPlus />
               <span>{t('command.invite_member')}</span>
-            </CommandItem>
-            <CommandItem
-              value="ask-j"
-              onSelect={() => runCommand(() => router.push('/ask-j'))}
-            >
-              <MessageSquare />
-              <span>{t('nav.ask_j')}</span>
             </CommandItem>
             <CommandItem
               value="clients"

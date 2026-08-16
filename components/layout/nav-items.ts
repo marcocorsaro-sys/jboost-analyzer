@@ -1,9 +1,14 @@
 import {
   Home,
-  Zap,
+  Plus,
+  ClipboardList,
   Building2,
+  Settings,
+  LayoutDashboard,
+  Zap,
+  Search,
+  FileText,
   MessageSquare,
-  User,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -16,25 +21,39 @@ export interface NavItem {
 }
 
 /**
- * Primary destinations shown in the desktop Icon Rail.
- * The same entries are also surfaced in the mobile tab bar
- * (with the last slot replaced by "Me").
+ * The five Bibbia entries (UX-UI 04, sheet "Navigation & Screens"), in the
+ * exact order the sheet lists them:
+ *   Home · New audit · Audits · Clients · Settings
+ *
+ * Shown in the desktop Icon Rail AND in the mobile tab bar (five slots).
+ * Nothing else belongs here: V1 destinations live in LEGACY_NAV below,
+ * behind the NEXT_PUBLIC_JBA_LEGACY flag (lib/feature-flags).
  */
 export const PRIMARY_NAV: NavItem[] = [
-  { href: '/dashboard', labelKey: 'nav.home', icon: Home },
-  { href: '/pre-sales', labelKey: 'nav.pre_sales', icon: Zap },
+  { href: '/home', labelKey: 'nav.home', icon: Home },
+  { href: '/analyzer/v4', labelKey: 'nav.new_audit', icon: Plus },
+  { href: '/audits', labelKey: 'nav.audits', icon: ClipboardList },
   { href: '/clients', labelKey: 'nav.clients', icon: Building2 },
-  { href: '/ask-j', labelKey: 'nav.ask_j', icon: MessageSquare },
+  { href: '/settings', labelKey: 'nav.settings', icon: Settings },
 ]
 
 /**
- * Mobile bottom-bar tabs. Same order as PRIMARY_NAV but with the
- * fifth slot reserved for the user's profile menu.
+ * Mobile bottom-bar tabs — the Bibbia five fill the five slots exactly.
  */
-export const MOBILE_NAV: NavItem[] = [
-  { href: '/dashboard', labelKey: 'nav.home', icon: Home },
+export const MOBILE_NAV: NavItem[] = PRIMARY_NAV
+
+/**
+ * V1 destinations PARKED behind the legacy flag (Comparazione 07: not part
+ * of the one-off V4 flow). Routes remain deployed — reachable by direct URL
+ * even with the flag off — but only surface in the shell when
+ * NEXT_PUBLIC_JBA_LEGACY=1 (collapsed "Legacy (V1)" section).
+ *
+ * Admin is deliberately NOT here: it stays reachable from Settings.
+ */
+export const LEGACY_NAV: NavItem[] = [
+  { href: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
   { href: '/pre-sales', labelKey: 'nav.pre_sales', icon: Zap },
-  { href: '/clients', labelKey: 'nav.clients', icon: Building2 },
+  { href: '/analyzer', labelKey: 'nav.analyzeDomain', icon: Search },
+  { href: '/results', labelKey: 'nav.results', icon: FileText },
   { href: '/ask-j', labelKey: 'nav.ask_j', icon: MessageSquare },
-  { href: '/settings', labelKey: 'nav.me', icon: User },
 ]

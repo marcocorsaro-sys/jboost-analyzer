@@ -36,7 +36,7 @@ export default function ResetPasswordPage() {
       return
     }
 
-    router.push('/analyzer')
+    router.push('/home')
   }
 
   return (
