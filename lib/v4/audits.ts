@@ -60,6 +60,12 @@ export interface AuditListItem {
   overallScore: number | null
   driversDone: number
   driversTotal: number
+  /**
+   * False = a setup saved as draft and never launched (no driver_runs yet):
+   * the list offers "Resume setup" (wizard ?resume=<id>) instead of opening
+   * a results page that has nothing to show.
+   */
+  started: boolean
 }
 
 /** Pure state computation — same precedence as ResultsView's pill. */
@@ -150,6 +156,7 @@ export async function listV4Audits(
       overallScore: computeOverallScore(runs),
       driversDone: enabled.filter((r) => r.status === 'done').length,
       driversTotal: enabled.length,
+      started: runs.length > 0,
     }
   })
 }

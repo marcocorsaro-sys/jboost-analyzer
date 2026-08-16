@@ -82,9 +82,21 @@ export function nextTier(current: DiscoTierKey): DiscoTierKey | null {
   return i >= 0 && i < DISCO_TIERS.length - 1 ? DISCO_TIERS[i + 1].key : null
 }
 
+/** Thematic clusters entered in setup (Bibbia 04 field #13), if any. */
+export function configuredClusters(config: Record<string, unknown> | null | undefined): string[] {
+  const raw = config?.configured_clusters
+  if (!Array.isArray(raw)) return []
+  return raw.filter((c): c is string => typeof c === 'string' && c.trim() !== '').map((c) => c.trim())
+}
+
 export const discoverabilityWorker: DriverWorker = async (ctx) => {
   const errors: string[] = []
   const tier = tierRule(activeTier(ctx.decisionTaken))
+
+  // The analyst's macro-themes travel with the payload so the LLM narration
+  // can group findings by them. Computing the real cluster table (keywords
+  // classified per cluster, per site) is downstream work, not this driver's.
+  const clusters = configuredClusters(ctx.config)
 
   // Domains the analyst already decided to drop on a previous pause.
   const removed = new Set(
@@ -172,6 +184,7 @@ export const discoverabilityWorker: DriverWorker = async (ctx) => {
     rawPayload: {
       source: 'ahrefs:site-explorer/organic-keywords',
       tier: tier.key,
+      configured_clusters: clusters,
       removed_by_analyst: [...removed],
       unmeasured: ctx.sites
         .filter((s) => !sites.some((m) => m.site_ref === s.site_ref))

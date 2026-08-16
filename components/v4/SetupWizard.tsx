@@ -1,27 +1,51 @@
 'use client'
 
 /**
- * V4 setup wizard (Block 3).
+ * V4 setup wizard — the 5 exact STEPs of the UX-UI Bibbia 04, sheet
+ * "New Audit (Setup)":
  *
- * One page, four sections — the analyst sees the whole configuration at once
- * instead of discovering a blocking rule three steps in. The gating rules are
- * shown inline (a Business driver is visibly disabled, with the reason, until
- * a competitor exists) but the server re-validates everything: the browser is
- * where the rules are explained, never where they are enforced.
+ *   1 · Project data      (domain, brand, countries, site type, sector,
+ *                          target audience, SEO maturity)
+ *   2 · Competitors       (up to 4, URL + brand name each)
+ *   3 · Drivers           (Business first, pre-flagged mandatory; each toggle
+ *                          opens its inline config: J-Horizon recap, thematic
+ *                          clusters, uploads, page templates + Import from
+ *                          Speed)
+ *   4 · Additional params (GA/GSC shown disabled as 'Future', words to avoid
+ *                          + max insights, knowledge documents, notes)
+ *   5 · Launch            (CTA enabled only with the required fields filled)
+ *
+ * Save draft + resume: the wizard can persist at any moment (POST creates the
+ * draft, PATCH updates it while un-launched) and reopens it via ?resume=<id>.
+ * The browser explains the rules; the server re-validates every one of them.
  */
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useLocale } from '@/lib/i18n'
+import type { TranslationKey } from '@/lib/i18n'
 import { driversInUiOrder } from '@/lib/scoring/registry'
 import {
+  ANALYSIS_COUNTRIES,
+  CLUSTERS_MAX,
+  CLUSTERS_MIN,
   INDUSTRY_LABELS,
   INDUSTRY_PRESETS,
+  SITE_TYPES,
+  SITE_TYPE_LABELS,
   TEMPLATE_KEYS,
   TEMPLATE_LABELS,
+  withMandatoryDrivers,
+  type AttachmentKind,
   type IndustryPreset,
+  type SetupAttachment,
 } from '@/lib/v4/setup'
 
 const MAX_COMPETITORS = 4
+
+// ---------------------------------------------------------------------------
+// Shared styles (same palette as the rest of the V4 components)
+// ---------------------------------------------------------------------------
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -64,10 +88,59 @@ const sectionTitleStyle: React.CSSProperties = {
 }
 
 const hintStyle: React.CSSProperties = { fontSize: '12px', color: '#6b7280', marginBottom: '18px' }
+const smallHint: React.CSSProperties = { fontSize: '12px', color: '#6b7280', marginTop: '6px' }
+
+const ghostButton: React.CSSProperties = {
+  background: 'transparent',
+  border: '1px solid #2a2d35',
+  borderRadius: '8px',
+  color: '#a0a0a0',
+  padding: '8px 16px',
+  fontSize: '13px',
+  cursor: 'pointer',
+}
+
+const chipStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+  padding: '4px 10px',
+  background: '#111318',
+  border: '1px solid #2a2d35',
+  borderRadius: '999px',
+  fontSize: '12px',
+  color: '#e5e7eb',
+}
 
 interface CompetitorRow {
   domain: string
   brandName: string
+}
+
+/** The saved draft, reshaped for the wizard (built server-side on ?resume). */
+export interface WizardInitial {
+  analysisId: string
+  clientDomain: string
+  clientBrand: string
+  brandVariants: string
+  countries: string[]
+  outputLanguage: 'it' | 'en'
+  siteType: string
+  industryPreset: string
+  sector: string
+  targetAudienceMode: string
+  targetAudience: string
+  seoMaturity: string
+  competitors: CompetitorRow[]
+  enabledDrivers: string[]
+  jhorizonAnswer: string
+  thematicClusters: string[]
+  blocklist: string[]
+  maxInsights: number | null
+  additionalNotes: string
+  driverTemplates: Record<string, string[]>
+  templates: Record<string, Record<string, string>>
+  attachments: SetupAttachment[]
 }
 
 function bareDomain(raw: string): string {
@@ -79,39 +152,144 @@ function bareDomain(raw: string): string {
     .replace(/\/.*$/, '')
 }
 
-export default function SetupWizard({ clientId }: { clientId?: string | null }) {
-  const router = useRouter()
-  const drivers = useMemo(() => driversInUiOrder(), [])
+// ---------------------------------------------------------------------------
+// Small reusable pieces
+// ---------------------------------------------------------------------------
 
-  const [clientDomain, setClientDomain] = useState('')
-  const [clientBrand, setClientBrand] = useState('')
-  const [brandVariants, setBrandVariants] = useState('')
-  const [country, setCountry] = useState('IT')
-  const [outputLanguage, setOutputLanguage] = useState<'it' | 'en'>('it')
-  const [industryPreset, setIndustryPreset] = useState<IndustryPreset | ''>('')
-  const [seoMaturity, setSeoMaturity] = useState<'' | 'low' | 'medium' | 'high'>('')
-  const [targetAudience, setTargetAudience] = useState('')
+/** Tag input: type, Enter/comma adds a chip; chips are removable. */
+function ChipInput({
+  values,
+  onChange,
+  placeholder,
+  removeLabel,
+}: {
+  values: string[]
+  onChange: (next: string[]) => void
+  placeholder: string
+  removeLabel: string
+}) {
+  const [text, setText] = useState('')
 
-  const [competitors, setCompetitors] = useState<CompetitorRow[]>([{ domain: '', brandName: '' }])
+  const commit = () => {
+    const parts = text.split(',').map((p) => p.trim()).filter(Boolean)
+    if (parts.length === 0) return
+    const next = [...values]
+    for (const p of parts) if (!next.includes(p)) next.push(p)
+    onChange(next)
+    setText('')
+  }
 
-  const [enabled, setEnabled] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(drivers.map((d) => [d.key, d.family === 'development'])),
+  return (
+    <div>
+      {values.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+          {values.map((v) => (
+            <span key={v} style={chipStyle}>
+              {v}
+              <button
+                type="button"
+                aria-label={`${removeLabel} ${v}`}
+                onClick={() => onChange(values.filter((x) => x !== v))}
+                style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', padding: 0 }}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <input
+        style={inputStyle}
+        value={text}
+        placeholder={placeholder}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault()
+            commit()
+          }
+        }}
+        onBlur={commit}
+      />
+    </div>
   )
+}
 
-  const [showTemplates, setShowTemplates] = useState(false)
-  // site_ref -> template_key -> url
-  const [templates, setTemplates] = useState<Record<string, Record<string, string>>>({})
+export default function SetupWizard({
+  clientId,
+  initialDraft,
+}: {
+  clientId?: string | null
+  initialDraft?: WizardInitial | null
+}) {
+  const router = useRouter()
+  const { t } = useLocale()
+  const drivers = useMemo(() => driversInUiOrder(), [])
+  const d = initialDraft
 
-  const [submitting, setSubmitting] = useState(false)
+  // ---- persistence ----
+  const [analysisId, setAnalysisId] = useState<string | null>(d?.analysisId ?? null)
+  const [step, setStep] = useState(1)
+  const [saving, setSaving] = useState(false)
+  const [launching, setLaunching] = useState(false)
+  const [savedAt, setSavedAt] = useState<string | null>(null)
   const [errors, setErrors] = useState<string[]>([])
 
+  // ---- STEP 1 · Project data ----
+  const [clientDomain, setClientDomain] = useState(d?.clientDomain ?? '')
+  const [clientBrand, setClientBrand] = useState(d?.clientBrand ?? '')
+  const [brandVariants, setBrandVariants] = useState(d?.brandVariants ?? '')
+  const [countries, setCountries] = useState<string[]>(d?.countries ?? ['IT'])
+  const [outputLanguage, setOutputLanguage] = useState<'it' | 'en'>(d?.outputLanguage ?? 'it')
+  const [siteType, setSiteType] = useState(d?.siteType ?? '')
+  const [industryPreset, setIndustryPreset] = useState<IndustryPreset | ''>(
+    (d?.industryPreset as IndustryPreset | '') ?? '',
+  )
+  const [sector, setSector] = useState(d?.sector ?? '')
+  const [targetAudienceMode, setTargetAudienceMode] = useState(d?.targetAudienceMode ?? '')
+  const [targetAudience, setTargetAudience] = useState(d?.targetAudience ?? '')
+  const [seoMaturity, setSeoMaturity] = useState(d?.seoMaturity ?? '')
+
+  // ---- STEP 2 · Competitors ----
+  const [competitors, setCompetitors] = useState<CompetitorRow[]>(
+    d?.competitors && d.competitors.length > 0 ? d.competitors : [{ domain: '', brandName: '' }],
+  )
+
+  // ---- STEP 3 · Drivers ----
+  // Business drivers are pre-flagged and NOT stored here: they are always on.
+  const [devEnabled, setDevEnabled] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(
+      drivers
+        .filter((dr) => dr.family === 'development')
+        .map((dr) => [dr.key, d ? d.enabledDrivers.includes(dr.key) : false]),
+    ),
+  )
+  const [jhorizonAnswer, setJhorizonAnswer] = useState(d?.jhorizonAnswer ?? '')
+  const [clusters, setClusters] = useState<string[]>(d?.thematicClusters ?? [])
+  const [driverTemplates, setDriverTemplates] = useState<Record<string, string[]>>(
+    d?.driverTemplates ?? {},
+  )
+  // site_ref -> template_key -> url (shared across the page drivers)
+  const [templates, setTemplates] = useState<Record<string, Record<string, string>>>(
+    d?.templates ?? {},
+  )
+  const [showSiteUrls, setShowSiteUrls] = useState(false)
+  const [attachments, setAttachments] = useState<SetupAttachment[]>(d?.attachments ?? [])
+  const [uploading, setUploading] = useState<AttachmentKind | null>(null)
+
+  // ---- STEP 4 · Additional parameters ----
+  const [blocklist, setBlocklist] = useState<string[]>(d?.blocklist ?? [])
+  const [maxInsights, setMaxInsights] = useState(d?.maxInsights ? String(d.maxInsights) : '')
+  const [additionalNotes, setAdditionalNotes] = useState(d?.additionalNotes ?? '')
+
+  // ---- derived ----
   const filledCompetitors = competitors.filter((c) => bareDomain(c.domain))
   const hasCompetitor = filledCompetitors.length > 0
 
   const sites = useMemo(() => {
     const out: Array<{ site_ref: string; domain: string; label: string }> = []
     const cd = bareDomain(clientDomain)
-    if (cd) out.push({ site_ref: 'client', domain: cd, label: `Cliente · ${cd}` })
+    if (cd) out.push({ site_ref: 'client', domain: cd, label: `${t('v4setup.client_site')} · ${cd}` })
     filledCompetitors.slice(0, MAX_COMPETITORS).forEach((c, i) => {
       out.push({
         site_ref: `competitor_${i + 1}`,
@@ -120,338 +298,666 @@ export default function SetupWizard({ clientId }: { clientId?: string | null }) 
       })
     })
     return out
-  }, [clientDomain, filledCompetitors])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientDomain, competitors])
 
-  const selectedDrivers = drivers
-    .filter((d) => enabled[d.key] && (hasCompetitor || !d.competitorMandatory))
-    .map((d) => d.key)
+  const selectedDrivers = withMandatoryDrivers(
+    drivers.filter((dr) => dr.family === 'development' && devEnabled[dr.key]).map((dr) => dr.key),
+  )
 
-  const setTemplateUrl = (siteRef: string, key: string, value: string) => {
-    setTemplates((prev) => ({ ...prev, [siteRef]: { ...(prev[siteRef] ?? {}), [key]: value } }))
+  const maxInsightsNum = maxInsights.trim() === '' ? null : Number(maxInsights)
+
+  /** Required-at-launch checklist (mirror of lib/v4/setup — server re-checks). */
+  const missing: string[] = []
+  if (!bareDomain(clientDomain)) missing.push(t('v4setup.req_domain'))
+  if (!clientBrand.trim()) missing.push(t('v4setup.req_brand'))
+  if (countries.length === 0) missing.push(t('v4setup.req_country'))
+  if (!siteType) missing.push(t('v4setup.req_site_type'))
+  if (!hasCompetitor) missing.push(t('v4setup.req_competitor'))
+  if (filledCompetitors.some((c) => !c.brandName.trim())) missing.push(t('v4setup.req_competitor_brand'))
+  if (clusters.length > 0 && (clusters.length < CLUSTERS_MIN || clusters.length > CLUSTERS_MAX)) {
+    missing.push(t('v4setup.req_clusters'))
+  }
+  if (maxInsightsNum !== null && (!Number.isInteger(maxInsightsNum) || maxInsightsNum <= 0)) {
+    missing.push(t('v4setup.req_max_insights'))
+  }
+  const canLaunch = missing.length === 0 && !saving && !launching
+  const canSaveDraft = Boolean(bareDomain(clientDomain)) && !saving && !launching
+
+  // ---------------------------------------------------------------------
+  // Persistence
+  // ---------------------------------------------------------------------
+
+  const buildBody = (mode: 'draft' | 'launch') => ({
+    clientId: clientId ?? null,
+    client: {
+      domain: clientDomain,
+      brandName: clientBrand || null,
+      brandVariants: brandVariants.split(',').map((v) => v.trim()).filter(Boolean),
+    },
+    competitors: filledCompetitors.slice(0, MAX_COMPETITORS).map((c) => ({
+      domain: c.domain,
+      brandName: c.brandName || null,
+    })),
+    country: countries[0] ?? 'IT',
+    countries,
+    outputLanguage,
+    industryPreset: industryPreset || null,
+    sector: sector || null,
+    siteType: siteType || null,
+    targetAudienceMode: targetAudienceMode || null,
+    targetAudience: targetAudience || null,
+    seoMaturity: seoMaturity || null,
+    drivers: selectedDrivers,
+    templates,
+    driverTemplates,
+    jhorizonAnswer: jhorizonAnswer || null,
+    thematicClusters: clusters,
+    blocklist,
+    maxInsights: maxInsightsNum,
+    additionalNotes: additionalNotes || null,
+    mode,
+  })
+
+  /** POST creates the draft, PATCH updates it. Returns the id, or null. */
+  const persist = async (mode: 'draft' | 'launch'): Promise<string | null> => {
+    const res = await fetch(analysisId ? `/api/v4/analyses/${analysisId}` : '/api/v4/analyses', {
+      method: analysisId ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildBody(mode)),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      setErrors(Array.isArray(data.details) ? data.details : [data.error ?? t('v4setup.err_unknown')])
+      return null
+    }
+    const id = (data.analysisId as string) ?? analysisId
+    setAnalysisId(id)
+    return id
   }
 
-  const submit = async (startNow: boolean) => {
-    setSubmitting(true)
+  const saveDraft = async (): Promise<string | null> => {
+    setSaving(true)
     setErrors([])
     try {
-      const res = await fetch('/api/v4/analyses', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientId: clientId ?? null,
-          client: {
-            domain: clientDomain,
-            brandName: clientBrand || null,
-            brandVariants: brandVariants.split(',').map((v) => v.trim()).filter(Boolean),
-          },
-          competitors: filledCompetitors.slice(0, MAX_COMPETITORS).map((c) => ({
-            domain: c.domain,
-            brandName: c.brandName || null,
-          })),
-          country,
-          outputLanguage,
-          industryPreset: industryPreset || null,
-          seoMaturity: seoMaturity || null,
-          targetAudience: targetAudience || null,
-          drivers: selectedDrivers,
-          templates,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setErrors(Array.isArray(data.details) ? data.details : [data.error ?? 'errore sconosciuto'])
-        setSubmitting(false)
-        return
-      }
+      const id = await persist('draft')
+      if (id) setSavedAt(new Date().toLocaleTimeString())
+      return id
+    } catch (err) {
+      setErrors([err instanceof Error ? err.message : t('v4setup.err_network')])
+      return null
+    } finally {
+      setSaving(false)
+    }
+  }
 
-      if (!startNow) {
-        router.push(`/results/v4/${data.analysisId}`)
-        return
-      }
+  const launch = async () => {
+    setLaunching(true)
+    setErrors([])
+    try {
+      const id = await persist('launch')
+      if (!id) return
 
-      const startRes = await fetch(`/api/v4/analyses/${data.analysisId}/start`, {
+      const startRes = await fetch(`/api/v4/analyses/${id}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ drivers: selectedDrivers }),
       })
       const startData = await startRes.json()
       if (!startRes.ok) {
-        // The analysis exists; the run did not start. Say exactly that instead
-        // of leaving the analyst to guess from a generic failure.
+        // The setup is saved; the run did not start. Say exactly that.
         setErrors([
-          `Analisi creata (${data.analysisId}) ma l'avvio è fallito: ${
+          `${t('v4setup.err_start_failed')} (${id}): ${
             Array.isArray(startData.details) ? startData.details.join(' | ') : startData.error
           }`,
         ])
-        setSubmitting(false)
         return
       }
-
-      router.push(`/results/v4/${data.analysisId}`)
+      router.push(`/results/v4/${id}`)
     } catch (err) {
-      setErrors([err instanceof Error ? err.message : 'errore di rete'])
-      setSubmitting(false)
+      setErrors([err instanceof Error ? err.message : t('v4setup.err_network')])
+    } finally {
+      setLaunching(false)
     }
   }
 
-  const canSubmit = Boolean(bareDomain(clientDomain)) && selectedDrivers.length > 0 && !submitting
+  // ---------------------------------------------------------------------
+  // Uploads (references only — parsing is downstream)
+  // ---------------------------------------------------------------------
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* ---------- 1. Cliente ---------- */}
-      <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>1 · Cliente</h2>
-        <p style={hintStyle}>Il sito oggetto del report. Uno solo, sempre.</p>
+  const uploadFile = async (kind: AttachmentKind, file: File) => {
+    setErrors([])
+    setUploading(kind)
+    try {
+      // Uploads hang off the analysis row: make sure the draft exists first.
+      const id = analysisId ?? (await saveDraft())
+      if (!id) return
+      const form = new FormData()
+      form.set('kind', kind)
+      form.set('file', file)
+      const res = await fetch(`/api/v4/analyses/${id}/files`, { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok) {
+        setErrors([data.error ?? t('v4setup.err_upload')])
+        return
+      }
+      setAttachments(data.attachments as SetupAttachment[])
+    } catch (err) {
+      setErrors([err instanceof Error ? err.message : t('v4setup.err_upload')])
+    } finally {
+      setUploading(null)
+    }
+  }
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          <div>
-            <label style={labelStyle}>Dominio</label>
-            <input
-              style={inputStyle}
-              value={clientDomain}
-              onChange={(e) => setClientDomain(e.target.value)}
-              placeholder="es. benetton.com"
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>Brand name</label>
-            <input
-              style={inputStyle}
-              value={clientBrand}
-              onChange={(e) => setClientBrand(e.target.value)}
-              placeholder="es. Benetton"
-            />
-          </div>
-        </div>
+  const removeFile = async (path: string) => {
+    if (!analysisId) return
+    try {
+      const res = await fetch(`/api/v4/analyses/${analysisId}/files`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path }),
+      })
+      const data = await res.json()
+      if (res.ok) setAttachments(data.attachments as SetupAttachment[])
+      else setErrors([data.error ?? t('v4setup.err_upload')])
+    } catch (err) {
+      setErrors([err instanceof Error ? err.message : t('v4setup.err_upload')])
+    }
+  }
 
-        <div style={{ marginTop: '16px' }}>
-          <label style={labelStyle}>Varianti del brand (separate da virgola)</label>
-          <input
-            style={inputStyle}
-            value={brandVariants}
-            onChange={(e) => setBrandVariants(e.target.value)}
-            placeholder="united colors of benetton, benetton group"
-          />
-          <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '6px' }}>
-            Usate dal driver Awareness per raccogliere il cluster di keyword di brand.
-          </div>
-        </div>
+  // ---------------------------------------------------------------------
+  // Step-3 helpers
+  // ---------------------------------------------------------------------
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginTop: '16px' }}>
-          <div>
-            <label style={labelStyle}>Paese</label>
-            <input style={inputStyle} value={country} onChange={(e) => setCountry(e.target.value)} />
-          </div>
-          <div>
-            <label style={labelStyle}>Lingua output</label>
-            <select
-              style={inputStyle}
-              value={outputLanguage}
-              onChange={(e) => setOutputLanguage(e.target.value as 'it' | 'en')}
-            >
-              <option value="it">Italiano</option>
-              <option value="en">English</option>
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>Maturità SEO</label>
-            <select
-              style={inputStyle}
-              value={seoMaturity}
-              onChange={(e) => setSeoMaturity(e.target.value as typeof seoMaturity)}
-            >
-              <option value="">—</option>
-              <option value="low">Bassa</option>
-              <option value="medium">Media</option>
-              <option value="high">Alta</option>
-            </select>
-          </div>
-        </div>
+  const setTemplateUrl = (siteRef: string, key: string, value: string) => {
+    setTemplates((prev) => ({ ...prev, [siteRef]: { ...(prev[siteRef] ?? {}), [key]: value } }))
+  }
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '16px' }}>
-          <div>
-            <label style={labelStyle}>Industry preset</label>
-            <select
-              style={inputStyle}
-              value={industryPreset}
-              onChange={(e) => setIndustryPreset(e.target.value as IndustryPreset | '')}
-            >
-              <option value="">—</option>
-              {INDUSTRY_PRESETS.map((p) => (
-                <option key={p} value={p}>
-                  {INDUSTRY_LABELS[p]}
-                </option>
-              ))}
-            </select>
-            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '6px' }}>
-              Determina i markup type attesi dal driver Schema.
-            </div>
-          </div>
-          <div>
-            <label style={labelStyle}>Target audience</label>
-            <input
-              style={inputStyle}
-              value={targetAudience}
-              onChange={(e) => setTargetAudience(e.target.value)}
-              placeholder="es. donne 25-45, urban"
-            />
-          </div>
-        </div>
-      </section>
+  const toggleDriverTemplate = (driverKey: string, templateKey: string) => {
+    setDriverTemplates((prev) => {
+      const cur = prev[driverKey] ?? []
+      const next = cur.includes(templateKey) ? cur.filter((k) => k !== templateKey) : [...cur, templateKey]
+      return { ...prev, [driverKey]: next }
+    })
+  }
 
-      {/* ---------- 2. Competitor ---------- */}
-      <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>2 · Competitor</h2>
-        <p style={hintStyle}>
-          Fino a {MAX_COMPETITORS}. Senza almeno un competitor i driver Business non sono calcolabili:
-          il loro punteggio è un indice relativo al set, non un valore assoluto.
-        </p>
+  /** "Import from Speed": copy Speed's flagged templates into this driver
+   *  (the example URLs are shared, so only the flags need copying). */
+  const importFromSpeed = (driverKey: string) => {
+    setDriverTemplates((prev) => ({
+      ...prev,
+      [driverKey]: [...new Set([...(prev[driverKey] ?? []), ...(prev.speed ?? [])])],
+    }))
+  }
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {competitors.map((c, i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 40px', gap: '12px' }}>
-              <input
-                style={inputStyle}
-                value={c.domain}
-                onChange={(e) => {
-                  const next = [...competitors]
-                  next[i] = { ...next[i], domain: e.target.value }
-                  setCompetitors(next)
-                }}
-                placeholder={`Dominio competitor ${i + 1}`}
-              />
-              <input
-                style={inputStyle}
-                value={c.brandName}
-                onChange={(e) => {
-                  const next = [...competitors]
-                  next[i] = { ...next[i], brandName: e.target.value }
-                  setCompetitors(next)
-                }}
-                placeholder="Brand name (opzionale)"
-              />
-              <button
-                type="button"
-                onClick={() => setCompetitors(competitors.filter((_, j) => j !== i))}
-                style={{
-                  background: 'transparent',
-                  border: '1px solid #2a2d35',
-                  borderRadius: '8px',
-                  color: '#6b7280',
-                  cursor: 'pointer',
-                }}
-                aria-label={`Rimuovi competitor ${i + 1}`}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
+  const attachmentsOf = (kind: AttachmentKind) => attachments.filter((a) => a.kind === kind)
 
-        {competitors.length < MAX_COMPETITORS && (
+  // ---------------------------------------------------------------------
+  // Render helpers
+  // ---------------------------------------------------------------------
+
+  const stepLabels: TranslationKey[] = [
+    'v4setup.step1',
+    'v4setup.step2',
+    'v4setup.step3',
+    'v4setup.step4',
+    'v4setup.step5',
+  ]
+
+  const uploadBlock = (kind: AttachmentKind, label: string, accept: string, hint: string) => (
+    <div style={{ marginTop: '12px' }}>
+      <label style={labelStyle}>{label}</label>
+      {attachmentsOf(kind).map((a) => (
+        <div key={a.path} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+          <span style={chipStyle}>{a.name}</span>
           <button
             type="button"
-            onClick={() => setCompetitors([...competitors, { domain: '', brandName: '' }])}
-            style={{
-              marginTop: '12px',
-              background: 'transparent',
-              border: '1px dashed #2a2d35',
-              borderRadius: '8px',
-              color: '#a0a0a0',
-              padding: '8px 16px',
-              fontSize: '13px',
-              cursor: 'pointer',
-            }}
+            onClick={() => removeFile(a.path)}
+            style={{ ...ghostButton, padding: '2px 10px', fontSize: '12px' }}
           >
-            + Aggiungi competitor
+            {t('v4setup.remove')}
           </button>
-        )}
-      </section>
-
-      {/* ---------- 3. Driver ---------- */}
-      <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>3 · Driver</h2>
-        <p style={hintStyle}>
-          I driver Business richiedono almeno un competitor; i Development possono girare da soli.
-        </p>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-          {drivers.map((d) => {
-            const blocked = d.competitorMandatory && !hasCompetitor
-            const checked = Boolean(enabled[d.key]) && !blocked
-            return (
-              <label
-                key={d.key}
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '10px',
-                  padding: '12px 14px',
-                  background: '#111318',
-                  border: `1px solid ${checked ? '#c8e64a40' : '#2a2d35'}`,
-                  borderRadius: '8px',
-                  cursor: blocked ? 'not-allowed' : 'pointer',
-                  opacity: blocked ? 0.5 : 1,
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  disabled={blocked}
-                  onChange={(e) => setEnabled({ ...enabled, [d.key]: e.target.checked })}
-                  style={{ marginTop: '3px' }}
-                />
-                <span>
-                  <span style={{ display: 'block', fontSize: '14px', color: '#ffffff' }}>{d.label}</span>
-                  <span style={{ display: 'block', fontSize: '12px', color: '#6b7280' }}>
-                    {d.family === 'business' ? 'Business' : 'Development'} · {d.source}
-                  </span>
-                  {blocked && (
-                    <span style={{ display: 'block', fontSize: '12px', color: '#f59e0b', marginTop: '4px' }}>
-                      Richiede almeno un competitor
-                    </span>
-                  )}
-                </span>
-              </label>
-            )
-          })}
         </div>
-      </section>
+      ))}
+      <input
+        type="file"
+        accept={accept}
+        disabled={uploading !== null}
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) void uploadFile(kind, file)
+          e.target.value = ''
+        }}
+        style={{ fontSize: '13px', color: '#a0a0a0' }}
+      />
+      <div style={smallHint}>
+        {uploading === kind ? t('v4setup.uploading') : hint} {t('v4setup.upload_parse_note')}
+      </div>
+    </div>
+  )
 
-      {/* ---------- 4. Template ---------- */}
-      <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>4 · Template di pagina</h2>
-        <p style={hintStyle}>
-          Speed, Accessibility, Schema e Content misurano queste pagine. Se non ne indichi, viene
-          misurata solo la homepage di ogni sito — il confronto resta corretto, ma il punteggio
-          descrive una pagina sola.
-        </p>
-
-        {sites.length === 0 ? (
-          <div style={{ fontSize: '13px', color: '#6b7280' }}>
-            Inserisci prima il dominio del cliente.
-          </div>
-        ) : (
-          <>
+  const templateSelector = (driverKey: string, withImport: boolean) => {
+    const selected = driverTemplates[driverKey] ?? []
+    return (
+      <div style={{ marginTop: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+          <label style={{ ...labelStyle, marginBottom: 0 }}>{t('v4setup.templates_label')}</label>
+          {withImport && (
             <button
               type="button"
-              onClick={() => setShowTemplates(!showTemplates)}
+              onClick={() => importFromSpeed(driverKey)}
+              disabled={(driverTemplates.speed ?? []).length === 0}
+              style={{
+                ...ghostButton,
+                padding: '4px 12px',
+                fontSize: '12px',
+                opacity: (driverTemplates.speed ?? []).length === 0 ? 0.5 : 1,
+              }}
+              title={t('v4setup.import_from_speed_hint')}
+            >
+              {t('v4setup.import_from_speed')}
+            </button>
+          )}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
+          {TEMPLATE_KEYS.map((key) => (
+            <label
+              key={key}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#e5e7eb', cursor: 'pointer' }}
+            >
+              <input
+                type="checkbox"
+                checked={selected.includes(key)}
+                onChange={() => toggleDriverTemplate(driverKey, key)}
+              />
+              {TEMPLATE_LABELS[key]}
+            </label>
+          ))}
+        </div>
+        {/* 1 example URL per flagged template (client site). */}
+        {selected.length > 0 && bareDomain(clientDomain) && (
+          <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {TEMPLATE_KEYS.filter((k) => selected.includes(k)).map((key) => (
+              <div key={key} style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '12px', alignItems: 'center' }}>
+                <span style={{ fontSize: '12px', color: '#a0a0a0' }}>{TEMPLATE_LABELS[key]}</span>
+                <input
+                  style={inputStyle}
+                  value={templates.client?.[key] ?? ''}
+                  onChange={(e) => setTemplateUrl('client', key, e.target.value)}
+                  placeholder={
+                    key === 'homepage'
+                      ? `https://${bareDomain(clientDomain)} (default)`
+                      : t('v4setup.template_url_placeholder')
+                  }
+                />
+              </div>
+            ))}
+            <div style={smallHint}>{t('v4setup.template_urls_shared')}</div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const driverConfigBlock = (key: string) => {
+    switch (key) {
+      case 'ai_visibility':
+        return (
+          <div style={{ marginTop: '12px' }}>
+            <label style={labelStyle}>{t('v4setup.jhorizon_label')}</label>
+            <textarea
+              style={{ ...inputStyle, minHeight: '110px', resize: 'vertical' }}
+              value={jhorizonAnswer}
+              onChange={(e) => setJhorizonAnswer(e.target.value)}
+              placeholder={t('v4setup.jhorizon_placeholder')}
+            />
+            <div style={smallHint}>{t('v4setup.jhorizon_hint')}</div>
+          </div>
+        )
+      case 'discoverability':
+        return (
+          <div style={{ marginTop: '12px' }}>
+            <label style={labelStyle}>
+              {t('v4setup.clusters_label')} ({CLUSTERS_MIN}-{CLUSTERS_MAX})
+            </label>
+            <ChipInput
+              values={clusters}
+              onChange={setClusters}
+              placeholder={t('v4setup.clusters_placeholder')}
+              removeLabel={t('v4setup.remove')}
+            />
+            <div style={smallHint}>{t('v4setup.clusters_hint')}</div>
+            {clusters.length > 0 && (clusters.length < CLUSTERS_MIN || clusters.length > CLUSTERS_MAX) && (
+              <div style={{ fontSize: '12px', color: '#f59e0b', marginTop: '4px' }}>
+                {t('v4setup.req_clusters')}
+              </div>
+            )}
+          </div>
+        )
+      case 'compliance':
+        return uploadBlock(
+          'compliance_crawl',
+          t('v4setup.crawl_upload_label'),
+          '.csv,.xlsx,.xls',
+          t('v4setup.crawl_upload_hint'),
+        )
+      case 'authority':
+        return uploadBlock(
+          'authority_backlinks',
+          t('v4setup.backlink_upload_label'),
+          '.csv,.xlsx,.xls',
+          t('v4setup.backlink_upload_hint'),
+        )
+      case 'schema':
+        return templateSelector('schema', true)
+      case 'speed':
+        return templateSelector('speed', false)
+      case 'accessibility':
+        return templateSelector('accessibility', true)
+      case 'content':
+        return (
+          <>
+            {templateSelector('content', true)}
+            <div style={smallHint}>{t('v4setup.content_questionnaire_note')}</div>
+          </>
+        )
+      default:
+        return null
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // The five steps
+  // ---------------------------------------------------------------------
+
+  const step1 = (
+    <section style={sectionStyle}>
+      <h2 style={sectionTitleStyle}>1 · {t('v4setup.step1')}</h2>
+      <p style={hintStyle}>{t('v4setup.step1_hint')}</p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <div>
+          <label style={labelStyle}>{t('v4setup.domain')} *</label>
+          <input
+            style={inputStyle}
+            value={clientDomain}
+            onChange={(e) => setClientDomain(e.target.value)}
+            placeholder="es. benetton.com"
+          />
+        </div>
+        <div>
+          <label style={labelStyle}>{t('v4setup.brand_name')} *</label>
+          <input
+            style={inputStyle}
+            value={clientBrand}
+            onChange={(e) => setClientBrand(e.target.value)}
+            placeholder="es. Benetton"
+          />
+        </div>
+      </div>
+
+      <div style={{ marginTop: '16px' }}>
+        <label style={labelStyle}>{t('v4setup.brand_variants')}</label>
+        <input
+          style={inputStyle}
+          value={brandVariants}
+          onChange={(e) => setBrandVariants(e.target.value)}
+          placeholder="united colors of benetton, benetton group"
+        />
+        <div style={smallHint}>{t('v4setup.brand_variants_hint')}</div>
+      </div>
+
+      <div style={{ marginTop: '16px' }}>
+        <label style={labelStyle}>{t('v4setup.countries')} *</label>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+          {ANALYSIS_COUNTRIES.map((c) => (
+            <label
+              key={c.code}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#e5e7eb', cursor: 'pointer' }}
+            >
+              <input
+                type="checkbox"
+                checked={countries.includes(c.code)}
+                onChange={() =>
+                  setCountries((prev) =>
+                    prev.includes(c.code) ? prev.filter((x) => x !== c.code) : [...prev, c.code],
+                  )
+                }
+              />
+              {c.code} · {c.label}
+            </label>
+          ))}
+        </div>
+        <div style={smallHint}>{t('v4setup.countries_hint')}</div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginTop: '16px' }}>
+        <div>
+          <label style={labelStyle}>{t('v4setup.site_type')} *</label>
+          <select style={inputStyle} value={siteType} onChange={(e) => setSiteType(e.target.value)}>
+            <option value="">—</option>
+            {SITE_TYPES.map((s) => (
+              <option key={s} value={s}>
+                {SITE_TYPE_LABELS[s]}
+              </option>
+            ))}
+          </select>
+          <div style={smallHint}>{t('v4setup.site_type_hint')}</div>
+        </div>
+        <div>
+          <label style={labelStyle}>{t('v4setup.sector')}</label>
+          <select
+            style={{ ...inputStyle, marginBottom: '8px' }}
+            value={industryPreset}
+            onChange={(e) => setIndustryPreset(e.target.value as IndustryPreset | '')}
+          >
+            <option value="">—</option>
+            {INDUSTRY_PRESETS.map((p) => (
+              <option key={p} value={p}>
+                {INDUSTRY_LABELS[p]}
+              </option>
+            ))}
+          </select>
+          <input
+            style={inputStyle}
+            value={sector}
+            onChange={(e) => setSector(e.target.value)}
+            placeholder={t('v4setup.sector_free_placeholder')}
+          />
+          <div style={smallHint}>{t('v4setup.sector_hint')}</div>
+        </div>
+        <div>
+          <label style={labelStyle}>{t('v4setup.seo_maturity')}</label>
+          <select style={inputStyle} value={seoMaturity} onChange={(e) => setSeoMaturity(e.target.value)}>
+            <option value="">—</option>
+            <option value="low">{t('v4setup.maturity_low')}</option>
+            <option value="medium">{t('v4setup.maturity_medium')}</option>
+            <option value="high">{t('v4setup.maturity_high')}</option>
+          </select>
+          <div style={smallHint}>{t('v4setup.seo_maturity_hint')}</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '16px' }}>
+        <div>
+          <label style={labelStyle}>{t('v4setup.target_audience')}</label>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+            {(['b2b', 'b2c', 'both'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setTargetAudienceMode(targetAudienceMode === m ? '' : m)}
+                style={{
+                  ...ghostButton,
+                  padding: '6px 14px',
+                  fontSize: '12px',
+                  color: targetAudienceMode === m ? '#111318' : '#a0a0a0',
+                  background: targetAudienceMode === m ? '#c8e64a' : 'transparent',
+                  fontWeight: targetAudienceMode === m ? 700 : 400,
+                }}
+              >
+                {m === 'both' ? t('v4setup.audience_both') : m.toUpperCase()}
+              </button>
+            ))}
+          </div>
+          <input
+            style={inputStyle}
+            value={targetAudience}
+            onChange={(e) => setTargetAudience(e.target.value)}
+            placeholder={t('v4setup.target_audience_placeholder')}
+          />
+        </div>
+        <div>
+          <label style={labelStyle}>{t('v4setup.output_language')}</label>
+          <select
+            style={inputStyle}
+            value={outputLanguage}
+            onChange={(e) => setOutputLanguage(e.target.value as 'it' | 'en')}
+          >
+            <option value="it">Italiano</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+      </div>
+    </section>
+  )
+
+  const step2 = (
+    <section style={sectionStyle}>
+      <h2 style={sectionTitleStyle}>2 · {t('v4setup.step2')}</h2>
+      <p style={hintStyle}>{t('v4setup.step2_hint')}</p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {competitors.map((c, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 40px', gap: '12px' }}>
+            <input
+              style={inputStyle}
+              value={c.domain}
+              onChange={(e) => {
+                const next = [...competitors]
+                next[i] = { ...next[i], domain: e.target.value }
+                setCompetitors(next)
+              }}
+              placeholder={`${t('v4setup.competitor_domain')} ${i + 1}`}
+            />
+            <input
+              style={inputStyle}
+              value={c.brandName}
+              onChange={(e) => {
+                const next = [...competitors]
+                next[i] = { ...next[i], brandName: e.target.value }
+                setCompetitors(next)
+              }}
+              placeholder={`${t('v4setup.competitor_brand')} *`}
+            />
+            <button
+              type="button"
+              onClick={() => setCompetitors(competitors.filter((_, j) => j !== i))}
               style={{
                 background: 'transparent',
                 border: '1px solid #2a2d35',
                 borderRadius: '8px',
-                color: '#a0a0a0',
-                padding: '8px 16px',
-                fontSize: '13px',
+                color: '#6b7280',
                 cursor: 'pointer',
               }}
+              aria-label={`${t('v4setup.remove')} competitor ${i + 1}`}
             >
-              {showTemplates ? 'Nascondi' : 'Configura'} template ({sites.length} siti)
+              ×
             </button>
+          </div>
+        ))}
+      </div>
 
-            {showTemplates && (
-              <div style={{ marginTop: '18px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {sites.map((site) => (
+      {competitors.length < MAX_COMPETITORS && (
+        <button
+          type="button"
+          onClick={() => setCompetitors([...competitors, { domain: '', brandName: '' }])}
+          style={{ ...ghostButton, marginTop: '12px', border: '1px dashed #2a2d35' }}
+        >
+          + {t('v4setup.add_competitor')}
+        </button>
+      )}
+    </section>
+  )
+
+  const step3 = (
+    <section style={sectionStyle}>
+      <h2 style={sectionTitleStyle}>3 · {t('v4setup.step3')}</h2>
+      <p style={hintStyle}>{t('v4setup.step3_hint')}</p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {drivers.map((dr) => {
+          const isBusiness = dr.family === 'business'
+          const enabled = isBusiness || Boolean(devEnabled[dr.key])
+          return (
+            <div
+              key={dr.key}
+              style={{
+                padding: '12px 14px',
+                background: '#111318',
+                border: `1px solid ${enabled ? '#c8e64a40' : '#2a2d35'}`,
+                borderRadius: '8px',
+              }}
+            >
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '10px',
+                  cursor: isBusiness ? 'default' : 'pointer',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={enabled}
+                  disabled={isBusiness}
+                  onChange={(e) => setDevEnabled({ ...devEnabled, [dr.key]: e.target.checked })}
+                  style={{ marginTop: '3px' }}
+                />
+                <span style={{ flex: 1 }}>
+                  <span style={{ display: 'block', fontSize: '14px', color: '#ffffff' }}>
+                    {dr.label}
+                    {isBusiness && (
+                      <span
+                        style={{
+                          marginLeft: '10px',
+                          fontSize: '11px',
+                          color: '#c8e64a',
+                          fontFamily: "'JetBrains Mono', monospace",
+                        }}
+                      >
+                        {t('v4setup.mandatory_badge')}
+                      </span>
+                    )}
+                  </span>
+                  <span style={{ display: 'block', fontSize: '12px', color: '#6b7280' }}>
+                    {isBusiness ? 'Business' : 'Development'} · {t('v4setup.data_source')}: {dr.source}
+                  </span>
+                  {isBusiness && !hasCompetitor && (
+                    <span style={{ display: 'block', fontSize: '12px', color: '#f59e0b', marginTop: '4px' }}>
+                      {t('v4setup.needs_competitor')}
+                    </span>
+                  )}
+                </span>
+              </label>
+              {enabled && driverConfigBlock(dr.key)}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Advanced: per-competitor template URLs (the comparison measures the
+          same pages on every site; competitor URLs default to the homepage). */}
+      {sites.length > 1 && (
+        <div style={{ marginTop: '18px' }}>
+          <button type="button" onClick={() => setShowSiteUrls(!showSiteUrls)} style={ghostButton}>
+            {showSiteUrls ? t('v4setup.hide') : t('v4setup.competitor_urls')} ({sites.length - 1})
+          </button>
+          {showSiteUrls && (
+            <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {sites
+                .filter((s) => s.site_ref !== 'client')
+                .map((site) => (
                   <div key={site.site_ref}>
                     <div
                       style={{
@@ -478,7 +984,7 @@ export default function SetupWizard({ clientId }: { clientId?: string | null }) 
                             placeholder={
                               key === 'homepage'
                                 ? `https://${site.domain} (default)`
-                                : 'lascia vuoto se il sito non ha questo template'
+                                : t('v4setup.template_url_placeholder')
                             }
                           />
                         </div>
@@ -486,11 +992,208 @@ export default function SetupWizard({ clientId }: { clientId?: string | null }) 
                     </div>
                   </div>
                 ))}
-              </div>
-            )}
-          </>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  )
+
+  const step4 = (
+    <section style={sectionStyle}>
+      <h2 style={sectionTitleStyle}>4 · {t('v4setup.step4')}</h2>
+      <p style={hintStyle}>{t('v4setup.step4_hint')}</p>
+
+      {/* GA / GSC — shown, disabled, labelled Future (field #21). */}
+      <div
+        style={{
+          padding: '12px 14px',
+          background: '#111318',
+          border: '1px dashed #2a2d35',
+          borderRadius: '8px',
+          opacity: 0.6,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '14px', color: '#ffffff' }}>{t('v4setup.ga_gsc')}</span>
+          <span
+            style={{
+              fontSize: '11px',
+              padding: '2px 8px',
+              borderRadius: '999px',
+              background: '#6b728020',
+              color: '#6b7280',
+              fontFamily: "'JetBrains Mono', monospace",
+            }}
+          >
+            {t('v4setup.future_badge')}
+          </span>
+        </div>
+        <div style={smallHint}>{t('v4setup.ga_gsc_hint')}</div>
+        <button type="button" disabled style={{ ...ghostButton, marginTop: '8px', cursor: 'not-allowed', opacity: 0.5 }}>
+          {t('v4setup.connect')}
+        </button>
+      </div>
+
+      {/* Words to avoid + max insights (field #22). */}
+      <div style={{ marginTop: '18px', display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
+        <div>
+          <label style={labelStyle}>{t('v4setup.blocklist')}</label>
+          <ChipInput
+            values={blocklist}
+            onChange={setBlocklist}
+            placeholder={t('v4setup.blocklist_placeholder')}
+            removeLabel={t('v4setup.remove')}
+          />
+          <div style={smallHint}>{t('v4setup.blocklist_hint')}</div>
+        </div>
+        <div>
+          <label style={labelStyle}>{t('v4setup.max_insights')}</label>
+          <input
+            style={inputStyle}
+            type="number"
+            min={1}
+            step={1}
+            value={maxInsights}
+            onChange={(e) => setMaxInsights(e.target.value)}
+            placeholder="es. 3"
+          />
+          <div style={smallHint}>{t('v4setup.max_insights_hint')}</div>
+        </div>
+      </div>
+
+      {/* Knowledge documents (field #23). */}
+      <div style={{ marginTop: '18px' }}>
+        {uploadBlock(
+          'knowledge_doc',
+          t('v4setup.knowledge_docs'),
+          '.pdf,.docx,.doc,.txt,.md,.pptx,.xlsx,.xls,.csv',
+          t('v4setup.knowledge_docs_hint'),
         )}
-      </section>
+      </div>
+
+      {/* Additional notes (field #24). */}
+      <div style={{ marginTop: '18px' }}>
+        <label style={labelStyle}>{t('v4setup.notes')}</label>
+        <textarea
+          style={{ ...inputStyle, minHeight: '100px', resize: 'vertical' }}
+          value={additionalNotes}
+          onChange={(e) => setAdditionalNotes(e.target.value)}
+          placeholder={t('v4setup.notes_placeholder')}
+        />
+      </div>
+    </section>
+  )
+
+  const step5 = (
+    <section style={sectionStyle}>
+      <h2 style={sectionTitleStyle}>5 · {t('v4setup.step5')}</h2>
+      <p style={hintStyle}>{t('v4setup.step5_hint')}</p>
+
+      <div style={{ fontSize: '13px', color: '#e5e7eb', lineHeight: 2 }}>
+        <div>
+          {t('v4setup.summary_site')}: <strong>{bareDomain(clientDomain) || '—'}</strong>
+          {clientBrand ? ` (${clientBrand})` : ''} · {countries.join(', ') || '—'}
+        </div>
+        <div>
+          {t('v4setup.summary_competitors')}:{' '}
+          <strong>{filledCompetitors.map((c) => bareDomain(c.domain)).join(', ') || '—'}</strong>
+        </div>
+        <div>
+          {t('v4setup.summary_drivers')} ({selectedDrivers.length}):{' '}
+          <strong>
+            {drivers
+              .filter((dr) => selectedDrivers.includes(dr.key))
+              .map((dr) => dr.label)
+              .join(', ')}
+          </strong>
+        </div>
+        {attachments.length > 0 && (
+          <div>
+            {t('v4setup.summary_attachments')}: {attachments.map((a) => a.name).join(', ')}
+          </div>
+        )}
+      </div>
+
+      {missing.length > 0 && (
+        <div
+          style={{
+            marginTop: '16px',
+            padding: '12px 16px',
+            background: '#f59e0b15',
+            border: '1px solid #f59e0b40',
+            borderRadius: '8px',
+            color: '#f59e0b',
+            fontSize: '13px',
+          }}
+        >
+          <div style={{ fontWeight: 700, marginBottom: '4px' }}>{t('v4setup.missing_title')}</div>
+          <ul style={{ margin: 0, paddingLeft: '18px' }}>
+            {missing.map((m, i) => (
+              <li key={i}>{m}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div style={{ marginTop: '20px', fontSize: '12px', color: '#6b7280' }}>
+        {t('v4setup.launch_note')}
+      </div>
+
+      <button
+        type="button"
+        onClick={launch}
+        disabled={!canLaunch}
+        style={{
+          marginTop: '16px',
+          padding: '12px 26px',
+          background: canLaunch ? '#2563eb' : '#2a2d35',
+          color: canLaunch ? '#ffffff' : '#6b7280',
+          border: 'none',
+          borderRadius: '8px',
+          fontSize: '14px',
+          fontWeight: 700,
+          fontFamily: "'JetBrains Mono', monospace",
+          cursor: canLaunch ? 'pointer' : 'default',
+        }}
+      >
+        {launching ? t('v4setup.launching') : t('v4setup.launch_cta')}
+      </button>
+    </section>
+  )
+
+  const steps = [step1, step2, step3, step4, step5]
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {/* Stepper */}
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        {stepLabels.map((k, i) => {
+          const n = i + 1
+          const active = step === n
+          return (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setStep(n)}
+              style={{
+                padding: '8px 14px',
+                borderRadius: '8px',
+                border: `1px solid ${active ? '#c8e64a' : '#2a2d35'}`,
+                background: active ? '#c8e64a15' : 'transparent',
+                color: active ? '#c8e64a' : '#a0a0a0',
+                fontSize: '12px',
+                fontFamily: "'JetBrains Mono', monospace",
+                cursor: 'pointer',
+              }}
+            >
+              {n} · {t(k)}
+            </button>
+          )
+        })}
+      </div>
+
+      {steps[step - 1]}
 
       {errors.length > 0 && (
         <div
@@ -511,41 +1214,42 @@ export default function SetupWizard({ clientId }: { clientId?: string | null }) 
         </div>
       )}
 
+      {/* Footer: navigation + Save draft, always available */}
       <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-        <button
-          type="button"
-          onClick={() => submit(true)}
-          disabled={!canSubmit}
-          style={{
-            padding: '12px 26px',
-            background: canSubmit ? '#c8e64a' : '#2a2d35',
-            color: canSubmit ? '#111318' : '#6b7280',
-            border: 'none',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: 700,
-            fontFamily: "'JetBrains Mono', monospace",
-            cursor: canSubmit ? 'pointer' : 'default',
-          }}
-        >
-          {submitting ? 'Avvio…' : `Crea e avvia (${selectedDrivers.length} driver)`}
-        </button>
-        <button
-          type="button"
-          onClick={() => submit(false)}
-          disabled={!canSubmit}
-          style={{
-            padding: '12px 20px',
-            background: 'transparent',
-            border: '1px solid #2a2d35',
-            borderRadius: '8px',
-            color: '#a0a0a0',
-            fontSize: '13px',
-            cursor: canSubmit ? 'pointer' : 'default',
-          }}
-        >
-          Crea senza avviare
-        </button>
+        {step > 1 && (
+          <button type="button" onClick={() => setStep(step - 1)} style={ghostButton}>
+            ← {t('v4setup.back')}
+          </button>
+        )}
+        {step < 5 && (
+          <button
+            type="button"
+            onClick={() => setStep(step + 1)}
+            style={{ ...ghostButton, borderColor: '#c8e64a40', color: '#c8e64a' }}
+          >
+            {t('v4setup.next')} →
+          </button>
+        )}
+        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {savedAt && (
+            <span style={{ fontSize: '12px', color: '#6b7280' }}>
+              {t('v4setup.draft_saved')} {savedAt}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => void saveDraft()}
+            disabled={!canSaveDraft}
+            style={{
+              ...ghostButton,
+              opacity: canSaveDraft ? 1 : 0.5,
+              cursor: canSaveDraft ? 'pointer' : 'default',
+            }}
+            title={canSaveDraft ? '' : t('v4setup.draft_needs_domain')}
+          >
+            {saving ? t('v4setup.saving') : t('v4setup.save_draft')}
+          </button>
+        </span>
       </div>
     </div>
   )

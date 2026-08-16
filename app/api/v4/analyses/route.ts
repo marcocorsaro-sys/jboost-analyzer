@@ -5,41 +5,25 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { buildSetup, INDUSTRY_PRESETS } from '@/lib/v4/setup'
+import { buildSetup, withMandatoryDrivers } from '@/lib/v4/setup'
+import { SetupBody, analysisColumnsFromSetup, toSetupInput } from '@/lib/v4/setup-request'
 import { planDriverRuns, computeRefDate } from '@/lib/v4/runner/planner'
 import { saveTemplateConfigs } from '@/lib/v4/runner/store'
-
-const Site = z.object({
-  domain: z.string().min(1),
-  brandName: z.string().nullable().optional(),
-  brandVariants: z.array(z.string()).optional(),
-})
-
-const Body = z.object({
-  clientId: z.string().uuid().nullable().optional(),
-  client: Site,
-  competitors: z.array(Site).default([]),
-  country: z.string().min(2).default('IT'),
-  outputLanguage: z.enum(['it', 'en']).default('it'),
-  industryPreset: z.enum(INDUSTRY_PRESETS).nullable().optional(),
-  siteType: z.string().nullable().optional(),
-  targetAudience: z.string().nullable().optional(),
-  seoMaturity: z.enum(['low', 'medium', 'high']).nullable().optional(),
-  drivers: z.array(z.string()).min(1),
-  templates: z.record(z.record(z.string())).optional(),
-})
 
 /**
  * POST /api/v4/analyses — create a V4 analysis from the setup wizard.
  *
- * Creates the analyses row (V4 setup columns) plus its template_configs, and
- * stops there: starting the run is a separate call to
- * /api/v4/analyses/[id]/start, so a setup can be reviewed before spending
- * anything.
+ * Two modes (UX-UI Bibbia 04, "Must support Save draft + resume"):
+ *   - mode 'draft'  → save whatever the analyst has (only structural errors
+ *     block); the setup can be updated later via PATCH /api/v4/analyses/[id]
+ *     and resumed in the wizard with ?resume=<id>.
+ *   - mode 'launch' → every Required field of the sheet must be present, and
+ *     the driver plan must be valid. Starting the run stays a separate call
+ *     to /api/v4/analyses/[id]/start.
  *
- * Everything the wizard can get wrong is rejected BEFORE the row exists —
- * site set, templates, driver gating. An analysis that cannot run should
- * never be created.
+ * The four Business drivers are pre-flagged AND mandatory: the enabled set is
+ * always unioned with them server-side, so no client can un-flag Awareness,
+ * AI Visibility, Discoverability or Traffic.
  */
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -51,22 +35,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
-  let parsed: z.infer<typeof Body>
+  let parsed: z.infer<typeof SetupBody>
   try {
-    parsed = Body.parse(await request.json())
+    parsed = SetupBody.parse(await request.json())
   } catch (err) {
     return NextResponse.json(
       { error: 'invalid body', details: err instanceof Error ? err.message : String(err) },
       { status: 400 },
     )
   }
+  const isDraft = parsed.mode === 'draft'
+  const effectiveDrivers = isDraft ? parsed.drivers : withMandatoryDrivers(parsed.drivers)
 
-  // 1. Site set + templates.
-  const setup = buildSetup(parsed)
+  // 1. Site set + templates + field rules (pure, one pass, every problem).
+  const setup = buildSetup({ ...toSetupInput(parsed), drivers: effectiveDrivers })
 
-  // 2. Driver gating, on the same site set the run will use.
-  const plan = planDriverRuns({ enabledDrivers: parsed.drivers, sites: setup.sites })
-  const errors = [...setup.errors, ...plan.errors]
+  // 2. Driver gating, on the same site set the run will use. A draft skips
+  //    it: an incomplete setup is exactly what a draft is allowed to be.
+  const errors = [...setup.errors]
+  if (!isDraft) {
+    const plan = planDriverRuns({ enabledDrivers: effectiveDrivers, sites: setup.sites })
+    errors.push(...plan.errors)
+  }
   if (errors.length > 0) {
     return NextResponse.json({ error: 'setup invalid', details: errors }, { status: 400 })
   }
@@ -85,6 +75,7 @@ export async function POST(request: Request) {
   }
 
   const clientSite = setup.sites.find((s) => s.is_client)!
+  const competitorSites = setup.sites.filter((s) => !s.is_client)
   const db = createAdminClient()
 
   const { data: analysis, error: insertError } = await db
@@ -92,29 +83,10 @@ export async function POST(request: Request) {
     .insert({
       user_id: user.id,
       client_id: parsed.clientId ?? null,
-      domain: clientSite.domain,
-      country: parsed.country,
-      language: parsed.outputLanguage,
-      // V1 column, kept in sync so the legacy lists keep rendering.
-      competitors: setup.sites.filter((s) => !s.is_client).map((s) => s.domain),
       status: 'pending',
       source: 'manual',
-      // --- V4 setup fields ---
-      brand_name: clientSite.brand_name,
-      brand_variants: clientSite.brand_variants ?? [],
-      site_type: parsed.siteType ?? null,
-      industry_preset: parsed.industryPreset ?? null,
-      target_audience: parsed.targetAudience ?? null,
-      seo_maturity: parsed.seoMaturity ?? null,
-      output_language: parsed.outputLanguage,
       ref_date: computeRefDate(new Date()),
-      competitor_details: setup.sites
-        .filter((s) => !s.is_client)
-        .map((s) => ({
-          domain: s.domain,
-          brand_name: s.brand_name,
-          brand_variants: s.brand_variants ?? [],
-        })),
+      ...analysisColumnsFromSetup(parsed, clientSite, competitorSites, null),
     })
     .select('id, ref_date')
     .single()
@@ -145,8 +117,9 @@ export async function POST(request: Request) {
     {
       analysisId: analysis.id,
       refDate: (analysis as { ref_date: string | null }).ref_date,
+      mode: parsed.mode,
       sites: setup.sites.map((s) => ({ site_ref: s.site_ref, domain: s.domain })),
-      drivers: plan.runs.map((r) => r.driver_key),
+      drivers: effectiveDrivers,
       templates: setup.templates.length,
     },
     { status: 201 },

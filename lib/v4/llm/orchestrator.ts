@@ -617,9 +617,17 @@ export async function generateInsights(
 
   const outputLanguage = analysis.output_language ?? 'it'
   const domain = analysis.domain ?? ''
-  const guardrails = (analysis.llm_guardrails ?? {}) as { max_insights?: unknown }
+  const guardrails = (analysis.llm_guardrails ?? {}) as {
+    max_insights?: unknown
+    blocklist?: unknown
+  }
   const guardrailMax =
     typeof guardrails.max_insights === 'number' ? guardrails.max_insights : null
+  // Words-to-avoid (Bibbia 04 field #22): appended to every system prompt of
+  // this analysis, drivers and Executive Summary alike.
+  const guardrailBlocklist = Array.isArray(guardrails.blocklist)
+    ? guardrails.blocklist.filter((w): w is string => typeof w === 'string' && w.trim() !== '')
+    : []
 
   // --- Cumulative context: AI Visibility seed + replay of persisted work --
   const ctx: CumulativeContext = { already_mentioned_items: [], other_drivers_context: [] }
@@ -658,7 +666,7 @@ export async function generateInsights(
       analysis,
       what: `V4 insight ${def.label}`,
       operation: `v4_driver_insight_${run.driver_key}`,
-      system: systemPromptFor(def.family, outputLanguage),
+      system: systemPromptFor(def.family, outputLanguage, guardrailBlocklist),
       userPrompt: buildDriverUserPrompt({
         driverKey: run.driver_key,
         driverName: def.label,
@@ -768,7 +776,7 @@ export async function generateInsights(
       analysis,
       what: 'V4 Executive Summary',
       operation: 'v4_executive_summary',
-      system: buildSummarySystemPrompt(outputLanguage),
+      system: buildSummarySystemPrompt(outputLanguage, guardrailBlocklist),
       userPrompt: buildSummaryUserPrompt({
         domain,
         industryPreset: analysis.industry_preset,

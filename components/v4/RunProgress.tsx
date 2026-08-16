@@ -38,6 +38,8 @@ export interface DriverRow {
   error: string | null
   sites: SiteScore[]
   decision_request: unknown
+  /** Setup uploads bound to this driver (parsing downstream — listed only). */
+  attachments?: Array<{ kind: string; name: string; path?: string; size?: number | null }>
 }
 
 export interface StatusResponse {

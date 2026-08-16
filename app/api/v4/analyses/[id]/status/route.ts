@@ -79,6 +79,12 @@ export async function GET(
       started_at: r.started_at,
       completed_at: r.completed_at,
       sites: readSites(r),
+      // Setup uploads bound to this driver (Screaming Frog crawl, backlink
+      // export): listed in the tab as "uploaded attachment". Parsing them is
+      // a downstream TODO — the reference is the whole contract for now.
+      attachments: Array.isArray((r.config as { attachments?: unknown })?.attachments)
+        ? (r.config as { attachments: unknown[] }).attachments
+        : [],
       decision_request:
         r.status === 'needs_decision'
           ? ((r.raw_payload as { decision_request?: unknown })?.decision_request ?? null)

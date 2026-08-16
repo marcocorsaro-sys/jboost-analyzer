@@ -127,13 +127,27 @@ export default async function AuditsPage() {
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">
-                      <Link
-                        href={`/results/v4/${a.id}`}
-                        className="mr-2 inline-block rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold text-foreground no-underline transition-colors hover:bg-accent"
-                      >
-                        <T k="audits.open" />
-                      </Link>
-                      <SwitchToClientButton />
+                      {/* A draft never launched has no results to open: the
+                          action is resuming the setup wizard on it. */}
+                      {a.started ? (
+                        <>
+                          <Link
+                            href={`/results/v4/${a.id}`}
+                            className="mr-2 inline-block rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold text-foreground no-underline transition-colors hover:bg-accent"
+                          >
+                            <T k="audits.open" />
+                          </Link>
+                          <SwitchToClientButton />
+                        </>
+                      ) : (
+                        <Link
+                          href={`/analyzer/v4?resume=${a.id}`}
+                          className="inline-block rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white no-underline transition-opacity hover:opacity-90"
+                          style={{ background: '#2563eb' }}
+                        >
+                          <T k="audits.resume_setup" />
+                        </Link>
+                      )}
                     </td>
                   </tr>
                 )

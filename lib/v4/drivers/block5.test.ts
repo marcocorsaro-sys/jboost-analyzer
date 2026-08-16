@@ -156,6 +156,31 @@ test('discoverability: extending the tier applies to the whole set', async () =>
   )
 })
 
+test('discoverability: the setup thematic clusters travel in the payload', async () => {
+  // Bibbia 04 field #13 → driver_runs.config.configured_clusters → rawPayload,
+  // so the LLM narration can use the analyst's macro-themes. The real cluster
+  // table computation is downstream work.
+  process.env.AHREFS_API_KEY = 'test-key'
+  await withFetch(
+    () => ({
+      body: {
+        keywords: KEYWORDS.map((k) => ({ keyword: k.keyword, volume: k.volume, best_position: k.position })),
+      },
+    }),
+    async () => {
+      const out = await discoverabilityWorker(
+        ctx({ config: { configured_clusters: ['Destinazioni', ' Navi ', '', 42 as unknown as string] } }),
+      )
+      assert.equal(out.status, 'done')
+      if (out.status !== 'done') return
+      assert.deepEqual(
+        (out.rawPayload as { configured_clusters: string[] }).configured_clusters,
+        ['Destinazioni', 'Navi'],
+      )
+    },
+  )
+})
+
 test('discoverability: a player the analyst removed is not measured again', async () => {
   process.env.AHREFS_API_KEY = 'test-key'
   await withFetch(
@@ -482,6 +507,71 @@ test('ai visibility: the pasted answer is extracted via LLM into per-site GEO sc
       const payload = out.rawPayload as { comment_absolute: string; comment_relative: string }
       assert.equal(payload.comment_absolute, 'Commento assoluto.')
       assert.equal(payload.comment_relative, 'Commento relativo.')
+    },
+  )
+})
+
+test('ai visibility: a recap pasted in SETUP skips the first pause entirely', async () => {
+  // Bibbia 04 field #12: the J-Horizon recap given already in the wizard
+  // reaches the worker as config.jhorizon_answer — same extraction flow,
+  // zero needs_decision pauses.
+  process.env.ANTHROPIC_API_KEY = 'test-key'
+  await withFetch(
+    () => ({
+      body: anthropicBody(
+        JSON.stringify({
+          scores: [
+            { site_ref: 'client', geo_score: 58 },
+            { site_ref: 'competitor_1', geo_score: 44 },
+          ],
+          comment_absolute: 'a',
+          comment_relative: 'b',
+        }),
+      ),
+    }),
+    async () => {
+      const out = await aiVisibilityWorker(
+        ctx({ driverKey: 'ai_visibility', config: { jhorizon_answer: 'recap dal setup' } }),
+      )
+      assert.equal(out.status, 'done')
+      if (out.status !== 'done') return
+      assert.equal(out.sites.find((s) => s.site_ref === 'client')?.raw, 58)
+      assert.equal((out.rawPayload as { answer_origin: string }).answer_origin, 'setup')
+    },
+  )
+})
+
+test('ai visibility: a decision paste wins over the setup recap', async () => {
+  process.env.ANTHROPIC_API_KEY = 'test-key'
+  let seen = ''
+  await withFetch(
+    () => ({
+      body: anthropicBody(
+        JSON.stringify({
+          scores: [{ site_ref: 'client', geo_score: 70 }],
+          comment_absolute: 'a',
+          comment_relative: 'b',
+        }),
+      ),
+    }),
+    async () => {
+      const originalFetch = globalThis.fetch
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        seen = String(init?.body ?? '')
+        return originalFetch(input, init)
+      }) as typeof fetch
+      const out = await aiVisibilityWorker(
+        ctx({
+          driverKey: 'ai_visibility',
+          config: { jhorizon_answer: 'recap vecchio dal setup' },
+          decisionTaken: { jhorizon_answer: 'risposta nuova dalla pausa' },
+        }),
+      )
+      assert.equal(out.status, 'done')
+      if (out.status !== 'done') return
+      assert.equal((out.rawPayload as { answer_origin: string }).answer_origin, 'decision')
+      assert.match(seen, /risposta nuova dalla pausa/)
+      assert.doesNotMatch(seen, /recap vecchio dal setup/)
     },
   )
 })

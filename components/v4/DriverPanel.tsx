@@ -161,6 +161,30 @@ export default function DriverPanel({
         {/* Threshold transparency — the number never without its criterion. */}
         <CriteriaCaption row={row} clientSite={clientSite} />
 
+        {/* Setup uploads bound to this driver (Bibbia 04 fields #15/#20).
+            Listed as evidence of what was provided; parsing is downstream. */}
+        {(row.attachments?.length ?? 0) > 0 && (
+          <div
+            style={{
+              marginTop: '12px',
+              padding: '10px 14px',
+              background: '#111318',
+              border: '1px solid #2a2d35',
+              borderRadius: '8px',
+            }}
+          >
+            <div style={{ ...mutedLabel, marginBottom: '6px' }}>{t('v4res.attachments')}</div>
+            {row.attachments!.map((a) => (
+              <div key={a.path ?? a.name} style={{ fontSize: '13px', color: '#e5e7eb', lineHeight: 1.7 }}>
+                {a.name}
+                <span style={{ color: '#6b7280', marginLeft: '8px', fontSize: '12px' }}>
+                  {t('v4res.attachment_pending')}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {editing && (
           <DriverEditor
             row={row}

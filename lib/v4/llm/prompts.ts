@@ -267,9 +267,29 @@ export interface DriverPromptInput {
   tier?: { key: string; pos: number; vol: number } | null
 }
 
-export function systemPromptFor(family: 'business' | 'development', outputLanguage: string): string {
+/**
+ * Sheet 14 blocklist, the setup half (Bibbia 04 field #22): the words the
+ * analyst forbade become one extra binding rule appended to the system
+ * prompt. Empty list = empty string, the prompt stays byte-identical to the
+ * sheet text.
+ */
+export function blocklistClause(blocklist: string[] | null | undefined): string {
+  const words = (blocklist ?? []).map((w) => w.trim()).filter(Boolean)
+  if (words.length === 0) return ''
+  return (
+    `\n\nWORDS TO AVOID (binding, from the analyst's setup): never use the following words or expressions, ` +
+    `in any language or inflection: ${words.map((w) => `"${w}"`).join(', ')}. ` +
+    'Choose sober, professional alternatives.'
+  )
+}
+
+export function systemPromptFor(
+  family: 'business' | 'development',
+  outputLanguage: string,
+  blocklist?: string[] | null,
+): string {
   const base = family === 'development' ? DEV_SYSTEM_PROMPT : BUSINESS_SYSTEM_PROMPT
-  return fillTemplate(base, { output_language: outputLanguage })
+  return fillTemplate(base, { output_language: outputLanguage }) + blocklistClause(blocklist)
 }
 
 /**
@@ -316,8 +336,8 @@ export interface SummaryPromptInput {
   competitorsSummaryJson: string
 }
 
-export function buildSummarySystemPrompt(outputLanguage: string): string {
-  return fillTemplate(SUMMARY_SYSTEM_PROMPT, { output_language: outputLanguage })
+export function buildSummarySystemPrompt(outputLanguage: string, blocklist?: string[] | null): string {
+  return fillTemplate(SUMMARY_SYSTEM_PROMPT, { output_language: outputLanguage }) + blocklistClause(blocklist)
 }
 
 export function buildSummaryUserPrompt(input: SummaryPromptInput): string {

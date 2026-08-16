@@ -9,6 +9,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { planDriverRuns, computeRefDate } from '@/lib/v4/runner/planner'
 import { seedDriverRuns, loadAnalysisSites, markDispatched } from '@/lib/v4/runner/store'
 import { dispatchAll, resolveBaseUrl } from '@/lib/v4/runner/dispatch'
+import { driverConfigFromSetup } from '@/lib/v4/setup'
 
 const Body = z.object({
   drivers: z.array(z.string().min(1)).min(1),
@@ -44,7 +45,7 @@ export async function POST(
 
   const { data: analysis, error: fetchError } = await supabase
     .from('analyses')
-    .select('id, ref_date')
+    .select('id, ref_date, v4_setup')
     .eq('id', analysisId)
     .single()
   if (fetchError || !analysis) {
@@ -70,10 +71,21 @@ export async function POST(
   }
 
   // 3. Plan. Blocking setup errors stop the run before anything is written.
+  //    Per-driver config is seeded from the SAVED setup (single source of
+  //    truth: the J-Horizon recap of field #12, the thematic clusters of
+  //    field #13 and the upload references travel via driver_runs.config),
+  //    with any explicit request driverConfig layered on top.
+  const setupConfig = driverConfigFromSetup(
+    (analysis as { v4_setup?: Record<string, unknown> | null }).v4_setup,
+  )
+  const driverConfig: Record<string, Record<string, unknown>> = { ...setupConfig }
+  for (const [key, cfg] of Object.entries(parsed.driverConfig ?? {})) {
+    driverConfig[key] = { ...(driverConfig[key] ?? {}), ...cfg }
+  }
   const plan = planDriverRuns({
     enabledDrivers: parsed.drivers,
     sites,
-    driverConfig: parsed.driverConfig,
+    driverConfig,
   })
   if (plan.errors.length > 0) {
     return NextResponse.json({ error: 'setup invalid', details: plan.errors }, { status: 400 })

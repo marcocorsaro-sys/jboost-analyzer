@@ -138,8 +138,17 @@ export const aiVisibilityWorker: DriverWorker = async (ctx) => {
   }
 
   // -- 2. Pasted J-Horizon answer: one LLM extraction call -------------------
-  const pasted =
+  // Two equivalent sources, in precedence order: the answer pasted on a
+  // needs_decision pause (decision_taken), or the recap pasted ALREADY IN
+  // SETUP (Bibbia 04 field #12 → driver_runs.config.jhorizon_answer). With
+  // the latter the driver never pauses at all: the first pause exists only
+  // to collect exactly this text.
+  const fromDecision =
     typeof ctx.decisionTaken?.jhorizon_answer === 'string' ? ctx.decisionTaken.jhorizon_answer.trim() : ''
+  const fromSetup =
+    typeof ctx.config?.jhorizon_answer === 'string' ? ctx.config.jhorizon_answer.trim() : ''
+  const pasted = fromDecision || fromSetup
+  const answerOrigin = fromDecision ? 'decision' : 'setup'
 
   if (pasted) {
     let extraction
@@ -149,7 +158,7 @@ export const aiVisibilityWorker: DriverWorker = async (ctx) => {
         return {
           status: 'error',
           error: result.error ?? 'estrazione J-Horizon fallita',
-          rawPayload: { source: 'j-horizon:paste', jhorizon_answer_length: pasted.length },
+          rawPayload: { source: 'j-horizon:paste', answer_origin: answerOrigin, jhorizon_answer_length: pasted.length },
         }
       }
       extraction = result.extraction
@@ -157,7 +166,7 @@ export const aiVisibilityWorker: DriverWorker = async (ctx) => {
       return {
         status: 'error',
         error: err instanceof Error ? err.message : String(err),
-        rawPayload: { source: 'j-horizon:paste', jhorizon_answer_length: pasted.length },
+        rawPayload: { source: 'j-horizon:paste', answer_origin: answerOrigin, jhorizon_answer_length: pasted.length },
       }
     }
 
@@ -178,7 +187,7 @@ export const aiVisibilityWorker: DriverWorker = async (ctx) => {
             'il punteggio manualmente (0-100).',
           { extracted_scores: extraction.scores },
         ),
-        rawPayload: { source: 'j-horizon:paste', jhorizon_answer_length: pasted.length },
+        rawPayload: { source: 'j-horizon:paste', answer_origin: answerOrigin, jhorizon_answer_length: pasted.length },
       }
     }
 
@@ -214,6 +223,7 @@ export const aiVisibilityWorker: DriverWorker = async (ctx) => {
       rawPayload: {
         source: 'j-horizon:paste',
         method: 'paste-driven',
+        answer_origin: answerOrigin,
         // Kept for the future Executive Summary (Bibbia sheet 16: the paste
         // step's relative comment feeds the cross-driver context).
         comment_absolute: extraction.comment_absolute,

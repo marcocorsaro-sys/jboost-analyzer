@@ -29,6 +29,7 @@ import {
   type LlmInsightRecord,
 } from './orchestrator'
 import type { AnthropicCallOptions, AnthropicCallResult } from '@/lib/v4/drivers/jhorizon-extract'
+import { blocklistClause, buildSummarySystemPrompt, systemPromptFor } from './prompts'
 
 // ---------------------------------------------------------------------------
 // fixtures
@@ -541,6 +542,53 @@ test('engine: exhausted budget returns next:true without touching the terminal s
   )
   assert.equal(stub.calls.length, 0)
   assert.equal(state.analysis.v4_insights_status, 'running') // untouched
+})
+
+test('blocklistClause: empty in, empty out; words become one binding rule', () => {
+  assert.equal(blocklistClause([]), '')
+  assert.equal(blocklistClause(null), '')
+  assert.equal(blocklistClause(['  ', '']), '')
+  const clause = blocklistClause(['excellent', ' outstanding '])
+  assert.match(clause, /WORDS TO AVOID/)
+  assert.match(clause, /"excellent", "outstanding"/)
+  // The base prompts stay byte-identical without a blocklist.
+  assert.equal(systemPromptFor('business', 'it'), systemPromptFor('business', 'it', []))
+  assert.match(systemPromptFor('development', 'it', ['excellent']), /"excellent"/)
+  assert.match(buildSummarySystemPrompt('en', ['excellent']), /"excellent"/)
+})
+
+test('engine: the setup blocklist (field #22) reaches every system prompt', async () => {
+  const state = makeState([irun('authority')], {
+    llm_guardrails: { blocklist: ['eccellente', 'straordinario', ''], max_insights: 3 },
+  })
+  const stub = modelStub([
+    JSON.stringify(devOutput()),
+    JSON.stringify({ headline_dominante: 'ok', scorecard_overview: 'ok', correlazioni_chiave: [], priorita_strategiche: [], alert_critici: [] }),
+  ])
+
+  const result = await generateInsights(fakeDb(state), 'analysis-1', {
+    callModel: stub.fn,
+    spendStatus: spendOk,
+  })
+  assert.equal(result.status, 'done')
+
+  // Driver call AND summary call both carry the forbidden words.
+  for (const call of stub.calls) {
+    assert.match(call.options?.system ?? '', /WORDS TO AVOID/)
+    assert.match(call.options?.system ?? '', /"eccellente", "straordinario"/)
+  }
+})
+
+test('engine: no blocklist -> the system prompts stay untouched', async () => {
+  const state = makeState([irun('authority')], { llm_guardrails: {} })
+  const stub = modelStub([
+    JSON.stringify(devOutput()),
+    JSON.stringify({ headline_dominante: 'ok', scorecard_overview: 'ok', correlazioni_chiave: [], priorita_strategiche: [], alert_critici: [] }),
+  ])
+  await generateInsights(fakeDb(state), 'analysis-1', { callModel: stub.fn, spendStatus: spendOk })
+  for (const call of stub.calls) {
+    assert.doesNotMatch(call.options?.system ?? '', /WORDS TO AVOID/)
+  }
 })
 
 test('engine: app_config overrides the models (v4_llm_driver_model / v4_llm_summary_model)', async () => {
