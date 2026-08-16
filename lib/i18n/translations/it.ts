@@ -866,6 +866,21 @@ const it = {
   'v4content.resume_hint': 'Il driver è in pausa in attesa del questionario: completa almeno un template intero per il cliente, salva, poi rilancialo.',
   'v4content.resuming': 'Rilancio…',
   'v4content.pts': 'pt',
+  // V4 — Tab Output Preview (export PPTX / Word / artifact, no PDF di default)
+  'v4export.tab': 'Output Preview',
+  'v4export.title': 'Export del deliverable',
+  'v4export.no_pdf_note': 'PPTX, Word o artifact interattivo — niente PDF di default (spec V4).',
+  'v4export.desc_pptx': 'Deck di presentazione, 16:9: copertina, scorecard, 1-2 slide per driver, executive summary. Tema chiaro consulenziale.',
+  'v4export.desc_docx': 'Report Word: copertina, indice, le 5 sezioni per driver con tabelle, executive summary.',
+  'v4export.desc_artifact': 'HTML interattivo autonomo: navigazione ad ancore per driver, tabelle, toggle Assoluto/Relativo. Si apre nel browser.',
+  'v4export.generate': 'Genera e scarica',
+  'v4export.generating': 'Generazione…',
+  'v4export.need_driver': 'Serve almeno un driver completato per generare il report.',
+  'v4export.error': 'Export fallito',
+  'v4export.history': 'Generazioni precedenti',
+  'v4export.history_empty': 'Nessun deliverable ancora generato per questo audit.',
+  'v4export.switch_client': 'Switch to client',
+  'v4export.switch_client_tooltip': 'Fase ongoing: la spec definisce solo l’hook di promozione — la dashboard cliente non è ancora costruita.',
 } as const
 
 export default it

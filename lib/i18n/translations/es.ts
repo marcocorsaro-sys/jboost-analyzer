@@ -581,7 +581,7 @@ const es = {
   'common.email': 'Email',
   'common.askJ': 'Ask J',
 
-  // TODO(v4): translate the 'v4res.*' and 'v4content.*' keys (see en.ts / it.ts).
+  // TODO(v4): translate the 'v4res.*', 'v4content.*' and 'v4export.*' keys (see en.ts / it.ts).
   // Until then t() falls back to the English strings for this namespace.
 } as const
 

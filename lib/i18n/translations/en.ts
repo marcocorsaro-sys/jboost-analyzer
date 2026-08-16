@@ -866,6 +866,21 @@ const en = {
   'v4content.resume_hint': 'The driver is paused waiting for the questionnaire: complete at least one full template for the client, save, then restart it.',
   'v4content.resuming': 'Restarting…',
   'v4content.pts': 'pts',
+  // V4 — Output Preview tab (export PPTX / Word / artifact, no PDF by default)
+  'v4export.tab': 'Output Preview',
+  'v4export.title': 'Deliverable export',
+  'v4export.no_pdf_note': 'PPTX, Word or interactive artifact — no PDF by default (V4 spec).',
+  'v4export.desc_pptx': 'Presentation deck, 16:9: cover, scorecard, 1-2 slides per driver, executive summary. Light consultancy theme.',
+  'v4export.desc_docx': 'Word report: cover, table of contents, the 5 sections per driver with tables, executive summary.',
+  'v4export.desc_artifact': 'Self-contained interactive HTML: anchor navigation per driver, tables, Absolute/Relative toggle. Opens in the browser.',
+  'v4export.generate': 'Generate and download',
+  'v4export.generating': 'Generating…',
+  'v4export.need_driver': 'At least one completed driver is required to generate the report.',
+  'v4export.error': 'Export failed',
+  'v4export.history': 'Previous generations',
+  'v4export.history_empty': 'No deliverable generated yet for this audit.',
+  'v4export.switch_client': 'Switch to client',
+  'v4export.switch_client_tooltip': 'Ongoing phase: only the promotion hook is defined in the spec — the client dashboard is not built yet.',
 } as const
 
 export type TranslationKey = keyof typeof en

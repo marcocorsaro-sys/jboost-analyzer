@@ -23,6 +23,7 @@ import type { DriverRow, StatusResponse } from './RunProgress'
 import { STATUS_STYLE, fmt } from './RunProgress'
 import DriverPanel, { type ScoreView } from './DriverPanel'
 import ExecutiveSummaryTab from './ExecutiveSummaryTab'
+import OutputPreviewTab from './OutputPreviewTab'
 import PublishDialog from './PublishDialog'
 import type { EditsResponse, InsightsResponse, SiteMeta } from './results-shared'
 import { card, mutedLabel, pill, primaryButton, ghostButton, scoreColor } from './results-shared'
@@ -205,6 +206,7 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
       label: getV4Driver(d.driver_key)?.label ?? d.driver_key,
     })),
     { key: 'summary', label: t('v4res.tab_summary') },
+    { key: 'output', label: t('v4export.tab') },
   ]
 
   return (
@@ -321,6 +323,13 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
           record={insights?.executiveSummary ?? null}
           insightsRunning={insightsRunning}
           onGenerate={generateInsights}
+        />
+      )}
+
+      {activeTab === 'output' && (
+        <OutputPreviewTab
+          analysisId={analysisId}
+          anyDriverDone={enabledRows.some((r) => r.status === 'done')}
         />
       )}
 
