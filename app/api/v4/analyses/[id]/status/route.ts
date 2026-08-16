@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getAnalysisProgress } from '@/lib/v4/runner/execute'
 import { readSites } from '@/lib/v4/runner/normalize'
+import { loadAnalysisSites } from '@/lib/v4/runner/store'
 
 /**
  * GET /api/v4/analyses/[id]/status
@@ -33,7 +34,7 @@ export async function GET(
 
   const { data: analysis, error: fetchError } = await supabase
     .from('analyses')
-    .select('id, ref_date')
+    .select('id, ref_date, domain')
     .eq('id', analysisId)
     .single()
   if (fetchError || !analysis) {
@@ -45,9 +46,21 @@ export async function GET(
     return NextResponse.json({ error }, { status: 500 })
   }
 
+  // The analyzed set (client + competitors) as configured in setup. The
+  // results shell needs it BEFORE any driver completes: the Content
+  // questionnaire tabs and the chart labels are per-site.
+  const { sites } = await loadAnalysisSites(supabase, analysisId)
+
   return NextResponse.json({
     analysisId,
     refDate: (analysis as { ref_date: string | null }).ref_date,
+    domain: (analysis as { domain: string | null }).domain,
+    sites: sites.map((s) => ({
+      site_ref: s.site_ref,
+      domain: s.domain,
+      name: s.name,
+      is_client: s.is_client,
+    })),
     progress,
     drivers: rows.map((r) => ({
       driver_key: r.driver_key,

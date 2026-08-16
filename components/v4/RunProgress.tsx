@@ -11,15 +11,18 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getV4Driver } from '@/lib/scoring/registry'
 
-interface SiteScore {
+export interface SiteScore {
   site_ref: string
   domain: string
   raw: number | null
   score_relative?: number | null
   score_absolute?: number | null
+  rank?: number | null
+  /** Free-form per-site evidence the worker recorded (tables, counts, criteria). */
+  evidence?: Record<string, unknown>
 }
 
-interface DriverRow {
+export interface DriverRow {
   driver_key: string
   status: 'queued' | 'running' | 'done' | 'error' | 'needs_decision'
   enabled: boolean
@@ -37,7 +40,7 @@ interface DriverRow {
   decision_request: unknown
 }
 
-interface StatusResponse {
+export interface StatusResponse {
   analysisId: string
   refDate: string | null
   progress: {
@@ -51,7 +54,7 @@ interface StatusResponse {
   drivers: DriverRow[]
 }
 
-const STATUS_STYLE: Record<DriverRow['status'], { label: string; color: string }> = {
+export const STATUS_STYLE: Record<DriverRow['status'], { label: string; color: string }> = {
   queued: { label: 'IN CODA', color: '#6b7280' },
   running: { label: 'IN CORSO', color: '#14b8a6' },
   done: { label: 'COMPLETATO', color: '#c8e64a' },
@@ -436,7 +439,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 /** null is "non misurato" and must never render as 0. */
-function fmt(value: number | null | undefined): string {
+export function fmt(value: number | null | undefined): string {
   return value === null || value === undefined ? '—' : String(value)
 }
 
@@ -447,7 +450,7 @@ function fmt(value: number | null | undefined): string {
  * editing it would silently move every other site's leader index. See
  * lib/v4/edits.ts.
  */
-function DriverEditor({
+export function DriverEditor({
   row,
   analysisId,
   onSaved,
@@ -588,7 +591,7 @@ function DriverEditor({
  * AI Visibility score. Both go through the same decision endpoint, which
  * re-queues the job — nothing is scored here.
  */
-function DecisionForm({
+export function DecisionForm({
   row,
   analysisId,
   onAnswered,
@@ -705,7 +708,7 @@ function DecisionForm({
   )
 }
 
-const editLabel: React.CSSProperties = {
+export const editLabel: React.CSSProperties = {
   display: 'block',
   fontSize: '11px',
   fontWeight: 600,
@@ -716,7 +719,7 @@ const editLabel: React.CSSProperties = {
   letterSpacing: '0.5px',
 }
 
-const editInput: React.CSSProperties = {
+export const editInput: React.CSSProperties = {
   width: '100%',
   padding: '8px 12px',
   background: '#0d0f14',

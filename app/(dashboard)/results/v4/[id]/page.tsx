@@ -1,28 +1,21 @@
-import RunProgress from '@/components/v4/RunProgress'
+import ResultsView from '@/components/v4/ResultsView'
 
 export const dynamic = 'force-dynamic'
 
-export default async function V4RunPage({ params }: { params: Promise<{ id: string }> }) {
+/**
+ * V4 Audit Results (UX-UI Bibbia sheets 3/6).
+ *
+ * Server component shell + one client island (ResultsView): the island polls
+ * /api/v4/analyses/[id]/{status,insights,publish} and renders the horizontal
+ * tabs (Overview · driver tabs in Business-first order · Executive Summary),
+ * the Absolute/Relative toggle and the Save & Publish batch re-run.
+ */
+export default async function V4ResultsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
   return (
-    <div style={{ maxWidth: '1000px' }}>
-      <h1
-        style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: '24px',
-          fontWeight: 700,
-          color: '#ffffff',
-          marginBottom: '8px',
-        }}
-      >
-        Analisi V4
-      </h1>
-      <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '24px', fontFamily: "'JetBrains Mono', monospace" }}>
-        {id}
-      </p>
-
-      <RunProgress analysisId={id} />
+    <div style={{ maxWidth: '1280px' }}>
+      <ResultsView analysisId={id} />
     </div>
   )
 }

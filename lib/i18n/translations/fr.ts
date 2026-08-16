@@ -580,6 +580,9 @@ const fr = {
   'common.name': 'Nom',
   'common.email': 'Email',
   'common.askJ': 'Ask J',
+
+  // TODO(v4): translate the 'v4res.*' and 'v4content.*' keys (see en.ts / it.ts).
+  // Until then t() falls back to the English strings for this namespace.
 } as const
 
 

@@ -7,6 +7,38 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getContentTemplate, isContentTemplateKey, CONTENT_TEMPLATE_KEYS } from '@/lib/v4/content/bank'
 
+/**
+ * GET /api/v4/analyses/[id]/content-answers — the saved questionnaire rows,
+ * so the form re-opens exactly where the analyst left it (drafts included).
+ * Read through the user-scoped client: content_answers has the same RLS
+ * predicate as its parent analysis.
+ */
+export async function GET(
+  _request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const { id: analysisId } = await context.params
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+  if (authError || !user) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  }
+
+  const { data, error } = await supabase
+    .from('content_answers')
+    .select('site_ref, template_key, question_num, selected')
+    .eq('analysis_id', analysisId)
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ analysisId, answers: data ?? [] })
+}
+
 const Body = z.object({
   site_ref: z.enum(['client', 'competitor_1', 'competitor_2', 'competitor_3', 'competitor_4']),
   template_key: z.string(),

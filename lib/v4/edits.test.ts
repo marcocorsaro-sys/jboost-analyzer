@@ -104,3 +104,83 @@ test('edits: a recompute never overwrites an edited score', () => {
   // …and the raw is still the measured one, not the analyst's opinion.
   assert.equal(edited.raw_value, 60)
 })
+
+// ---------------------------------------------------------------------------
+// Save & Publish — batch re-run selection (lib/v4/publish.ts)
+// ---------------------------------------------------------------------------
+
+import { selectRerunDrivers, type RerunRunSlice, type RerunEditSlice } from './publish'
+
+const run = (over: Partial<RerunRunSlice>): RerunRunSlice => ({
+  id: 'r-authority',
+  driver_key: 'authority',
+  enabled: true,
+  status: 'done',
+  ...over,
+})
+
+const draft = (runId: string, field = 'score_relative'): RerunEditSlice => ({
+  driver_run_id: runId,
+  field,
+  published: false,
+})
+
+test('publish: only drivers with DRAFT edits are re-run', () => {
+  const runs = [
+    run({ id: 'r1', driver_key: 'authority' }),
+    run({ id: 'r2', driver_key: 'speed' }),
+  ]
+  const edits: RerunEditSlice[] = [
+    draft('r1'),
+    { driver_run_id: 'r2', field: 'score_relative', published: true }, // old batch
+  ]
+  const { rerun, ineligible } = selectRerunDrivers(runs, edits)
+  assert.deepEqual(rerun.map((r) => r.driver_key), ['authority'])
+  assert.deepEqual(ineligible, [])
+})
+
+test('publish: two drafts on the same driver produce ONE re-run (batch, not per edit)', () => {
+  const runs = [run({ id: 'r1', driver_key: 'authority' })]
+  const edits = [draft('r1', 'score_relative'), draft('r1', 'comment_relative')]
+  assert.equal(selectRerunDrivers(runs, edits).rerun.length, 1)
+})
+
+test('publish: re-run order is Business-first (registry uiOrder), like the tabs', () => {
+  const runs = [
+    run({ id: 'r-auth', driver_key: 'authority' }),   // uiOrder 10
+    run({ id: 'r-disco', driver_key: 'discoverability' }), // uiOrder 3
+    run({ id: 'r-comp', driver_key: 'compliance' }),  // uiOrder 5
+  ]
+  const edits = [draft('r-auth'), draft('r-disco'), draft('r-comp')]
+  assert.deepEqual(
+    selectRerunDrivers(runs, edits).rerun.map((r) => r.driver_key),
+    ['discoverability', 'compliance', 'authority'],
+  )
+})
+
+test('publish: a disabled or non-terminal run is reported, never silently re-queued', () => {
+  const runs = [
+    run({ id: 'r1', driver_key: 'authority', enabled: false }),
+    run({ id: 'r2', driver_key: 'speed', status: 'running' }),
+    run({ id: 'r3', driver_key: 'schema', status: 'needs_decision' }),
+    run({ id: 'r4', driver_key: 'content', status: 'error' }), // error IS rerunnable
+  ]
+  const edits = [draft('r1'), draft('r2'), draft('r3'), draft('r4')]
+  const { rerun, ineligible } = selectRerunDrivers(runs, edits)
+  assert.deepEqual(rerun.map((r) => r.driver_key), ['content'])
+  assert.deepEqual(
+    ineligible.map((i) => i.driver_key).sort(),
+    ['authority', 'schema', 'speed'],
+  )
+})
+
+test('publish: a draft pointing at a run the analysis no longer has is ignored', () => {
+  const { rerun, ineligible } = selectRerunDrivers([], [draft('ghost')])
+  assert.deepEqual(rerun, [])
+  assert.deepEqual(ineligible, [])
+})
+
+test('publish: no drafts means nothing re-runs', () => {
+  const runs = [run({ id: 'r1' })]
+  assert.deepEqual(selectRerunDrivers(runs, []).rerun, [])
+})
