@@ -10,7 +10,7 @@ import { startAutoSync } from "@/lib/autosync";
 type Staff = { id: string; display_name: string; color: string | null; operator_code: string | null; monthly_target: number; active: boolean };
 type Appt = { id: string; starts_at: string; client_name: string | null; staff_id: string | null; current_staff_id: string | null; service_name: string | null; status: string };
 type Seg = { id: string; appointment_id: string; staff_id: string; status: string; started_at: string };
-type CatItem = { id: string; name: string; price: number; kind: string };
+type CatItem = { id: string; name: string; price: number; kind: string; category?: string | null; stock_qty?: number | null };
 
 export default function Operatore() {
   const ctx = useOrg();
@@ -26,13 +26,23 @@ export default function Operatore() {
   const [msg, setMsg] = useState<string | null>(null);
   // chiusura scheda
   const [closing, setClosing] = useState<Appt | null>(null);
-  const [done, setDone] = useState<{ name: string; price: number; kind: string; proposed?: boolean }[]>([]);
+  // Modulo 1 — servizi erogati: prenotato ≠ erogato ≠ valore aggiuntivo (spec Dimitar §1-7)
+  const [done, setDone] = useState<any[]>([]);
+  // Modulo 2 — prodotti PROPOSTI (mai venduti qui: conferma solo in Reception, §8-10)
+  const [props, setProps] = useState<any[]>([]);
+  // Modulo 3 — rebooking suggerito (§13)
+  const [rebookDays, setRebookDays] = useState<number | "altro" | "none" | null>(null);
+  const [rebookCustom, setRebookCustom] = useState(30);
+  const [svcQ, setSvcQ] = useState("");
+  const [prodQ, setProdQ] = useState("");
+  const [replacing, setReplacing] = useState<number | null>(null);
   const [form, setForm] = useState({ tech: "", pers: "", prods: "", rebook: "" });
   const [passTarget, setPassTarget] = useState("");
   // risultati
   const [myTx, setMyTx] = useState<{ services: number; products: number }>({ services: 0, products: 0 });
   const [salonAvg, setSalonAvg] = useState<number>(0);
   const [occ, setOcc] = useState<Occupancy | null>(null);
+  const [myKpi, setMyKpi] = useState<{ upsell: number; prodOp: number; rbSugg: number; rbConf: number } | null>(null);
   // comunicazioni
   const [comms, setComms] = useState<any[]>([]);
   const [acks, setAcks] = useState<Set<string>>(new Set());
@@ -58,7 +68,7 @@ export default function Operatore() {
           if (found) setMe(found as any);
         } catch {}
       });
-    supabase.from("catalog_items").select("id,name,price,kind").eq("organization_id", ctx.orgId).eq("active", true)
+    supabase.from("catalog_items").select("id,name,price,kind,category,stock_qty").eq("organization_id", ctx.orgId).eq("active", true).order("name")
       .then(({ data }) => setCatalog((data ?? []) as any));
   }, [ctx.orgId]);
 
@@ -117,6 +127,22 @@ export default function Operatore() {
         setOcc(buildOccupancy(split, occupied));
       } else setOcc(null);
     }
+
+    // KPI commerciali del mese (§5/§15 spec chiusura): up-sell, prodotti su proposta, conversione rebooking
+    const { data: apk } = await supabase.from("appointments")
+      .select("commercial,rebook_days,rebook_status,status")
+      .eq("organization_id", ctx.orgId).eq("staff_id", me.id)
+      .gte("starts_at", month + "-01T00:00:00");
+    let upsell = 0, prodOp = 0, rbSugg = 0, rbConf = 0;
+    for (const a of (apk ?? []) as any[]) {
+      if (a.commercial?.upsell > 0) upsell += Number(a.commercial.upsell);
+      if (a.commercial?.prod_operator) prodOp += Number(a.commercial.prod_operator);
+      if (a.rebook_days != null) {
+        rbSugg++;
+        if (a.rebook_status === "confirmed") rbConf++;
+      }
+    }
+    setMyKpi({ upsell, prodOp, rbSugg, rbConf });
   };
 
   const loadComms = async () => {
@@ -209,19 +235,48 @@ export default function Operatore() {
   const openInvia = () => {
     if (!current) return;
     const pre = catalog.find(c => c.kind === "service" && current.service_name && normKey(c.name) === normKey(current.service_name));
-    setDone(pre ? [{ name: pre.name, price: Number(pre.price), kind: "service" }] : []);
+    // i servizi PRENOTATI compaiono da soli, come booked/unchanged
+    setDone(pre
+      ? [{ name: pre.name, price: Number(pre.price), kind: "service", change_type: "unchanged", origin: "booked" }]
+      : current.service_name
+        ? [{ name: current.service_name, price: 0, kind: "service", change_type: "unchanged", origin: "booked" }]
+        : []);
+    setProps([]);
+    setRebookDays(null); setRebookCustom(30);
+    setSvcQ(""); setProdQ(""); setReplacing(null);
     setForm({ tech: "", pers: "", prods: "", rebook: "" });
     setClosing(current);
   };
+
+  // §2-6: contabilità del confronto — SOLO i servizi finali entrano nel conto,
+  // il prenotato resta come base per l'up-sell
+  const bookedValue = done.reduce((a, d) =>
+    a + (d.change_type === "replaced" ? Number(d.replaced_price || 0)
+      : d.origin === "booked" ? Number(d.price || 0) : 0), 0);
+  const finalServices = done.filter(d => d.change_type !== "removed").reduce((a, d) => a + Number(d.price || 0), 0);
+  const upsell = finalServices - bookedValue;
+
   const invia = async () => {
     if (!closing || !mySeg || !me) return;
     const mins = Math.round((Date.now() - new Date(mySeg.started_at).getTime()) / 60000);
     await supabase.from("visit_segments").update({ status: "done", ended_at: new Date().toISOString(), active_minutes: mins }).eq("id", mySeg.id);
+    const rebook = rebookDays === "none" || rebookDays == null ? null : rebookDays === "altro" ? rebookCustom : rebookDays;
+    const items = [
+      // servizi: anche i rimossi restano nella scheda come storico, ma flaggati removed
+      ...done.map(d => ({ ...d, staff_id: me.id, removed: d.change_type === "removed" })),
+      // prodotti: SOLO proposte, origin operatore — la vendita la conferma la Reception
+      ...props.map(p => ({ ...p, staff_id: me.id, proposed: true, origin: "operator_proposal" })),
+    ];
     await supabase.from("appointments").update({
       status: "ready",
-      services_done: done.map(d => ({ ...d, staff_id: me.id })),
+      services_done: items,
+      booked_value: bookedValue,
+      commercial: { booked_value: bookedValue, final_services: finalServices, upsell },
+      rebook_days: rebook,
+      rebook_status: rebook != null ? "suggested" : "none",
       tech_notes: form.tech || null, personal_notes: form.pers || null,
-      suggested_products: form.prods || null, rebook_note: form.rebook || null,
+      suggested_products: props.length ? props.map(p => p.name).join(", ") : (form.prods || null),
+      rebook_note: rebook != null ? "Rivederlo tra " + rebook + " giorni" : (form.rebook || null),
       current_staff_id: null,
     }).eq("id", closing.id);
     setClosing(null);
@@ -410,38 +465,113 @@ export default function Operatore() {
         </>
       )}
 
-      {tab === "cliente" && closing && (
+      {tab === "cliente" && closing && (() => {
+        const services = catalog.filter(x => x.kind === "service").sort((a, b) => a.name.localeCompare(b.name, "it"));
+        const products = catalog.filter(x => x.kind === "product").sort((a, b) => a.name.localeCompare(b.name, "it"));
+        const svcHits = svcQ.trim().length >= 1 ? services.filter(s => s.name.toLowerCase().includes(svcQ.toLowerCase())).slice(0, 8) : [];
+        const prodHits = prodQ.trim().length >= 1 ? products.filter(p => p.name.toLowerCase().includes(prodQ.toLowerCase())).slice(0, 8) : [];
+        const pickService = (it: any) => {
+          if (replacing != null) {
+            // §2: sostituzione — l'originale resta SOLO come storico/KPI, mai nel conto
+            setDone(done.map((d, j) => j === replacing ? {
+              name: it.name, price: Number(it.price), kind: "service",
+              change_type: d.origin === "booked" || d.change_type === "replaced" ? "replaced" : "added",
+              replaced_name: d.change_type === "replaced" ? d.replaced_name : d.name,
+              replaced_price: d.change_type === "replaced" ? d.replaced_price : d.price,
+              origin: d.origin,
+            } : d));
+            setReplacing(null);
+          } else {
+            setDone([...done, { name: it.name, price: Number(it.price), kind: "service", change_type: "added", origin: "operator_proposal" }]);
+          }
+          setSvcQ("");
+        };
+        return (
         <div className="card">
-          <div className="section-title"><h2>Chiudi scheda — {closing.client_name}</h2><button className="btn sm secondary" onClick={() => setClosing(null)}>Annulla</button></div>
-          <label className="fld">Servizi e prodotti effettivamente eseguiti/venduti</label>
+          <div className="section-title"><h2>Concludi e passa alla Reception — {closing.client_name}</h2><button className="btn sm secondary" onClick={() => setClosing(null)}>Annulla</button></div>
+
+          {/* MODULO 1 — SERVIZI EROGATI */}
+          <div className="kpi-label" style={{ marginBottom: 6 }}>✂ Servizi erogati</div>
           {done.map((d, i) => (
-            <div className="row" key={i}>
-              <span>{d.kind === "product" ? "🧴" : "✂"} {d.name}{d.proposed && <span className="badge b-warn" style={{ marginLeft: 6 }}>proposto</span>}</span>
-              <span><b>{eur(d.price)}</b> <button className="btn sm secondary" onClick={() => setDone(done.filter((_, j) => j !== i))}>✕</button></span>
+            <div className="row" key={i} style={{ opacity: d.change_type === "removed" ? .5 : 1 }}>
+              <span style={{ textDecoration: d.change_type === "removed" ? "line-through" : "none" }}>
+                ✂ {d.name}
+                {d.change_type === "replaced" && <span className="sub" style={{ marginLeft: 6 }}>al posto di {d.replaced_name} ({eur(Number(d.replaced_price), 0)})</span>}
+                {d.change_type === "added" && <span className="badge b-ok" style={{ marginLeft: 6 }}>aggiunto</span>}
+                {d.change_type === "removed" && <span className="badge b-warn" style={{ marginLeft: 6 }}>eliminato</span>}
+              </span>
+              <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <b>{eur(d.price)}</b>
+                {d.change_type !== "removed" && <button className="btn sm secondary" title="Sostituisci con un altro servizio" onClick={() => { setReplacing(i); setSvcQ(" "); setSvcQ(""); document.getElementById("svcsearch")?.focus(); }}>⇄</button>}
+                {d.change_type !== "removed" && <button className="btn sm secondary" onClick={() => {
+                  if (d.origin === "booked" || d.change_type === "replaced") setDone(done.map((x, j) => j === i ? { ...x, change_type: "removed" } : x));
+                  else setDone(done.filter((_, j) => j !== i));
+                }}>✕</button>}
+                {d.change_type === "removed" && <button className="btn sm secondary" onClick={() => setDone(done.map((x, j) => j === i ? { ...x, change_type: "unchanged" } : x))}>↩</button>}
+              </span>
             </div>
           ))}
-          <div style={{ display: "flex", gap: 8, margin: "10px 0 16px", flexWrap: "wrap" }}>
-            <select id="addsvc" onChange={e => {
-              const it = catalog.find(x => x.id === e.target.value);
-              // i prodotti partono come PROPOSTA: diventano vendita solo se la reception conferma
-              if (it) setDone([...done, { name: it.name, price: Number(it.price), kind: it.kind, proposed: it.kind === "product" }]);
-              e.target.value = "";
-            }}>
-              <option value="">+ Aggiungi dal catalogo…</option>
-              <optgroup label="Servizi">{catalog.filter(x => x.kind === "service").map(x => <option key={x.id} value={x.id}>{x.name} — {eur(Number(x.price))}</option>)}</optgroup>
-              <optgroup label="Prodotti">{catalog.filter(x => x.kind === "product").map(x => <option key={x.id} value={x.id}>{x.name} — {eur(Number(x.price))}</option>)}</optgroup>
-            </select>
-            <b style={{ alignSelf: "center" }}>Totale: {eur(done.reduce((a, d) => a + d.price, 0))}</b>
+          <div style={{ position: "relative", margin: "8px 0 4px" }}>
+            <input id="svcsearch" style={{ width: "100%" }} value={svcQ} onChange={e => setSvcQ(e.target.value)}
+              placeholder={replacing != null ? "⇄ Cerca il servizio SOSTITUTIVO…" : "🔍 Cerca servizio da aggiungere…"} />
+            {replacing != null && <p className="sub" style={{ margin: "3px 0 0" }}>Stai sostituendo "{done[replacing]?.name}" — scegli il nuovo servizio <button className="btn sm secondary" onClick={() => setReplacing(null)}>annulla</button></p>}
+            {svcHits.length > 0 && (
+              <div className="card" style={{ position: "absolute", zIndex: 6, width: "100%", maxHeight: 240, overflow: "auto", padding: 6 }}>
+                {svcHits.map(s => (
+                  <div className="row" key={s.id} style={{ cursor: "pointer" }} onClick={() => pickService(s)}>
+                    <span>✂ {s.name}</span><b>{eur(Number(s.price))}</b>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 13, background: "#f0ede4", borderRadius: 8, padding: "8px 12px", margin: "8px 0 14px" }}>
+            <span>Prenotato: <b>{eur(bookedValue, 0)}</b></span>
+            <span>Erogato (nel conto): <b style={{ color: "#1e7a4f" }}>{eur(finalServices, 0)}</b></span>
+            <span>{upsell >= 0 ? "Up-sell generato" : "Differenza"}: <b style={{ color: upsell >= 0 ? "#1e7a4f" : "#b3402a" }}>{upsell >= 0 ? "+" : ""}{eur(upsell, 0)}</b></span>
+          </div>
+
+          {/* MODULO 2 — PRODOTTI PROPOSTI */}
+          <div className="kpi-label" style={{ margin: "10px 0 6px" }}>🧴 Prodotti proposti al cliente <span className="sub">(la vendita la conferma la Reception)</span></div>
+          {props.map((p, i) => (
+            <div className="row" key={i}>
+              <span>🧴 {p.name} <span className="badge b-warn" style={{ marginLeft: 6 }}>proposto</span></span>
+              <span><b>{eur(p.price)}</b> <button className="btn sm secondary" onClick={() => setProps(props.filter((_, j) => j !== i))}>✕</button></span>
+            </div>
+          ))}
+          <div style={{ position: "relative", margin: "8px 0 14px" }}>
+            <input style={{ width: "100%" }} value={prodQ} onChange={e => setProdQ(e.target.value)} placeholder="🔍 Cerca prodotto…" />
+            {prodHits.length > 0 && (
+              <div className="card" style={{ position: "absolute", zIndex: 6, width: "100%", maxHeight: 240, overflow: "auto", padding: 6 }}>
+                {prodHits.map(p => (
+                  <div className="row" key={p.id} style={{ cursor: "pointer" }} onClick={() => { setProps([...props, { name: p.name, price: Number(p.price), kind: "product" }]); setProdQ(""); }}>
+                    <span>🧴 {p.name}{p.category ? <span className="sub"> · {p.category}</span> : null}{Number(p.stock_qty) <= 0 ? <span className="badge b-warn" style={{ marginLeft: 6 }}>esaurito</span> : <span className="sub"> · disp. {num(Number(p.stock_qty ?? 0))}</span>}</span>
+                    <b>{eur(Number(p.price))}</b>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* MODULO 3 — REBOOKING */}
+          <div className="kpi-label" style={{ margin: "10px 0 6px" }}>📅 Rivederlo tra <span className="sub">(suggerimento — la conferma è della Reception)</span></div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+            {[15, 20, 30, 45, 60, 90].map(d => (
+              <button key={d} className={"chip" + (rebookDays === d ? " on" : "")} onClick={() => setRebookDays(rebookDays === d ? null : d)}>{d} gg</button>
+            ))}
+            <button className={"chip" + (rebookDays === "altro" ? " on" : "")} onClick={() => setRebookDays("altro")}>altro</button>
+            <button className={"chip" + (rebookDays === "none" ? " on" : "")} onClick={() => setRebookDays("none")}>non necessario</button>
+            {rebookDays === "altro" && <input type="number" min={1} value={rebookCustom} style={{ width: 70 }} onChange={e => setRebookCustom(Number(e.target.value))} />}
+          </div>
+
           <div className="two-col">
             <div><label className="fld">Note tecniche (ricetta colore, tecniche…)</label><textarea rows={3} style={{ width: "100%" }} value={form.tech} onChange={e => setForm({ ...form, tech: e.target.value })} /></div>
             <div><label className="fld">Note personali (conversazioni da riprendere…)</label><textarea rows={3} style={{ width: "100%" }} value={form.pers} onChange={e => setForm({ ...form, pers: e.target.value })} /></div>
-            <div><label className="fld">Prodotti suggeriti</label><input style={{ width: "100%" }} value={form.prods} onChange={e => setForm({ ...form, prods: e.target.value })} /></div>
-            <div><label className="fld">Suggerimento riappuntamento</label><input style={{ width: "100%" }} value={form.rebook} onChange={e => setForm({ ...form, rebook: e.target.value })} placeholder="es. fra 4 settimane, taglio + barba" /></div>
           </div>
-          <button className="btn" style={{ marginTop: 16 }} onClick={invia} disabled={done.length === 0}>✓ Invia alla reception</button>
+          <button className="btn" style={{ marginTop: 16 }} onClick={invia} disabled={done.filter(d => d.change_type !== "removed").length === 0}>✓ Invia alla reception</button>
         </div>
-      )}
+        );
+      })()}
 
       {tab === "risultati" && (
         <>
@@ -456,6 +586,13 @@ export default function Operatore() {
             <div className="card gold"><div className="kpi-label">Bonus {reached ? "incassabile" : "potenziale"}</div><div className="kpi-value">{eur(reached ? bonus : bonusPotential)}</div><div className="kpi-note">{reached ? "15% oltre target + 10% prodotti" : "si sblocca al 100% del target"}</div></div>
             <div className="card dark"><div className="kpi-label">Media salone</div><div className="kpi-value">{eur(salonAvg, 0)}</div><div className="kpi-note">lavorato medio per operatore</div></div>
           </div>
+          {myKpi && (myKpi.upsell > 0 || myKpi.prodOp > 0 || myKpi.rbSugg > 0) && (
+            <div className="grid kpis section">
+              <div className="card"><div className="kpi-label">Up-sell servizi generato</div><div className="kpi-value" style={{ color: "#1e7a4f" }}>{eur(myKpi.upsell, 0)}</div><div className="kpi-note">valore oltre il prenotato (base bonus)</div></div>
+              <div className="card"><div className="kpi-label">Prodotti su tua proposta</div><div className="kpi-value">{eur(myKpi.prodOp, 0)}</div><div className="kpi-note">confermati dalla reception</div></div>
+              <div className="card"><div className="kpi-label">Rebooking</div><div className="kpi-value">{myKpi.rbSugg > 0 ? Math.round(myKpi.rbConf / myKpi.rbSugg * 100) + "%" : "—"}</div><div className="kpi-note">{myKpi.rbConf} confermati su {myKpi.rbSugg} suggeriti</div></div>
+            </div>
+          )}
           {occ && occ.total > 0 && (
             <div className="card section" style={{ borderColor: "#c9a227", borderWidth: 2 }}>
               <div className="section-title">

@@ -8,7 +8,7 @@ import { planCapacity, staffMonthlyMinutes, weekdayCounts, eur, num, Plan, PlanS
 import { normKey } from "@/lib/importer";
 import { startAutoSync } from "@/lib/autosync";
 
-type Appt = { id: string; starts_at: string; client_name: string | null; staff_id: string | null; service_name: string | null; status: string; services_done: any[] | null; tech_notes: string | null; personal_notes: string | null; suggested_products: string | null; rebook_note: string | null };
+type Appt = { id: string; starts_at: string; client_name: string | null; staff_id: string | null; service_name: string | null; status: string; services_done: any[] | null; tech_notes: string | null; personal_notes: string | null; suggested_products: string | null; rebook_note: string | null; booked_value?: number | null; commercial?: any; rebook_days?: number | null; rebook_status?: string | null; rebook_contact_by?: string | null };
 type Seg = { id: string; appointment_id: string; staff_id: string; status: string };
 
 export default function Reception() {
@@ -24,6 +24,7 @@ export default function Reception() {
   const [opening, setOpening] = useState("08:30");
   const [orData, setOrData] = useState<{ perStaff: Record<string, { or: number | null; ot: number }>; salonOr: number | null; totalWeighted: number } | null>(null);
   const [walkin, setWalkin] = useState(false);
+  const [followups, setFollowups] = useState<any[]>([]);
   const today = new Date().toISOString().slice(0, 10);
   const month = today.slice(0, 7);
 
@@ -40,13 +41,17 @@ export default function Reception() {
       }
       const { data: st } = await supabase.from("staff_members").select("*").eq("organization_id", ctx.orgId).eq("active", true);
       setStaff(st ?? []);
-      const { data: ap } = await supabase.from("appointments").select("id,starts_at,client_name,staff_id,service_name,status,services_done,tech_notes,personal_notes,suggested_products,rebook_note")
+      const { data: ap } = await supabase.from("appointments").select("id,starts_at,client_name,staff_id,service_name,status,services_done,tech_notes,personal_notes,suggested_products,rebook_note,booked_value,commercial,rebook_days,rebook_status,rebook_contact_by")
         .eq("organization_id", ctx.orgId).gte("starts_at", today + "T00:00:00").lte("starts_at", today + "T23:59:59").order("starts_at");
       setAppts((ap ?? []) as any);
+      // §14: follow-up "da ricontattare entro" — lista operativa per la reception
+      const { data: fu } = await supabase.from("appointments").select("id,client_name,rebook_contact_by,rebook_note")
+        .eq("organization_id", ctx.orgId).eq("rebook_status", "followup").order("rebook_contact_by").limit(12);
+      setFollowups(fu ?? []);
       const { data: sg } = await supabase.from("visit_segments").select("id,appointment_id,staff_id,status")
         .eq("organization_id", ctx.orgId).in("status", ["active", "paused"]);
       setSegs((sg ?? []) as any);
-      const { data: cat } = await supabase.from("catalog_items").select("id,name,price,kind,duration_min").eq("organization_id", ctx.orgId).eq("active", true);
+      const { data: cat } = await supabase.from("catalog_items").select("id,name,price,kind,duration_min,category,stock_qty").eq("organization_id", ctx.orgId).eq("active", true).order("name");
       setCatalog(cat ?? []);
 
       // §16-17: Occupazione Reale (OR) calcolata da GPS, mai inserita a mano
@@ -156,7 +161,9 @@ export default function Reception() {
   // credito e abbonamenti separati — "credito caricato" non è MAI un incasso automatico.
   const finalizeSale = async (a: Appt, items: any[], creditUsed: number, cashPaid: number,
     recharge: { loaded: number; paid: number; method: string } | null) => {
-    const sold = items.filter(it => !it.proposed && !it.rejected); // proposto→venduto: solo i confermati
+    // §5/§18: nel conto entrano SOLO i servizi finali erogati e i prodotti confermati —
+    // mai i servizi sostituiti/eliminati (restano come storico per i KPI)
+    const sold = items.filter(it => !it.proposed && !it.rejected && !it.removed && it.change_type !== "removed");
     const worked = sold.reduce((x, it) => x + (Number(it.price) || 0), 0);
 
     // cliente = asset dinamico: risolto PRIMA così le transazioni portano il suo id
@@ -191,13 +198,17 @@ export default function Reception() {
           cashLeft -= cash;
         }
         const catMatch = catalog.find((c: any) => normKey(c.name) === normKey(it.name ?? ""));
+        // §11-12: una sola origine commerciale per riga — operatore o reception, mai doppia
+        const origin = it.origin ?? "booked";
+        const byReception = origin === "reception_addition";
         return {
           organization_id: ctx.orgId, tx_date: today,
           description: (it.name ?? "Servizio") + " — " + (a.client_name ?? "") + (it.sub_id ? " (abbonamento)" : ""),
           worked_value: Number(it.price) || 0, cash_value: cash,
           kind: it.kind === "product" ? "product" : "service",
-          staff_id: it.staff_id ?? a.staff_id ?? null, client_id: clientId,
+          staff_id: byReception ? null : (it.staff_id ?? a.staff_id ?? null), client_id: clientId,
           catalog_item_id: catMatch?.id ?? null, data_quality: "observed",
+          origin, sold_by_role: byReception ? "reception" : "operator",
         };
       });
       await supabase.from("transactions").insert(rows);
@@ -239,9 +250,20 @@ export default function Reception() {
       const { data: sub } = await supabase.from("subscriptions").select("sessions_used").eq("id", subId).single();
       if (sub) await supabase.from("subscriptions").update({ sessions_used: Number(sub.sessions_used) + n }).eq("id", subId);
     }
-    // esito proposte salvato per i KPI di conversione (proposto → venduto / rifiutato)
-    await supabase.from("appointments").update({ status: "completed", services_done: items }).eq("id", a.id);
+    // KPI commerciali (§16-17): prodotti attribuiti a chi ha generato la vendita
+    const prodOperator = sold.filter(it => it.kind === "product" && it.origin === "operator_proposal").reduce((x, it) => x + (Number(it.price) || 0), 0);
+    const prodReception = sold.filter(it => it.kind === "product" && it.origin === "reception_addition").reduce((x, it) => x + (Number(it.price) || 0), 0);
+    await supabase.from("appointments").update({
+      status: "completed", services_done: items,
+      commercial: { ...(a.commercial ?? {}), prod_operator: prodOperator, prod_reception: prodReception },
+    }).eq("id", a.id);
     window.location.reload();
+  };
+
+  // §14: stati rebooking assegnati dalla reception
+  const setRebook = async (a: Appt, status: string, contactBy?: string) => {
+    await supabase.from("appointments").update({ rebook_status: status, rebook_contact_by: contactBy ?? null }).eq("id", a.id);
+    setAppts(appts.map(x => x.id === a.id ? { ...x, rebook_status: status, rebook_contact_by: contactBy ?? null } : x));
   };
 
   const staffState = (sid: string) => {
@@ -353,13 +375,29 @@ export default function Reception() {
         </div>
       </div>
 
+      {followups.length > 0 && (
+        <div className="section card" style={{ borderColor: "#d9a441" }}>
+          <div className="section-title"><h2>⏰ Da ricontattare ({followups.length})</h2><span className="sub">rebooking non chiusi — follow-up operativo</span></div>
+          {followups.map(f => (
+            <div className="row" key={f.id}>
+              <span><b>{f.client_name ?? "Cliente"}</b> <span className="sub">{f.rebook_note ?? ""}</span></span>
+              <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <b style={{ color: f.rebook_contact_by && f.rebook_contact_by <= today ? "#b3402a" : undefined }}>entro {f.rebook_contact_by ? new Date(f.rebook_contact_by).toLocaleDateString("it-IT") : "—"}</b>
+                <button className="btn sm" onClick={async () => { await supabase.from("appointments").update({ rebook_status: "confirmed" }).eq("id", f.id); setFollowups(followups.filter(x => x.id !== f.id)); }}>✓ Prenotato</button>
+                <button className="btn sm secondary" onClick={async () => { await supabase.from("appointments").update({ rebook_status: "declined" }).eq("id", f.id); setFollowups(followups.filter(x => x.id !== f.id)); }}>✕</button>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {ready.length > 0 && (
         <div className="section card" style={{ borderColor: "#c9a227", borderWidth: 2 }}>
           <div className="section-title"><h2>Pronti per la reception ({ready.length})</h2><span className="sub">rivedi la scheda, conferma le proposte, poi chiudi la vendita</span></div>
           {ready.map(a => (
             <CheckoutCard key={a.id} a={a} staff={staff} catalog={catalog}
               wallet={a.client_name ? readyClients[normKey(a.client_name)] ?? null : null}
-              onClose={finalizeSale} />
+              onClose={finalizeSale} onRebook={setRebook} />
           ))}
         </div>
       )}
@@ -378,10 +416,11 @@ export default function Reception() {
   );
 }
 
-function CheckoutCard({ a, staff, catalog, wallet, onClose }: {
+function CheckoutCard({ a, staff, catalog, wallet, onClose, onRebook }: {
   a: any; staff: any[]; catalog: any[];
   wallet: { client: any; saldo: number; subs?: any[] } | null;
   onClose: (a: any, items: any[], creditUsed: number, cashPaid: number, recharge: { loaded: number; paid: number; method: string } | null) => Promise<void>;
+  onRebook: (a: any, status: string, contactBy?: string) => Promise<void>;
 }) {
   const [items, setItems] = useState<any[]>((a.services_done ?? []).map((it: any) => ({ ...it })));
   const [credit, setCredit] = useState(0);
@@ -389,7 +428,9 @@ function CheckoutCard({ a, staff, catalog, wallet, onClose }: {
   const [busy, setBusy] = useState(false);
   const [rech, setRech] = useState({ loaded: 0, paid: 0, method: "contanti", touched: false });
   const subs = wallet?.subs ?? [];
-  const sold = items.filter(it => !it.proposed && !it.rejected);
+  const [fuDate, setFuDate] = useState("");
+  const isRemoved = (it: any) => it.removed || it.change_type === "removed";
+  const sold = items.filter(it => !it.proposed && !it.rejected && !isRemoved(it));
   const soldTotal = sold.reduce((x, it) => x + (Number(it.price) || 0), 0);
   const subCovered = sold.filter(it => it.sub_id).reduce((x, it) => x + (Number(it.price) || 0), 0);
   const saldo = wallet?.saldo ?? 0;
@@ -412,10 +453,12 @@ function CheckoutCard({ a, staff, catalog, wallet, onClose }: {
       </div>
 
       {items.map((it, i) => (
-        <div className="row" key={i} style={{ opacity: it.rejected ? .5 : 1 }}>
-          <span style={{ textDecoration: it.rejected ? "line-through" : "none" }}>
+        <div className="row" key={i} style={{ opacity: it.rejected || isRemoved(it) ? .5 : 1 }}>
+          <span style={{ textDecoration: it.rejected || isRemoved(it) ? "line-through" : "none" }}>
             {it.kind === "product" ? "🧴" : "✂"} {it.name}
-            <span className="sub"> ({opName(it.staff_id)})</span>
+            <span className="sub"> ({it.origin === "reception_addition" ? "reception" : opName(it.staff_id)})</span>
+            {it.change_type === "replaced" && <span className="sub" style={{ marginLeft: 6 }}>al posto di {it.replaced_name} ({eur(Number(it.replaced_price), 0)}) — l'originale NON entra nel conto</span>}
+            {isRemoved(it) && <span className="badge b-warn" style={{ marginLeft: 6 }}>eliminato — solo storico</span>}
             {/* §4: stati proposta — proposto → venduto / rifiutato (base per i KPI di conversione) */}
             {it.proposed && !it.rejected && (
               <span style={{ marginLeft: 8 }}>
@@ -430,7 +473,7 @@ function CheckoutCard({ a, staff, catalog, wallet, onClose }: {
                 <button className="btn sm secondary" onClick={() => setItems(items.map((x, j) => j === i ? { ...x, rejected: false, proposed: true } : x))}>↩</button>
               </span>
             )}
-            {!it.proposed && !it.rejected && it.kind !== "product" && subs.length > 0 && (
+            {!it.proposed && !it.rejected && !isRemoved(it) && it.kind !== "product" && subs.length > 0 && (
               <label style={{ marginLeft: 8, fontSize: 12.5 }}>
                 <input type="checkbox" checked={!!it.sub_id}
                   onChange={e => {
@@ -453,7 +496,8 @@ function CheckoutCard({ a, staff, catalog, wallet, onClose }: {
       <div style={{ display: "flex", gap: 8, alignItems: "center", margin: "10px 0", flexWrap: "wrap" }}>
         <select onChange={e => {
           const it = catalog.find((x: any) => x.id === e.target.value);
-          if (it) setItems([...items, { name: it.name, price: Number(it.price), kind: it.kind, staff_id: a.staff_id, proposed: false }]);
+          // §11: aggiunta della reception → attribuzione commerciale RECEPTION, mai all'operatore
+          if (it) setItems([...items, { name: it.name, price: Number(it.price), kind: it.kind, staff_id: null, proposed: false, origin: "reception_addition", change_type: "added" }]);
           e.target.value = "";
         }}>
           <option value="">+ Aggiungi servizio/prodotto…</option>
@@ -462,8 +506,33 @@ function CheckoutCard({ a, staff, catalog, wallet, onClose }: {
         </select>
       </div>
 
-      {a.rebook_note && <p style={{ margin: "4px 0", fontSize: 13.5 }}>📅 <b>Riappuntamento suggerito:</b> {a.rebook_note}</p>}
-      {a.suggested_products && <p style={{ margin: "4px 0", fontSize: 13.5 }}>🧴 <b>Prodotti suggeriti dall'operatore:</b> {a.suggested_products}</p>}
+      {/* §14: rebooking — la reception assegna lo stato */}
+      {(a.rebook_days != null || a.rebook_note) && (
+        <div style={{ background: "#eef1f6", border: "1px solid #ccd4e0", borderRadius: 10, padding: "8px 12px", margin: "8px 0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            <span style={{ fontSize: 13.5 }}>📅 <b>Rebooking suggerito:</b> {a.rebook_days != null ? "rivederlo tra " + a.rebook_days + " giorni" : a.rebook_note}</span>
+            {a.rebook_status === "confirmed" && <span className="badge b-ok">confermato ✓</span>}
+            {a.rebook_status === "declined" && <span className="badge b-risk">non confermato</span>}
+            {a.rebook_status === "followup" && <span className="badge b-warn">ricontattare entro {a.rebook_contact_by ? new Date(a.rebook_contact_by).toLocaleDateString("it-IT") : "…"}</span>}
+            {(a.rebook_status === "suggested" || !a.rebook_status) && (
+              <span style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                <button className="btn sm" onClick={() => onRebook(a, "confirmed")}>✓ Confermato</button>
+                <button className="btn sm secondary" onClick={() => onRebook(a, "declined")}>✕ Non confermato</button>
+                <input type="date" value={fuDate} style={{ padding: "4px 6px" }} onChange={e => setFuDate(e.target.value)} />
+                <button className="btn sm secondary" disabled={!fuDate} onClick={() => onRebook(a, "followup", fuDate)}>⏰ Da ricontattare</button>
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+      {a.commercial?.upsell != null && a.commercial.upsell !== 0 && (
+        <p style={{ margin: "4px 0", fontSize: 13 }}>
+          📈 <b>KPI operatore:</b> prenotato {eur(Number(a.commercial.booked_value ?? 0), 0)} → erogato {eur(Number(a.commercial.final_services ?? 0), 0)} ·{" "}
+          <b style={{ color: a.commercial.upsell > 0 ? "#1e7a4f" : "#b3402a" }}>{a.commercial.upsell > 0 ? "up-sell +" : ""}{eur(Number(a.commercial.upsell), 0)}</b>
+          <span className="sub"> (solo KPI/bonus — il conto usa l'erogato)</span>
+        </p>
+      )}
+      {a.suggested_products && <p style={{ margin: "4px 0", fontSize: 13.5 }}>🧴 <b>Prodotti proposti dall'operatore:</b> {a.suggested_products}</p>}
 
       {/* §22: ricarica card in chiusura — credito caricato e pagato sono DUE numeri distinti */}
       <details style={{ margin: "8px 0" }}>

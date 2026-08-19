@@ -20,6 +20,7 @@ export default function Team() {
   const [accMsg, setAccMsg] = useState<Record<string, string>>({});
   const [occs, setOccs] = useState<Record<string, Occupancy>>({});
   const [ots, setOts] = useState<Record<string, number>>({});
+  const [kpis, setKpis] = useState<Record<string, { upsell: number; prodOp: number; rbSugg: number; rbConf: number }>>({});
   const month = new Date().toISOString().slice(0, 7);
   const canEdit = ["titolare", "manager", "consulente"].includes(ctx.role ?? "") || ctx.isAdmin;
 
@@ -60,6 +61,20 @@ export default function Team() {
       }
       setOccs(o);
       setOts(Object.fromEntries(((ps ?? []) as any[]).map(r => [r.staff_id, Number(r.occupancy_target_pct ?? 75)])));
+    }
+    // KPI commerciali mese per collaboratore: up-sell, prodotti su proposta, conversione rebooking
+    {
+      const { data: apk } = await supabase.from("appointments")
+        .select("staff_id,commercial,rebook_days,rebook_status")
+        .eq("organization_id", ctx.orgId).gte("starts_at", month + "-01T00:00:00").not("staff_id", "is", null);
+      const k: Record<string, { upsell: number; prodOp: number; rbSugg: number; rbConf: number }> = {};
+      for (const a of (apk ?? []) as any[]) {
+        const e = (k[a.staff_id] = k[a.staff_id] ?? { upsell: 0, prodOp: 0, rbSugg: 0, rbConf: 0 });
+        if (a.commercial?.upsell > 0) e.upsell += Number(a.commercial.upsell);
+        if (a.commercial?.prod_operator) e.prodOp += Number(a.commercial.prod_operator);
+        if (a.rebook_days != null) { e.rbSugg++; if (a.rebook_status === "confirmed") e.rbConf++; }
+      }
+      setKpis(k);
     }
   };
 
@@ -165,6 +180,13 @@ export default function Team() {
                   </div>
                 );
               })()}
+              {kpis[s.id] && (kpis[s.id].upsell > 0 || kpis[s.id].prodOp > 0 || kpis[s.id].rbSugg > 0) && (
+                <>
+                  <div className="row"><span>Up-sell servizi (mese)</span><b style={{ color: "#1e7a4f" }}>{eur(kpis[s.id].upsell, 0)}</b></div>
+                  <div className="row"><span>Prodotti su sua proposta</span><b>{eur(kpis[s.id].prodOp, 0)}</b></div>
+                  <div className="row"><span>Conversione rebooking</span><b>{kpis[s.id].rbSugg > 0 ? Math.round(kpis[s.id].rbConf / kpis[s.id].rbSugg * 100) + "% (" + kpis[s.id].rbConf + "/" + kpis[s.id].rbSugg + ")" : "—"}</b></div>
+                </>
+              )}
               <div className="row"><span>Costo €/mese</span>
                 <b><input type="number" disabled={!canEdit} value={s.monthly_cost ?? 0} style={{ width: 90, padding: "3px 6px", textAlign: "right" }} onChange={e => update(s.id, { monthly_cost: Number(e.target.value) })} /> €</b>
               </div>
