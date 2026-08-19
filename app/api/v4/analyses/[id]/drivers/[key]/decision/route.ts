@@ -126,6 +126,30 @@ export async function POST(
       return NextResponse.json({ error: swapError.message }, { status: 500 })
     }
 
+    // Template URLs are full per-site URLs: the replaced competitor's rows
+    // still point at the OLD domain and the page drivers would silently
+    // measure the wrong site (found live: Speed hitting zara.it after a
+    // zara.com swap). Only the homepage is derivable from a domain without
+    // guessing (Block 3 rule) — every other template of that site is
+    // dropped, the analyst re-adds real URLs if wanted.
+    const siteRef = details.find((d) => d.domain === from)
+      ? `competitor_${competitors.indexOf(from) + 1}`
+      : null
+    if (siteRef) {
+      await db
+        .from('template_configs')
+        .delete()
+        .eq('analysis_id', analysisId)
+        .eq('site_ref', siteRef)
+        .neq('template_key', 'homepage')
+      await db
+        .from('template_configs')
+        .update({ url: `https://${to}` })
+        .eq('analysis_id', analysisId)
+        .eq('site_ref', siteRef)
+        .eq('template_key', 'homepage')
+    }
+
     // Full reset: every measurement referenced the old set.
     const { error: resetError } = await db
       .from('driver_runs')
