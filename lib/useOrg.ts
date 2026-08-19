@@ -15,9 +15,16 @@ export type OrgCtx = {
   orgs: OrgOption[];
 };
 
-export function switchOrg(orgId: string) {
+// Entra in un salone (dal livello piattaforma) e apri il suo workspace
+export function enterSalon(orgId: string, dest: string = "/") {
   try { localStorage.setItem("gps_org", orgId); } catch {}
-  window.location.reload();
+  window.location.href = dest;
+}
+
+// Torna al livello piattaforma GPS (solo admin)
+export function exitToPlatform() {
+  try { localStorage.removeItem("gps_org"); } catch {}
+  window.location.href = "/saloni";
 }
 
 export function useOrg(): OrgCtx {
@@ -49,7 +56,8 @@ export function useOrg(): OrgCtx {
 
       let selected: string | null = null;
       try { selected = localStorage.getItem("gps_org"); } catch {}
-      const chosen = orgs.find(o => o.id === selected) ?? orgs[0] ?? null;
+      // Non-admin: entra dritto nel proprio salone. Admin: entra solo se ha scelto un salone dalla piattaforma.
+      const chosen = orgs.find(o => o.id === selected) ?? (isAdmin ? null : (orgs[0] ?? null));
 
       if (!mounted) return;
       setCtx({
