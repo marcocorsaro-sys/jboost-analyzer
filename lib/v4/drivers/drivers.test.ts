@@ -207,7 +207,12 @@ test('pagespeed: no client measurement is an error, even if competitors succeede
 test('authority: a real DR becomes the raw and the absolute score', async () => {
   process.env.AHREFS_API_KEY = 'test-key'
   await withFetch(
-    (url) => ({ body: { domain_rating: url.includes('comp1') ? 40.4 : 71.6, ahrefs_rank: 1234 } }),
+    (url) => {
+      // The v3 endpoint REQUIRES the date param — the V1 client omitted it
+      // and every live call failed into a mock. Assert it travels.
+      assert.match(url, /date=/)
+      return { body: { domain_rating: { domain_rating: url.includes('comp1') ? 40.4 : 71.6, ahrefs_rank: 1234 } } }
+    },
     async () => {
       const out = await authorityWorker(ctx())
       assert.equal(out.status, 'done')
@@ -226,11 +231,11 @@ test('authority: an Ahrefs 403 must NOT score the client DR=50 (the V1 bug)', as
     () => ({ status: 403, body: {} }),
     async () => {
       const out = await authorityWorker(ctx())
-      // V1 fetchDomainRating answers a 403 with a mock DR=50. If that ever
-      // reaches a score again, this assertion is the thing that fails.
+      // The V4 client THROWS on 403 (the V1 one answered with a mock DR=50).
+      // If a plausible substitute ever reaches a score again, this fails.
       assert.equal(out.status, 'error')
       if (out.status !== 'error') return
-      assert.match(out.error, /no live data/)
+      assert.match(out.error, /403/)
       assert.doesNotMatch(out.error, /\b50\b/)
     },
   )

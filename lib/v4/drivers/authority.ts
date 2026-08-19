@@ -1,17 +1,22 @@
 /**
  * V4 driver — Authority.
  *
- * Source: Ahrefs site-explorer/domain-rating (single source, no fallback).
+ * Source: Ahrefs site-explorer/domain-rating v3 (single source, no fallback).
  * Formula (spec, sources table): score_absolute = round(domain_rating).
  * The raw fed to the leader index is the DR itself, so the Relative view is
  * the linear leader index over the set and the Absolute view is the DR.
  *
+ * Uses the V4 Ahrefs module, NOT the V1 client: the V1 call omits the
+ * mandatory `date` param and answers the resulting failure with a mock DR=50
+ * (first live run: every site "no live data"). The V4 module passes the
+ * frozen REF_DATE and throws on failure.
+ *
  * One API call per site. Cheap, so the whole set is measured in one job.
  */
 
-import { fetchDomainRating } from '@/lib/seo-apis/ahrefs'
+import { fetchDomainRating } from './ahrefs'
 import type { DriverWorker, SiteRawValue } from '@/lib/v4/runner/types'
-import { DriverSourceError, assertDeadline, mapPool, requireLive } from './source'
+import { DriverSourceError, assertDeadline, mapPool } from './source'
 
 export const authorityWorker: DriverWorker = async (ctx) => {
   const errors: string[] = []
@@ -19,10 +24,7 @@ export const authorityWorker: DriverWorker = async (ctx) => {
   const sites = await mapPool(ctx.sites, 3, async (site): Promise<SiteRawValue | null> => {
     try {
       assertDeadline(ctx.deadlineAt, `Authority for ${site.domain}`)
-      const dr = requireLive(
-        await fetchDomainRating(site.domain),
-        `Authority for ${site.domain}`,
-      )
+      const dr = await fetchDomainRating(site.domain, ctx.refDate)
       const rounded = Math.round(dr.domain_rating)
       return {
         site_ref: site.site_ref,

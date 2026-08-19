@@ -124,6 +124,46 @@ export async function fetchOrganicKeywords(
 }
 
 /**
+ * Authority (Bibbia 8c): Ahrefs Domain Rating, v3 endpoint.
+ *
+ * Lives here and NOT on the V1 client (lib/seo-apis/ahrefs.fetchDomainRating)
+ * for two reasons found on the first live run: (1) the V1 call omits the
+ * `date` parameter that v3 site-explorer/domain-rating REQUIRES, so every
+ * call failed and (2) the V1 client answers that failure with a mock DR=50,
+ * which requireLive then rightly refuses — the driver could never succeed.
+ * This one passes the frozen REF_DATE (same convention as organic-keywords:
+ * the whole set is measured on the same day) and THROWS on failure.
+ */
+export async function fetchDomainRating(
+  domain: string,
+  date: string | null,
+): Promise<{ domain_rating: number; ahrefs_rank: number | null }> {
+  const params = new URLSearchParams({ target: domain, output: 'json' })
+  // REF_DATE is set at plan time; today is the defensive fallback because
+  // the endpoint rejects the request without a date.
+  params.set('date', date ?? new Date().toISOString().slice(0, 10))
+
+  const body = await ahrefsGet(
+    `/site-explorer/domain-rating?${params.toString()}`,
+    `Authority for ${domain}`,
+  )
+
+  const dr = (body.domain_rating ?? {}) as Record<string, unknown>
+  const value = Number(
+    (typeof dr === 'object' && dr !== null && 'domain_rating' in dr
+      ? dr.domain_rating
+      : body.domain_rating) ?? NaN,
+  )
+  if (!Number.isFinite(value)) {
+    throw new DriverSourceError(
+      `Authority for ${domain} — unexpected Ahrefs payload (no domain_rating value)`,
+    )
+  }
+  const rank = Number((dr as Record<string, unknown>).ahrefs_rank ?? body.ahrefs_rank ?? NaN)
+  return { domain_rating: value, ahrefs_rank: Number.isFinite(rank) ? rank : null }
+}
+
+/**
  * Discoverability (Bibbia 8c): NON-BRAND keywords inside the active tier —
  * `is_branded=false AND best_position<=pos AND volume>=vol`. Raw = row count.
  */
