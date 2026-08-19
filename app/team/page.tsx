@@ -19,6 +19,7 @@ export default function Team() {
   const [acc, setAcc] = useState<Record<string, { email: string; pwd: string; role: string }>>({});
   const [accMsg, setAccMsg] = useState<Record<string, string>>({});
   const [occs, setOccs] = useState<Record<string, Occupancy>>({});
+  const [ots, setOts] = useState<Record<string, number>>({});
   const month = new Date().toISOString().slice(0, 7);
   const canEdit = ["titolare", "manager", "consulente"].includes(ctx.role ?? "") || ctx.isAdmin;
 
@@ -58,6 +59,7 @@ export default function Team() {
         o[row.staff_id] = buildOccupancy(split, occupied);
       }
       setOccs(o);
+      setOts(Object.fromEntries(((ps ?? []) as any[]).map(r => [r.staff_id, Number(r.occupancy_target_pct ?? 75)])));
     }
   };
 
@@ -145,8 +147,12 @@ export default function Team() {
                 return (
                   <div style={{ background: "#f4f7f4", border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", margin: "10px 0" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                      <span className="kpi-label">Occupazione mese</span>
-                      <b style={{ fontSize: 18, color: o.pct >= 0.75 ? "#1e7a4f" : o.pct >= 0.5 ? "#b8860b" : "#b3402a" }}>{Math.round(o.pct * 100)}%</b>
+                      <span className="kpi-label">Occupazione Reale (OR) — calcolata da GPS</span>
+                      <b style={{ fontSize: 18, color: o.pct >= (ots[s.id] ?? 75) / 100 ? "#1e7a4f" : o.pct >= 0.5 ? "#b8860b" : "#b3402a" }}>
+                        {Math.round(o.pct * 100)}%
+                        <span style={{ fontSize: 12, fontWeight: 400, color: "#555" }}> | Target {ots[s.id] ?? 75}% | </span>
+                        <span style={{ fontSize: 13 }}>{Math.round(o.pct * 100) - (ots[s.id] ?? 75) >= 0 ? "+" : ""}{Math.round(o.pct * 100) - (ots[s.id] ?? 75)} p.p.</span>
+                      </b>
                     </div>
                     <div className="bar-track"><div className="bar-fill" style={{ width: Math.min(100, o.pct * 100) + "%", background: o.pct >= 0.75 ? "#1e7a4f" : "var(--gold)" }} /></div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 6, flexWrap: "wrap", gap: 4 }}>

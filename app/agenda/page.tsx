@@ -4,6 +4,7 @@ import Shell from "@/components/Shell";
 import { useOrg } from "@/lib/useOrg";
 import { supabase } from "@/lib/supabase";
 import { num } from "@/lib/gps";
+import { ensureFreshCalendars } from "@/lib/autosync";
 
 type Appt = { id: string; starts_at: string; ends_at: string | null; client_name: string | null; staff_id: string | null; service_name: string | null; status: string; source_system: string };
 type Staff = { id: string; display_name: string; color: string | null; active: boolean };
@@ -38,6 +39,20 @@ export default function Agenda() {
       .then(({ data }) => setStaff((data ?? []) as any));
     loadConns();
   }, [ctx.orgId, day]);
+
+  // §5 spec Dimitar: niente pulsante "Sincronizza" — l'agenda si aggiorna da sola
+  // (all'apertura e ogni 5 minuti; il sync parte solo se una connessione è stantia)
+  useEffect(() => {
+    if (!ctx.orgId) return;
+    const run = async () => {
+      setSyncing(true);
+      await ensureFreshCalendars(ctx.orgId!, () => { load(); loadConns(); });
+      setSyncing(false);
+    };
+    run();
+    const t = setInterval(run, 300000);
+    return () => clearInterval(t);
+  }, [ctx.orgId]);
 
   const loadConns = async () => {
     const { data } = await supabase.from("calendar_connections").select("*").eq("organization_id", ctx.orgId).order("created_at");
@@ -125,7 +140,7 @@ export default function Agenda() {
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input type="date" value={day} onChange={e => setDay(e.target.value)} />
-          <button className="btn dark" onClick={syncAll} disabled={syncing || !conns.length}>{syncing ? "Sync…" : "⟳ Sincronizza calendari"}</button>
+          {syncing && <span className="badge b-warn" style={{ alignSelf: "center" }}>⟳ sync automatico…</span>}
           <button className="btn secondary" onClick={() => setShowConn(!showConn)}>{showConn ? "Chiudi connessioni" : "Connessioni (" + conns.length + ")"}</button>
         </div>
       </div>

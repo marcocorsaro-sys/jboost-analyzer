@@ -5,6 +5,7 @@ import { useOrg } from "@/lib/useOrg";
 import { supabase } from "@/lib/supabase";
 import { eur, num, SEGMENT_LABEL, staffAvailabilitySplit, buildOccupancy, occupiedMinutesFor, Occupancy } from "@/lib/gps";
 import { normKey } from "@/lib/importer";
+import { startAutoSync } from "@/lib/autosync";
 
 type Staff = { id: string; display_name: string; color: string | null; operator_code: string | null; monthly_target: number; active: boolean };
 type Appt = { id: string; starts_at: string; client_name: string | null; staff_id: string | null; current_staff_id: string | null; service_name: string | null; status: string };
@@ -47,6 +48,10 @@ export default function Operatore() {
     supabase.from("staff_members").select("*").eq("organization_id", ctx.orgId).eq("active", true)
       .then(({ data }) => {
         setStaff((data ?? []) as any);
+        // §1 spec Dimitar: identità operatore dedotta dal LOGIN (email account → collaboratore).
+        // Nessun codice richiesto: se l'account è collegato a una scheda, entra diretto.
+        const own = (data ?? []).find((s: any) => s.user_id && s.user_id === ctx.userId);
+        if (own) { setMe(own as any); return; }
         try {
           const saved = sessionStorage.getItem("gps_staff");
           const found = (data ?? []).find((s: any) => s.id === saved);
@@ -124,6 +129,14 @@ export default function Operatore() {
   };
 
   useEffect(() => { if (ctx.orgId && me) { loadDay(); loadResults(); loadComms(); try { sessionStorage.setItem("gps_staff", me.id); } catch {} } }, [ctx.orgId, me?.id]);
+  // §5: agenda sempre fresca senza pulsanti — sync automatico all'apertura e ogni 5 minuti
+  useEffect(() => { if (ctx.orgId) return startAutoSync(ctx.orgId, () => loadDay()); }, [ctx.orgId, me?.id]);
+  // e la giornata si ricarica da sola ogni 2 minuti (nuovi appuntamenti, cambi della reception)
+  useEffect(() => {
+    if (!ctx.orgId || !me) return;
+    const t = setInterval(() => loadDay(), 120000);
+    return () => clearInterval(t);
+  }, [ctx.orgId, me?.id]);
 
   const mySeg = useMemo(() => segs.find(s => s.staff_id === me?.id && s.status === "active") ?? null, [segs, me]);
   const myPaused = useMemo(() => segs.filter(s => s.staff_id === me?.id && s.status === "paused"), [segs, me]);
@@ -222,11 +235,22 @@ export default function Operatore() {
 
   // ---- selezione operatore (codice su iPad condiviso) ----
   if (!ctx.loading && ctx.orgId && !me) {
+    // Un account con ruolo operatore ma senza scheda collegata: niente codici, va collegato dal Team
+    if (ctx.role === "operatore") {
+      return (
+        <Shell ctx={ctx}>
+          <div className="card" style={{ maxWidth: 520, margin: "60px auto", textAlign: "center", padding: 34 }}>
+            <h1 style={{ fontSize: 24 }}>Account non collegato</h1>
+            <p className="sub">Il tuo accesso funziona ma non è ancora collegato a una scheda collaboratore. Chiedi al titolare di creare il tuo accesso dalla tua scheda in Team: da quel momento entrerai direttamente nella tua giornata, senza codici.</p>
+          </div>
+        </Shell>
+      );
+    }
     return (
       <Shell ctx={ctx}>
         <div className="card" style={{ maxWidth: 460, margin: "60px auto", textAlign: "center", padding: 34 }}>
           <h1 style={{ fontSize: 24 }}>Workspace Operatore</h1>
-          <p className="sub">Inserisci il tuo codice operatore{ctx.role !== "operatore" ? " oppure selezionati dall'elenco" : ""}.</p>
+          <p className="sub">Vista di servizio per titolare/manager/reception (iPad condiviso): scegli l'operatore da impersonare. Gli operatori con account entrano qui in automatico.</p>
           <input value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="CODICE" style={{ textAlign: "center", fontSize: 20, letterSpacing: ".2em", width: 220, margin: "14px 0" }} />
           <div>
             <button className="btn" onClick={() => {
@@ -263,7 +287,7 @@ export default function Operatore() {
             {mySeg ? "Occupato con " + (current?.client_name ?? "cliente") : myPaused.length ? "Libero · " + myPaused.length + " in posa" : "Libero"}
           </p>
         </div>
-        <button className="btn sm secondary" onClick={() => { setMe(null); try { sessionStorage.removeItem("gps_staff"); } catch {} }}>Cambia operatore</button>
+        {ctx.role !== "operatore" && <button className="btn sm secondary" onClick={() => { setMe(null); try { sessionStorage.removeItem("gps_staff"); } catch {} }}>Cambia operatore</button>}
       </div>
 
       <div className="filters" style={{ marginBottom: 18 }}>

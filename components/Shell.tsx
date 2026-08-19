@@ -29,6 +29,12 @@ export default function Shell({ ctx, children }: { ctx: OrgCtx; children: React.
     if (!ctx.loading && !ctx.orgId && ctx.isAdmin) router.replace("/saloni");
   }, [ctx.loading, ctx.orgId, ctx.isAdmin, router]);
 
+  // §1 spec Dimitar: un OPERATORE entra e vede SOLO la sua schermata giornaliera —
+  // mai la dashboard gestionale. Qualunque altra rotta lo riporta a /operatore.
+  useEffect(() => {
+    if (!ctx.loading && ctx.orgId && ctx.role === "operatore" && path !== "/operatore") router.replace("/operatore");
+  }, [ctx.loading, ctx.orgId, ctx.role, path, router]);
+
   if (ctx.loading) return <div className="page"><p className="sub">Caricamento…</p></div>;
   if (!ctx.orgId) {
     if (ctx.isAdmin) return <div className="page"><p className="sub">Apro la piattaforma GPS…</p></div>;

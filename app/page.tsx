@@ -6,6 +6,7 @@ import { useOrg } from "@/lib/useOrg";
 import { supabase } from "@/lib/supabase";
 import { fetchAllClients, ClientRow } from "@/lib/data";
 import { planCapacity, eur, num, SEGMENT_LABEL, Plan, PlanStaff } from "@/lib/gps";
+import { fetchWhale12m, WhaleData } from "@/lib/whale";
 
 export default function Dashboard() {
   const ctx = useOrg();
@@ -15,6 +16,8 @@ export default function Dashboard() {
   const [debito, setDebito] = useState<number | null>(null);
   const [band, setBand] = useState<number | null>(null); // decile whale selezionato
   const [lettura, setLettura] = useState<string[] | null>(null);
+  const [whale, setWhale] = useState<WhaleData | null>(null);
+  const [subsDebt, setSubsDebt] = useState(0);
 
   useEffect(() => {
     if (!ctx.orgId) return;
@@ -27,9 +30,18 @@ export default function Dashboard() {
         const { data: ps } = await supabase.from("plan_staff").select("*").eq("plan_id", plan.id);
         const cap = planCapacity(plan as Plan, (ps ?? []) as PlanStaff[]);
         setCam(cap.cam); setPlanMonth(plan.month);
+        // §6-12: Whale economica sui 12 mesi mobili (margine = valore − minuti×CAM)
+        if (cap.cam > 0) fetchWhale12m(ctx.orgId!, cap.cam).then(setWhale).catch(console.error);
       }
       const { data: wm } = await supabase.from("wallet_movements").select("amount").eq("organization_id", ctx.orgId);
       setDebito((wm ?? []).reduce((x: number, m: any) => x + Number(m.amount), 0));
+      // §27: il debito operativo include anche i diritti abbonamento ancora da erogare
+      const { data: sb } = await supabase.from("subscriptions").select("sessions_total,sessions_used,unit_value,price").eq("organization_id", ctx.orgId).eq("status", "active");
+      setSubsDebt((sb ?? []).reduce((x: number, s: any) => {
+        const left = Math.max(0, Number(s.sessions_total) - Number(s.sessions_used));
+        const unit = s.unit_value != null ? Number(s.unit_value) : (Number(s.sessions_total) > 0 ? Number(s.price) / Number(s.sessions_total) : 0);
+        return x + left * unit;
+      }, 0));
 
       // Lettura GPS (§11): mese in corso vs mese scorso alla stessa data, in frasi
       const now = new Date(); const day = now.getDate();
@@ -123,35 +135,43 @@ export default function Dashboard() {
               <div className="kpi-value">{Math.round(S.top10share * 100)}%</div>
               <div className="kpi-note">del valore dal top 10% ({num(S.top10n)} clienti)</div>
             </div>
-            <div className="card" style={{ borderColor: (debito ?? 0) > 0 ? "#b3402a" : undefined }}>
+            <div className="card" style={{ borderColor: (debito ?? 0) + subsDebt > 0 ? "#b3402a" : undefined }}>
               <div className="kpi-label">Debito operativo</div>
-              <div className="kpi-value" style={{ color: (debito ?? 0) > 0 ? "#b3402a" : undefined }}>{eur(debito ?? 0, 0)}</div>
-              <div className="kpi-note">credito venduto e ancora da erogare (tempo reale)</div>
+              <div className="kpi-value" style={{ color: (debito ?? 0) + subsDebt > 0 ? "#b3402a" : undefined }}>{eur((debito ?? 0) + subsDebt, 0)}</div>
+              <div className="kpi-note">credito {eur(debito ?? 0, 0)} + abbonamenti da erogare {eur(subsDebt, 0)}</div>
             </div>
           </div>
 
           <div className="two-col section">
             <div className="card">
-              <div className="section-title"><h2>Whale Curve</h2><span className="sub">clicca una fascia per vedere i clienti (esclude anonimi)</span></div>
-              <WhaleCurve pts={S.pts} onPick={f => setBand(Math.min(9, Math.floor(f * 10)))} />
-              {band != null && (() => {
-                const n = S.sorted.length;
-                const from = Math.floor(band * n / 10), to = Math.min(n, Math.ceil((band + 1) * n / 10));
-                const slice = S.sorted.slice(from, to);
-                const v = slice.reduce((x, c) => x + Number(c.total_value), 0);
-                return (
-                  <div style={{ marginTop: 8 }}>
-                    <div className="row"><span><b>Fascia {band * 10}–{(band + 1) * 10}%</b> · {num(slice.length)} clienti · {eur(v, 0)} ({Math.round(v / S.namedValue * 100)}% del valore)</span><button className="btn sm secondary" onClick={() => setBand(null)}>✕</button></div>
-                    {slice.slice(0, 8).map(c => (
-                      <div className="row" key={c.id} style={{ fontSize: 12.5 }}>
-                        <span>{c.full_name} {c.at_risk && <span className="badge b-risk">rischio</span>}</span>
-                        <b>{eur(Number(c.total_value), 0)}</b>
-                      </div>
-                    ))}
-                    {slice.length > 8 && <p className="sub">…e altri {num(slice.length - 8)} — filtrali in Clienti.</p>}
-                  </div>
-                );
-              })()}
+              <div className="section-title"><h2>Whale Curve economica</h2><span className="sub">ultimi 12 mesi · ranking per MARGINE (valore − minuti×CAM)</span></div>
+              {whale && whale.ranked.length >= 3 ? (<>
+                <WhaleCurve2 whale={whale} onPick={f => setBand(Math.min(9, Math.floor(f * 10)))} />
+                <p className="sub" style={{ marginTop: 4 }}>
+                  {num(whale.totals.active)} clienti attivi 12m · margine totale <b style={{ color: "#1e7a4f" }}>{eur(whale.totals.margin, 0)}</b> · costo assorbito <b style={{ color: "#b3402a" }}>{eur(whale.totals.cost, 0)}</b> · i clienti senza attività 12m sono fuori curva (margine 0)
+                </p>
+                {band != null && (() => {
+                  const n = whale.ranked.length;
+                  const from = Math.floor(band * n / 10), to = Math.min(n, Math.ceil((band + 1) * n / 10));
+                  const slice = whale.ranked.slice(from, to);
+                  const m = slice.reduce((x, c) => x + c.margin, 0);
+                  const nameOf = (id: string) => (clients ?? []).find(c => c.id === id)?.full_name ?? "cliente";
+                  return (
+                    <div style={{ marginTop: 8 }}>
+                      <div className="row"><span><b>Fascia {band * 10}–{(band + 1) * 10}%</b> · {num(slice.length)} clienti · margine {eur(m, 0)}</span><button className="btn sm secondary" onClick={() => setBand(null)}>✕</button></div>
+                      {slice.slice(0, 8).map(c => (
+                        <div className="row" key={c.client_id} style={{ fontSize: 12.5 }}>
+                          <span>{nameOf(c.client_id)} <span className="sub">{eur(c.revenue, 0)} in {num(Math.round(c.minutes))}′</span></span>
+                          <b style={{ color: c.margin >= 0 ? "#1e7a4f" : "#b3402a" }}>{eur(c.margin, 0)}</b>
+                        </div>
+                      ))}
+                      {slice.length > 8 && <p className="sub">…e altri {num(slice.length - 8)}.</p>}
+                    </div>
+                  );
+                })()}
+              </>) : (
+                <p className="sub" style={{ padding: "20px 0" }}>La curva economica si costruisce con le transazioni GPS degli ultimi 12 mesi (servono valore E minuti per calcolare il margine). Si popola da sola man mano che le chiusure passano dalla Reception. Il valore storico lifetime resta nella scheda di ogni cliente.</p>
+              )}
             </div>
             <div className="card">
               <div className="section-title"><h2>Segmenti</h2><Link className="sub" href="/clienti">apri Clienti →</Link></div>
@@ -221,6 +241,45 @@ export default function Dashboard() {
         </>
       )}
     </Shell>
+  );
+}
+
+// §10: due linee — LINEA 1 margine cumulato (contributo), LINEA 2 costo cumulato (capacità assorbita)
+function WhaleCurve2({ whale, onPick }: { whale: WhaleData; onPick?: (frac: number) => void }) {
+  const W = 520, H = 240, P = 34;
+  const N = whale.ranked.length;
+  const step = Math.max(1, Math.floor(N / 120));
+  let cm = 0, cc = 0;
+  const mPts: [number, number][] = [], cPts: [number, number][] = [];
+  whale.ranked.forEach((c, i) => {
+    cm += c.margin; cc += c.cost;
+    if (i % step === 0 || i === N - 1) { const f = (i + 1) / N; mPts.push([f, cm]); cPts.push([f, cc]); }
+  });
+  const peak = Math.max(...mPts.map(p => p[1]), cc, 1);
+  const x = (v: number) => P + v * (W - P - 10);
+  const y = (v: number) => H - P - (v / peak) * (H - P - 20);
+  const line = (pts: [number, number][]) => pts.map((p, i) => (i === 0 ? "M" : "L") + x(p[0]).toFixed(1) + "," + y(p[1]).toFixed(1)).join(" ");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", cursor: onPick ? "pointer" : "default" }}
+      onClick={e => {
+        if (!onPick) return;
+        const rect = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
+        const frac = ((e.clientX - rect.left) / rect.width * W - P) / (W - P - 10);
+        if (frac >= 0 && frac <= 1) onPick(frac);
+      }}>
+      <line x1={P} y1={y(0)} x2={W - 10} y2={y(0)} stroke="#d8cfba" />
+      <line x1={P} y1={y(0)} x2={P} y2={14} stroke="#d8cfba" />
+      {[0.25, 0.5, 0.75, 1].map(g => (
+        <line key={g} x1={P} y1={y(peak * g)} x2={W - 10} y2={y(peak * g)} stroke="#eee5d2" strokeDasharray="4 4" />
+      ))}
+      <path d={line(cPts)} fill="none" stroke="#b3402a" strokeWidth="2" strokeDasharray="6 3" />
+      <path d={line(mPts)} fill="none" stroke="#1e7a4f" strokeWidth="3" />
+      <g fontSize="11">
+        <rect x={P + 6} y={18} width={12} height={3} fill="#1e7a4f" /><text x={P + 22} y={23} fill="#1e5c38">margine cumulato</text>
+        <rect x={P + 150} y={18} width={12} height={3} fill="#b3402a" /><text x={P + 166} y={23} fill="#8a2f1d">costo cumulato</text>
+      </g>
+      <text x={W / 2} y={H - 6} fontSize="10" fill="#6d7a72" textAnchor="middle">clienti ordinati per margine 12 mesi (clicca una fascia)</text>
+    </svg>
   );
 }
 

@@ -145,9 +145,9 @@ export default function Pianificazione() {
             <div className="card">
               <label className="fld">Totale mensile da coprire (manuale, finché la struttura costi non è completa)</label>
               <input type="number" value={plan.monthly_total} onChange={e => setPlan({ ...plan, monthly_total: Number(e.target.value) })} style={{ width: "100%" }} />
-              <label className="fld" style={{ marginTop: 14 }}>Occupazione prevista / obiettivo % (non entra nel CAM)</label>
+              <label className="fld" style={{ marginTop: 14 }}>Occupazione Target del salone — OT % (obiettivo, non entra nel CAM)</label>
               <input type="number" min={10} max={100} value={(plan as any).expected_occupancy ?? 75} onChange={e => setPlan({ ...plan, expected_occupancy: Number(e.target.value) } as any)} style={{ width: "100%" }} />
-              <p className="sub" style={{ marginTop: 8 }}>Il vecchio coefficiente fisso non c'è più: la capacità ora è presenza × partecipazione individuale di ogni collaboratore (0–100%, righe sotto). L'occupazione prevista è solo un obiettivo da confrontare con quella reale.</p>
+              <p className="sub" style={{ marginTop: 8 }}>L'OT si imposta qui (anche per singolo collaboratore, righe sotto). L'Occupazione Reale (OR) invece la calcola GPS da solo durante la giornata e la vedi in Reception e in Team, confrontata in punti percentuali con il target.</p>
               <label className="fld" style={{ marginTop: 14 }}>Note piano</label>
               <textarea rows={4} style={{ width: "100%" }} value={plan.notes ?? ""} onChange={e => setPlan({ ...plan, notes: e.target.value })} />
             </div>
@@ -164,6 +164,7 @@ export default function Pianificazione() {
                     <label><input type="checkbox" checked={r.include_capacity} onChange={e => setRows(rows.map((x, j) => j === i ? { ...x, include_capacity: e.target.checked } : x))} /> capacità</label>
                     <label><input type="checkbox" checked={r.include_cost} onChange={e => setRows(rows.map((x, j) => j === i ? { ...x, include_cost: e.target.checked } : x))} /> costi</label>
                     <span>Partecipazione capacità <input type="number" min={0} max={100} value={(r as any).capacity_pct ?? 100} style={{ width: 62, padding: "5px 6px", textAlign: "right" }} onChange={e => setRows(rows.map((x, j) => j === i ? { ...x, capacity_pct: Number(e.target.value) } as any : x))} />%</span>
+                    <span title="Occupazione Target individuale — l'OR reale la calcola GPS">OT <input type="number" min={0} max={100} value={(r as any).occupancy_target_pct ?? 75} style={{ width: 58, padding: "5px 6px", textAlign: "right" }} onChange={e => setRows(rows.map((x, j) => j === i ? { ...x, occupancy_target_pct: Number(e.target.value) } as any : x))} />%</span>
                     <b>{num(Math.round((plan ? planCapacity(plan, [r]).productiveMinutes : 0)))} min prod./mese</b>
                   </span>
                 </div>
