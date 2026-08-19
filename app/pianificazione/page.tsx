@@ -16,6 +16,8 @@ export default function Pianificazione() {
   const [rows, setRows] = useState<(PlanStaff & { id: string })[]>([]);
   const [staffNames, setStaffNames] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState<string | null>(null);
+  const [costs, setCosts] = useState<any[]>([]);
+  const [costDraft, setCostDraft] = useState({ name: "", amount: 0, cost_type: "fisso" });
 
   useEffect(() => {
     if (!ctx.orgId) return;
@@ -28,10 +30,37 @@ export default function Pianificazione() {
       setRows((ps ?? []) as any);
       const { data: st } = await supabase.from("staff_members").select("id,display_name").eq("organization_id", ctx.orgId);
       setStaffNames(Object.fromEntries((st ?? []).map((s: any) => [s.id, s.display_name])));
+      const { data: pc } = await supabase.from("plan_costs").select("*").eq("plan_id", p.id).order("created_at");
+      setCosts(pc ?? []);
     })();
   }, [ctx.orgId]);
 
   const cap = useMemo(() => (plan ? planCapacity(plan, rows) : null), [plan, rows]);
+
+  // Struttura costi (§12-13): personale automatico dalle righe piano, MAI in doppio conteggio
+  const staffCost = rows.filter(r => r.include_cost).reduce((a, r) => a + Number(r.monthly_cost || 0), 0);
+  const fixedVar = costs.filter(c => c.cost_type !== "obiettivo").reduce((a, c) => a + Number(c.amount), 0);
+  const goals = costs.filter(c => c.cost_type === "obiettivo").reduce((a, c) => a + Number(c.amount), 0);
+  const breakEven = fixedVar + staffCost;
+  const obiettivo = breakEven + goals;
+
+  const addCost = async () => {
+    if (!plan || !costDraft.name) return;
+    await supabase.from("plan_costs").insert({ plan_id: plan.id, ...costDraft });
+    setCostDraft({ name: "", amount: 0, cost_type: "fisso" });
+    const { data: pc } = await supabase.from("plan_costs").select("*").eq("plan_id", plan.id).order("created_at");
+    setCosts(pc ?? []);
+  };
+  const delCost = async (id: string) => {
+    await supabase.from("plan_costs").delete().eq("id", id);
+    setCosts(costs.filter(c => c.id !== id));
+  };
+  const applyTotal = async () => {
+    if (!plan) return;
+    await supabase.from("business_plans").update({ monthly_total: obiettivo }).eq("id", plan.id);
+    setPlan({ ...plan, monthly_total: obiettivo });
+    setSaved("Obiettivo economico applicato al piano: " + eur(obiettivo, 0));
+  };
 
   const save = async () => {
     if (!plan) return;
@@ -39,6 +68,7 @@ export default function Pianificazione() {
     await supabase.from("business_plans").update({
       monthly_total: plan.monthly_total,
       productive_coefficient: plan.productive_coefficient,
+      expected_occupancy: (plan as any).expected_occupancy ?? 75,
       notes: plan.notes,
     }).eq("id", plan.id);
     for (const r of rows) {
@@ -88,16 +118,38 @@ export default function Pianificazione() {
           </div>
 
           <div className="two-col section">
-            <div className="card">
-              <label className="fld">Totale mensile da coprire (costi + compenso titolare + utile desiderato)</label>
-              <input type="number" value={plan.monthly_total} onChange={e => setPlan({ ...plan, monthly_total: Number(e.target.value) })} style={{ width: "100%" }} />
-              <label className="fld" style={{ marginTop: 14 }}>Coefficiente produttivo (1,00 = minuti pieni)</label>
-              <input type="number" step="0.05" min="0.1" max="1" value={plan.productive_coefficient} onChange={e => setPlan({ ...plan, productive_coefficient: Number(e.target.value) })} style={{ width: "100%" }} />
-              <p className="sub" style={{ marginTop: 8 }}>Nota Blueprint §20: il CAM ufficiale usa i minuti produttivi <i>disponibili</i>, senza coefficienti fissi. Il coefficiente qui è una deroga esplicita ereditata dal prototipo: portalo a 1,00 quando dichiari i minuti realmente vendibili per operatore.</p>
+            <div className="card" style={{ borderColor: "#c9a227", borderWidth: 2 }}>
+              <div className="section-title"><h2>Struttura dei costi</h2><span className="sub">il personale arriva da solo dalle schede — niente doppio conteggio</span></div>
+              {costs.map(c => (
+                <div className="row" key={c.id}>
+                  <span>{c.cost_type === "obiettivo" ? "🎯" : c.cost_type === "variabile" ? "〰" : "▦"} {c.name} <span className="sub">({c.cost_type})</span></span>
+                  <span><b>{eur(Number(c.amount), 0)}</b> <button className="btn sm secondary" onClick={() => delCost(c.id)}>✕</button></span>
+                </div>
+              ))}
+              <div className="row"><span>▦ Personale/collaboratori <span className="sub">(automatico dalle righe sotto)</span></span><b>{eur(staffCost, 0)}</b></div>
+              <div style={{ display: "flex", gap: 6, margin: "10px 0", flexWrap: "wrap" }}>
+                <input list="voci" placeholder="Voce (affitto, luce, IVA, stipendio titolare…)" style={{ flex: 1, minWidth: 170 }} value={costDraft.name} onChange={e => setCostDraft({ ...costDraft, name: e.target.value })} />
+                <datalist id="voci">{["Affitto", "Luce", "Gas", "Commercialista", "Software", "Assicurazioni", "IVA", "Imposte e tasse", "Marketing", "Materiali", "Stipendio titolare", "Utile desiderato", "Altre spese"].map(v => <option key={v} value={v} />)}</datalist>
+                <input type="number" placeholder="€" style={{ width: 90 }} value={costDraft.amount || ""} onChange={e => setCostDraft({ ...costDraft, amount: Number(e.target.value) })} />
+                <select value={costDraft.cost_type} onChange={e => setCostDraft({ ...costDraft, cost_type: e.target.value })}>
+                  <option value="fisso">fisso</option><option value="variabile">variabile</option><option value="obiettivo">obiettivo (stipendio/utile)</option>
+                </select>
+                <button className="btn sm" onClick={addCost}>+</button>
+              </div>
+              <div className="row"><span><b>Break-even</b> <span className="sub">(costi + personale)</span></span><b>{eur(breakEven, 0)}</b></div>
+              <div className="row" style={{ borderBottom: "none" }}><span><b>Obiettivo economico</b> <span className="sub">(+ stipendio titolare e utile)</span></span><b style={{ color: "#1e7a4f", fontSize: 17 }}>{eur(obiettivo, 0)}</b></div>
+              {Math.abs(obiettivo - Number(plan.monthly_total)) > 1 && costs.length > 0 && (
+                <button className="btn sm" style={{ marginTop: 8 }} onClick={applyTotal}>Applica {eur(obiettivo, 0)} come totale del piano → ricalcola CAM</button>
+              )}
             </div>
             <div className="card">
-              <label className="fld">Note piano</label>
-              <textarea rows={7} style={{ width: "100%" }} value={plan.notes ?? ""} onChange={e => setPlan({ ...plan, notes: e.target.value })} />
+              <label className="fld">Totale mensile da coprire (manuale, finché la struttura costi non è completa)</label>
+              <input type="number" value={plan.monthly_total} onChange={e => setPlan({ ...plan, monthly_total: Number(e.target.value) })} style={{ width: "100%" }} />
+              <label className="fld" style={{ marginTop: 14 }}>Occupazione prevista / obiettivo % (non entra nel CAM)</label>
+              <input type="number" min={10} max={100} value={(plan as any).expected_occupancy ?? 75} onChange={e => setPlan({ ...plan, expected_occupancy: Number(e.target.value) } as any)} style={{ width: "100%" }} />
+              <p className="sub" style={{ marginTop: 8 }}>Il vecchio coefficiente fisso non c'è più: la capacità ora è presenza × partecipazione individuale di ogni collaboratore (0–100%, righe sotto). L'occupazione prevista è solo un obiettivo da confrontare con quella reale.</p>
+              <label className="fld" style={{ marginTop: 14 }}>Note piano</label>
+              <textarea rows={4} style={{ width: "100%" }} value={plan.notes ?? ""} onChange={e => setPlan({ ...plan, notes: e.target.value })} />
             </div>
           </div>
 
@@ -111,7 +163,8 @@ export default function Pianificazione() {
                     <span>Costo €/mese <input type="number" value={r.monthly_cost} style={{ width: 90, padding: "5px 8px" }} onChange={e => setRows(rows.map((x, j) => j === i ? { ...x, monthly_cost: Number(e.target.value) } : x))} /></span>
                     <label><input type="checkbox" checked={r.include_capacity} onChange={e => setRows(rows.map((x, j) => j === i ? { ...x, include_capacity: e.target.checked } : x))} /> capacità</label>
                     <label><input type="checkbox" checked={r.include_cost} onChange={e => setRows(rows.map((x, j) => j === i ? { ...x, include_cost: e.target.checked } : x))} /> costi</label>
-                    <b>{num(Math.round((plan ? (planCapacity(plan, [r]) .rawMinutes) : 0)))} min/mese</b>
+                    <span>Partecipazione capacità <input type="number" min={0} max={100} value={(r as any).capacity_pct ?? 100} style={{ width: 62, padding: "5px 6px", textAlign: "right" }} onChange={e => setRows(rows.map((x, j) => j === i ? { ...x, capacity_pct: Number(e.target.value) } as any : x))} />%</span>
+                    <b>{num(Math.round((plan ? planCapacity(plan, [r]).productiveMinutes : 0)))} min prod./mese</b>
                   </span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8, marginTop: 12 }}>

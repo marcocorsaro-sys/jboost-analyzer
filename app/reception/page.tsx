@@ -104,25 +104,10 @@ export default function Reception() {
   const finalizeSale = async (a: Appt, items: any[], creditUsed: number, cashPaid: number) => {
     const sold = items.filter(it => !it.proposed); // le proposte non confermate NON diventano vendite
     const worked = sold.reduce((x, it) => x + (Number(it.price) || 0), 0);
-    if (sold.length) {
-      let cashLeft = cashPaid;
-      const rows = sold.map((it, i) => {
-        const share = worked > 0 ? (Number(it.price) || 0) / worked : 0;
-        const cash = i === sold.length - 1 ? Math.round(cashLeft * 100) / 100 : Math.round(cashPaid * share * 100) / 100;
-        cashLeft -= cash;
-        return {
-          organization_id: ctx.orgId, tx_date: today,
-          description: (it.name ?? "Servizio") + " — " + (a.client_name ?? ""),
-          worked_value: Number(it.price) || 0, cash_value: cash,
-          kind: it.kind === "product" ? "product" : "service",
-          staff_id: it.staff_id ?? a.staff_id ?? null, data_quality: "observed",
-        };
-      });
-      await supabase.from("transactions").insert(rows);
-    }
+
+    // cliente = asset dinamico: risolto PRIMA così le transazioni portano il suo id
     const key = a.client_name ? normKey(a.client_name) : null;
     let clientId = key ? readyClients[key]?.client?.id ?? null : null;
-    // cliente = asset dinamico: aggiorna (o crea) la scheda alla chiusura
     if (clientId) {
       const c = readyClients[key!].client;
       await supabase.from("clients").update({
@@ -137,6 +122,33 @@ export default function Reception() {
         segment: "nuovo", data_quality: "observed",
       }).select().single();
       clientId = nc?.id ?? null;
+    }
+
+    if (sold.length) {
+      let cashLeft = cashPaid;
+      const rows = sold.map((it, i) => {
+        const share = worked > 0 ? (Number(it.price) || 0) / worked : 0;
+        const cash = i === sold.length - 1 ? Math.round(cashLeft * 100) / 100 : Math.round(cashPaid * share * 100) / 100;
+        cashLeft -= cash;
+        const catMatch = catalog.find((c: any) => normKey(c.name) === normKey(it.name ?? ""));
+        return {
+          organization_id: ctx.orgId, tx_date: today,
+          description: (it.name ?? "Servizio") + " — " + (a.client_name ?? ""),
+          worked_value: Number(it.price) || 0, cash_value: cash,
+          kind: it.kind === "product" ? "product" : "service",
+          staff_id: it.staff_id ?? a.staff_id ?? null, client_id: clientId,
+          catalog_item_id: catMatch?.id ?? null, data_quality: "observed",
+        };
+      });
+      await supabase.from("transactions").insert(rows);
+      // magazzino: ogni prodotto venduto scarica 1 pezzo dalla giacenza
+      for (const it of sold.filter(x => x.kind === "product")) {
+        const cm = catalog.find((c: any) => normKey(c.name) === normKey(it.name ?? ""));
+        if (cm) {
+          const { data: cur } = await supabase.from("catalog_items").select("stock_qty").eq("id", cm.id).single();
+          if (cur) await supabase.from("catalog_items").update({ stock_qty: Math.max(0, Number(cur.stock_qty) - 1) }).eq("id", cm.id);
+        }
+      }
     }
     if (creditUsed > 0 && clientId) {
       await supabase.from("wallet_movements").insert({

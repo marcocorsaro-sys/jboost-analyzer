@@ -6,6 +6,7 @@ export type PlanStaff = {
   monthly_cost: number;
   include_capacity: boolean;
   include_cost: boolean;
+  capacity_pct?: number; // partecipazione alla capacità produttiva 0-100 (barbiere 100, reception 0, misto 25-50)
   hours_mon: number; hours_tue: number; hours_wed: number; hours_thu: number;
   hours_fri: number; hours_sat: number; hours_sun: number;
 };
@@ -39,9 +40,12 @@ export function staffMonthlyMinutes(ps: PlanStaff, monthISO: string): number {
 }
 
 export function planCapacity(plan: Plan, staff: PlanStaff[]) {
+  // Capacità = presenza × partecipazione individuale (0-100%) — niente coefficienti fissi uguali per tutti
   const rawMinutes = staff.filter(s => s.include_capacity)
     .reduce((acc, s) => acc + staffMonthlyMinutes(s, plan.month), 0);
-  const productiveMinutes = Math.round(rawMinutes * (Number(plan.productive_coefficient) || 1));
+  const weighted = staff.filter(s => s.include_capacity)
+    .reduce((acc, s) => acc + staffMonthlyMinutes(s, plan.month) * ((s.capacity_pct ?? 100) / 100), 0);
+  const productiveMinutes = Math.round(weighted * (Number(plan.productive_coefficient) || 1));
   const cam = productiveMinutes > 0 ? Number(plan.monthly_total) / productiveMinutes : 0;
   // giorni di apertura = giorni con almeno un operatore in capacità
   const counts = weekdayCounts(plan.month);

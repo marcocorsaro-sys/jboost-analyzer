@@ -13,6 +13,8 @@ export default function Dashboard() {
   const [cam, setCam] = useState<number | null>(null);
   const [planMonth, setPlanMonth] = useState<string | null>(null);
   const [debito, setDebito] = useState<number | null>(null);
+  const [band, setBand] = useState<number | null>(null); // decile whale selezionato
+  const [lettura, setLettura] = useState<string[] | null>(null);
 
   useEffect(() => {
     if (!ctx.orgId) return;
@@ -28,6 +30,29 @@ export default function Dashboard() {
       }
       const { data: wm } = await supabase.from("wallet_movements").select("amount").eq("organization_id", ctx.orgId);
       setDebito((wm ?? []).reduce((x: number, m: any) => x + Number(m.amount), 0));
+
+      // Lettura GPS (§11): mese in corso vs mese scorso alla stessa data, in frasi
+      const now = new Date(); const day = now.getDate();
+      const mStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+      const pStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10);
+      const pEnd = new Date(now.getFullYear(), now.getMonth() - 1, Math.min(day, new Date(now.getFullYear(), now.getMonth(), 0).getDate())).toISOString().slice(0, 10);
+      const { data: cur } = await supabase.from("transactions").select("worked_value,cash_value,kind,client_id").eq("organization_id", ctx.orgId).eq("status", "completed").gte("tx_date", mStart);
+      const { data: pre } = await supabase.from("transactions").select("worked_value,cash_value,kind,client_id").eq("organization_id", ctx.orgId).eq("status", "completed").gte("tx_date", pStart).lte("tx_date", pEnd);
+      const sum = (l: any[], f: string) => (l ?? []).reduce((x, t) => x + Number(t[f]), 0);
+      const svc = (l: any[]) => (l ?? []).filter(t => t.kind === "service");
+      const cw = sum(cur ?? [], "worked_value"), pw = sum(pre ?? [], "worked_value");
+      const frasi: string[] = [];
+      if ((cur ?? []).length >= 5 && (pre ?? []).length >= 5) {
+        const dW = pw > 0 ? Math.round((cw - pw) / pw * 100) : null;
+        const ct = svc(cur ?? []).length ? sum(svc(cur ?? []), "worked_value") / svc(cur ?? []).length : 0;
+        const pt = svc(pre ?? []).length ? sum(svc(pre ?? []), "worked_value") / svc(pre ?? []).length : 0;
+        const dT = pt > 0 ? Math.round((ct - pt) / pt * 100) : null;
+        const dN = (pre ?? []).length > 0 ? (cur ?? []).length - (pre ?? []).length : 0;
+        if (dW != null) frasi.push(`Questo mese hai lavorato ${dW >= 0 ? "il " + dW + "% in più" : "il " + Math.abs(dW) + "% in meno"} rispetto al mese scorso alla stessa data (${eur(cw, 0)} vs ${eur(pw, 0)}).`);
+        if (dT != null && Math.abs(dT) >= 5) frasi.push(`Lo scontrino medio dei servizi è ${dT >= 0 ? "salito" : "sceso"} del ${Math.abs(dT)}% (${eur(ct)} vs ${eur(pt)}): ${dT < 0 ? "stai lavorando di più per lo stesso risultato — guarda mix e prezzi." : "il mix servizi sta migliorando."}`);
+        if (Math.abs(dN) >= 5) frasi.push(`Hai registrato ${Math.abs(dN)} transazioni in ${dN >= 0 ? "più" : "meno"}: ${dN >= 0 && dT != null && dT < 0 ? "più volume ma margine unitario in calo — la crescita non è proporzionale." : "volume e valore si muovono insieme."}`);
+        setLettura(frasi);
+      } else setLettura([]);
     })();
   }, [ctx.orgId]);
 
@@ -107,8 +132,26 @@ export default function Dashboard() {
 
           <div className="two-col section">
             <div className="card">
-              <div className="section-title"><h2>Whale Curve</h2><span className="sub">valore cumulato vs clienti (esclude anonimi)</span></div>
-              <WhaleCurve pts={S.pts} />
+              <div className="section-title"><h2>Whale Curve</h2><span className="sub">clicca una fascia per vedere i clienti (esclude anonimi)</span></div>
+              <WhaleCurve pts={S.pts} onPick={f => setBand(Math.min(9, Math.floor(f * 10)))} />
+              {band != null && (() => {
+                const n = S.sorted.length;
+                const from = Math.floor(band * n / 10), to = Math.min(n, Math.ceil((band + 1) * n / 10));
+                const slice = S.sorted.slice(from, to);
+                const v = slice.reduce((x, c) => x + Number(c.total_value), 0);
+                return (
+                  <div style={{ marginTop: 8 }}>
+                    <div className="row"><span><b>Fascia {band * 10}–{(band + 1) * 10}%</b> · {num(slice.length)} clienti · {eur(v, 0)} ({Math.round(v / S.namedValue * 100)}% del valore)</span><button className="btn sm secondary" onClick={() => setBand(null)}>✕</button></div>
+                    {slice.slice(0, 8).map(c => (
+                      <div className="row" key={c.id} style={{ fontSize: 12.5 }}>
+                        <span>{c.full_name} {c.at_risk && <span className="badge b-risk">rischio</span>}</span>
+                        <b>{eur(Number(c.total_value), 0)}</b>
+                      </div>
+                    ))}
+                    {slice.length > 8 && <p className="sub">…e altri {num(slice.length - 8)} — filtrali in Clienti.</p>}
+                  </div>
+                );
+              })()}
             </div>
             <div className="card">
               <div className="section-title"><h2>Segmenti</h2><Link className="sub" href="/clienti">apri Clienti →</Link></div>
@@ -151,6 +194,14 @@ export default function Dashboard() {
             </table>
           </div>
 
+          {lettura && lettura.length > 0 && (
+            <div className="card section" style={{ borderColor: "#c9a227", borderWidth: 2 }}>
+              <div className="section-title"><h2>Lettura GPS</h2><span className="sub">i numeri, tradotti — mese in corso vs mese scorso alla stessa data</span></div>
+              {lettura.map((f, i) => <p key={i} style={{ margin: "6px 0", fontSize: 14.5 }}>→ {f}</p>)}
+              <p className="sub">Le decisioni restano tue: GPS mostra situazione e cause, non sceglie al posto tuo.</p>
+            </div>
+          )}
+
           <div className="grid kpis section">
             <div className="card">
               <div className="kpi-label">Qualità dati</div>
@@ -173,13 +224,19 @@ export default function Dashboard() {
   );
 }
 
-function WhaleCurve({ pts }: { pts: [number, number][] }) {
+function WhaleCurve({ pts, onPick }: { pts: [number, number][]; onPick?: (frac: number) => void }) {
   const W = 520, H = 240, P = 34;
   const x = (v: number) => P + v * (W - P - 10);
   const y = (v: number) => H - P + -v * (H - P - 14);
   const path = pts.map((p, i) => (i === 0 ? "M" : "L") + x(p[0]).toFixed(1) + "," + y(p[1]).toFixed(1)).join(" ");
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}>
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", cursor: onPick ? "pointer" : "default" }}
+      onClick={e => {
+        if (!onPick) return;
+        const rect = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
+        const frac = ((e.clientX - rect.left) / rect.width * W - P) / (W - P - 10);
+        if (frac >= 0 && frac <= 1) onPick(frac);
+      }}>
       <line x1={P} y1={y(0)} x2={W - 10} y2={y(0)} stroke="#d8cfba" />
       <line x1={P} y1={y(0)} x2={P} y2={14} stroke="#d8cfba" />
       {[0.25, 0.5, 0.75, 1].map(g => (

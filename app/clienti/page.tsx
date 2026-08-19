@@ -28,12 +28,33 @@ function ClientiInner() {
   const [sel, setSel] = useState<ClientRow | null>(null);
   const [wallet, setWallet] = useState<{ saldo: number; movs: any[] } | null>(null);
   const [ricarica, setRicarica] = useState(0);
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState<any>({});
+  const [history, setHistory] = useState<any[] | null>(null);
 
   useEffect(() => {
+    setEditing(false); setHistory(null);
     if (!sel) { setWallet(null); return; }
+    setEditForm({ phone: sel.phone ?? "", email: sel.email ?? "", birth_date: sel.birth_date ?? "", privacy_consent: sel.privacy_consent ?? false });
     supabase.from("wallet_movements").select("kind,amount,note,created_at").eq("client_id", sel.id).order("created_at", { ascending: false }).limit(10)
       .then(({ data }) => setWallet({ saldo: (data ?? []).reduce((x: number, m: any) => x + Number(m.amount), 0), movs: (data ?? []).slice(0, 5) }));
   }, [sel?.id]);
+
+  const saveEdit = async () => {
+    if (!sel) return;
+    const patch = { phone: editForm.phone || null, email: editForm.email || null, birth_date: editForm.birth_date || null, privacy_consent: editForm.privacy_consent };
+    await supabase.from("clients").update(patch).eq("id", sel.id);
+    setClients((clients ?? []).map(c => c.id === sel.id ? { ...c, ...patch } as any : c));
+    setSel({ ...sel, ...patch } as any);
+    setEditing(false);
+  };
+
+  const loadHistory = async () => {
+    if (!sel) return;
+    const { data } = await supabase.from("transactions").select("tx_date,description,worked_value,cash_value,kind")
+      .eq("client_id", sel.id).order("tx_date", { ascending: false }).limit(50);
+    setHistory(data ?? []);
+  };
 
   const doRicarica = async () => {
     if (!sel || ricarica <= 0) return;
@@ -116,15 +137,38 @@ function ClientiInner() {
             {sel.at_risk && <span className="badge b-risk" style={{ marginLeft: 6 }}>a rischio</span>}
             {sel.duplicate_group && <span className="badge b-dup" style={{ marginLeft: 6 }}>possibile duplicato</span>}
           </p>
+          {(() => {
+            const ranked = (clients ?? []).filter(c => !c.is_anonymous && c.visits_count > 0).sort((a, b) => Number(b.total_value) - Number(a.total_value));
+            const pos = ranked.findIndex(c => c.id === sel.id);
+            if (pos < 0) return null;
+            const pct = Math.ceil(((pos + 1) / ranked.length) * 100);
+            return (
+              <div className="row"><span>Posizione Whale Curve</span>
+                <b><span className={"badge " + (pct <= 10 ? "b-premium" : pct <= 35 ? "b-fidelizzato" : "b-base")}>#{pos + 1} di {num(ranked.length)} · top {pct}%</span></b>
+              </div>
+            );
+          })()}
           <div className="row"><span>Passaggi totali</span><b>{num(sel.visits_count)}</b></div>
           <div className="row"><span>Valore storico</span><b>{eur(Number(sel.total_value))}</b></div>
           <div className="row"><span>Fiche media</span><b>{eur(sel.avg_ticket)}</b></div>
           <div className="row"><span>Ultima visita</span><b>{sel.last_visit ?? "—"}</b></div>
           <div className="row"><span>Fermo da</span><b>{sel.recency_days != null ? sel.recency_days + " giorni" : "—"}</b></div>
-          <div className="row"><span>Telefono</span><b>{sel.phone ?? "—"}</b></div>
-          <div className="row"><span>Email</span><b style={{ fontSize: 12.5 }}>{sel.email ?? "—"}</b></div>
-          <div className="row"><span>Data di nascita</span><b>{sel.birth_date ?? "—"}</b></div>
-          <div className="row"><span>Consenso privacy</span><b>{sel.privacy_consent == null ? "—" : sel.privacy_consent ? "Sì" : "No"}</b></div>
+          {!editing ? (<>
+            <div className="row"><span>Telefono</span><b>{sel.phone ?? "—"}</b></div>
+            <div className="row"><span>Email</span><b style={{ fontSize: 12.5 }}>{sel.email ?? "—"}</b></div>
+            <div className="row"><span>Data di nascita</span><b>{sel.birth_date ?? "—"}</b></div>
+            <div className="row"><span>Consenso privacy</span><b>{sel.privacy_consent == null ? "—" : sel.privacy_consent ? "Sì" : "No"}</b></div>
+            {ctx.role !== "operatore" && <button className="btn sm secondary" style={{ marginTop: 8 }} onClick={() => setEditing(true)}>✎ Modifica anagrafica</button>}
+          </>) : (<>
+            <div className="row"><span>Telefono</span><input value={editForm.phone} style={{ width: 150, padding: "4px 6px" }} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} /></div>
+            <div className="row"><span>Email</span><input value={editForm.email} style={{ width: 190, padding: "4px 6px" }} onChange={e => setEditForm({ ...editForm, email: e.target.value })} /></div>
+            <div className="row"><span>Nascita</span><input type="date" value={editForm.birth_date} style={{ padding: "4px 6px" }} onChange={e => setEditForm({ ...editForm, birth_date: e.target.value })} /></div>
+            <div className="row"><span>Consenso privacy</span><input type="checkbox" checked={editForm.privacy_consent} onChange={e => setEditForm({ ...editForm, privacy_consent: e.target.checked })} /></div>
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <button className="btn sm" onClick={saveEdit}>Salva</button>
+              <button className="btn sm secondary" onClick={() => setEditing(false)}>Annulla</button>
+            </div>
+          </>)}
           <div className="row"><span>Qualità dato</span><b className="tag-quality">{sel.data_quality}</b></div>
           <div style={{ background: "#f7f3ea", border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", marginTop: 12 }}>
             <div className="kpi-label" style={{ marginBottom: 6 }}>💳 Prepagata / credito</div>
@@ -143,6 +187,20 @@ function ClientiInner() {
             ))}
             <p className="sub" style={{ marginTop: 4 }}>La ricarica genera incassato (mai lavorato); l'utilizzo scala il saldo alla chiusura vendita.</p>
           </div>
+          {history === null ? (
+            <button className="btn sm secondary" style={{ marginTop: 10 }} onClick={loadHistory}>📜 Storico completo</button>
+          ) : (
+            <div style={{ marginTop: 10 }}>
+              <div className="kpi-label" style={{ marginBottom: 4 }}>Storico visite registrate in GPS</div>
+              {history.length === 0 && <p className="sub">Nessuna transazione GPS ancora — lo storico pre-GPS è riassunto nelle metriche sopra.</p>}
+              {history.map((h: any, i: number) => (
+                <div className="row" key={i} style={{ fontSize: 12.5 }}>
+                  <span>{h.tx_date} · {(h.description ?? "").split("—")[0].trim()}</span>
+                  <b>{eur(Number(h.worked_value))}</b>
+                </div>
+              ))}
+            </div>
+          )}
           <p className="sub" style={{ marginTop: 14 }}>Metriche ricostruite dallo storico del gestionale (2020 → oggi). Con l'arrivo delle transazioni live diventeranno <i>observed</i>.</p>
         </div>
       )}
