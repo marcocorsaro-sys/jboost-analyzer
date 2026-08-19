@@ -13,7 +13,7 @@ const ENTITIES: { key: EntityType; label: string; desc: string }[] = [
   { key: "history", label: "Storico clienti", desc: "Report tipo “clienti passati”: passaggi, valore, ultima visita. Aggiorna o crea le schede cliente." },
   { key: "clients", label: "Anagrafica clienti", desc: "Contatti, consensi, date di nascita. Arricchisce le schede esistenti (match sul nome)." },
   { key: "transactions", label: "Transazioni", desc: "Chiusure giornaliere: data, importi lavorato/incassato, operatore." },
-  { key: "catalog", label: "Catalogo", desc: "Servizi e prodotti con prezzo, durata, costo diretto." },
+  { key: "catalog", label: "Catalogo", desc: "Servizi (con durata) o prodotti di magazzino (con costo listino, sconto e giacenza): scegli tu cosa contiene l'elenco." },
 ];
 
 type Stage = "pick" | "map" | "done";
@@ -30,6 +30,8 @@ export default function ImportPage() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ imported: number; quarantined: number; updated: number } | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // Catalogo: cosa contiene l'elenco — mai generalizzare a "servizi" (richiesta Dimitar)
+  const [catalogKind, setCatalogKind] = useState<"auto" | "service" | "product">("auto");
 
   const onFile = async (f: File) => {
     setErr(null);
@@ -40,7 +42,15 @@ export default function ImportPage() {
       setFilename(f.name);
       setHeaders(parsed.headers);
       setRows(parsed.rows);
-      setMap(autoMap(parsed.headers, entity));
+      const m = autoMap(parsed.headers, entity);
+      setMap(m);
+      if (entity === "catalog") {
+        // proposta intelligente: colonne magazzino → prodotti; colonna tipo → misto; durata → servizi
+        if (m["stock_qty"] != null || m["supplier_discount_pct"] != null) setCatalogKind("product");
+        else if (m["kind"] != null) setCatalogKind("auto");
+        else if (m["duration_min"] != null) setCatalogKind("service");
+        else setCatalogKind("auto");
+      }
       setStage("map");
     } catch (e: any) {
       setErr("Errore di lettura: " + (e?.message ?? String(e)));
@@ -55,6 +65,14 @@ export default function ImportPage() {
     }
     return o;
   }), [rows, map, entity]);
+
+  // Campi mostrati: per il catalogo nascondi i campi non pertinenti al tipo scelto
+  const visibleFields = useMemo(() => FIELDS[entity].filter(f => {
+    if (entity !== "catalog") return true;
+    if (catalogKind === "product") return !["duration_min", "direct_cost"].includes(f.key);
+    if (catalogKind === "service") return !["list_cost", "supplier_discount_pct", "stock_qty", "kind"].includes(f.key);
+    return true;
+  }), [entity, catalogKind]);
 
   const runImport = async () => {
     if (!ctx.orgId) return;
@@ -158,14 +176,30 @@ export default function ImportPage() {
           const name = get(r, "name");
           const price = parseNumber(get(r, "price"));
           if (!name || price == null) { issues.push({ row_number: i + 1, raw: { r }, reason: "Nome o prezzo mancante" }); return; }
-          const kindRaw = get(r, "kind") ? String(get(r, "kind")).toLowerCase() : "";
-          inserts.push({
-            organization_id: ctx.orgId, name: String(name).trim(), price,
-            duration_min: parseNumber(get(r, "duration_min")),
-            direct_cost: parseNumber(get(r, "direct_cost")) ?? 0,
-            kind: kindRaw.includes("prod") ? "product" : "service",
+          // Tipo riga: scelta esplicita dell'utente, oppure colonna Tipo del file
+          let kind: string | null = catalogKind !== "auto" ? catalogKind : null;
+          if (!kind) {
+            const kindRaw = get(r, "kind") ? String(get(r, "kind")).toLowerCase() : "";
+            if (kindRaw.includes("prod") || kindRaw.includes("art") || kindRaw.includes("rivend")) kind = "product";
+            else if (kindRaw.includes("serv") || kindRaw.includes("trattam") || kindRaw.includes("prestaz")) kind = "service";
+          }
+          if (!kind) { issues.push({ row_number: i + 1, raw: { r }, reason: "Tipo non determinabile: indica sopra se l'elenco è di servizi o prodotti, o collega la colonna Tipo" }); return; }
+          const base: any = {
+            organization_id: ctx.orgId, name: String(name).trim(), price, kind,
+            category: get(r, "category") ? String(get(r, "category")).trim() : null,
             source_ref: filename,
-          });
+          };
+          if (kind === "service") {
+            base.duration_min = parseNumber(get(r, "duration_min"));
+            base.direct_cost = parseNumber(get(r, "direct_cost")) ?? 0;
+          } else {
+            base.duration_min = null; // i prodotti non hanno durata (richiesta Dimitar)
+            base.direct_cost = 0;
+            base.list_cost = parseNumber(get(r, "list_cost"));
+            base.supplier_discount_pct = parseNumber(get(r, "supplier_discount_pct"));
+            base.stock_qty = parseNumber(get(r, "stock_qty")) ?? 0;
+          }
+          inserts.push(base);
         });
         for (let i = 0; i < inserts.length; i += 400) {
           const { error } = await supabase.from("catalog_items").insert(inserts.slice(i, i + 400));
@@ -227,11 +261,26 @@ export default function ImportPage() {
         <>
           <div className="card">
             <div className="step"><span className="n">1</span> File: <b>{filename}</b> — {num(rows.length)} righe · tipo: <b>{ENTITIES.find(e => e.key === entity)?.label}</b></div>
+            {entity === "catalog" && (
+              <div style={{ background: "#f7f3ea", border: "2px solid #c9a227", borderRadius: 10, padding: "12px 14px", margin: "10px 0" }}>
+                <div className="kpi-label" style={{ marginBottom: 8 }}>Cosa contiene questo elenco?</div>
+                <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 14 }}>
+                  <label style={{ cursor: "pointer" }}><input type="radio" name="ckind" checked={catalogKind === "product"} onChange={() => setCatalogKind("product")} /> 🧴 Solo prodotti (magazzino)</label>
+                  <label style={{ cursor: "pointer" }}><input type="radio" name="ckind" checked={catalogKind === "service"} onChange={() => setCatalogKind("service")} /> ✂️ Solo servizi</label>
+                  <label style={{ cursor: "pointer" }}><input type="radio" name="ckind" checked={catalogKind === "auto"} onChange={() => setCatalogKind("auto")} /> Misto — usa la colonna “Tipo” del file</label>
+                </div>
+                {catalogKind === "auto" && map["kind"] == null && (
+                  <p className="sub" style={{ marginTop: 8, color: "#b3402a" }}>⚠️ Nessuna colonna “Tipo” collegata: con “Misto” le righe senza tipo finiranno in quarantena. Se è un elenco di soli prodotti o soli servizi, scegli l'opzione giusta qui sopra.</p>
+                )}
+                {catalogKind === "product" && <p className="sub" style={{ marginTop: 8 }}>Le righe entrano nel Catalogo → Prodotti con costo listino, sconto fornitore e giacenza. Nessuna durata in minuti.</p>}
+                {catalogKind === "service" && <p className="sub" style={{ marginTop: 8 }}>Le righe entrano nel Catalogo → Servizi con durata in minuti (per il costo tempo × CAM).</p>}
+              </div>
+            )}
             <div className="step"><span className="n">2</span> Controlla il collegamento colonne → campi GPS (proposto in automatico):</div>
             <table className="tbl maptable" style={{ marginTop: 10 }}>
               <thead><tr><th>Campo GPS</th><th>Colonna del file</th><th>Esempio</th></tr></thead>
               <tbody>
-                {FIELDS[entity].map(f => (
+                {visibleFields.map(f => (
                   <tr key={f.key}>
                     <td><b>{f.label}</b>{f.required && <span style={{ color: "#b3402a" }}> *</span>}</td>
                     <td>
@@ -248,10 +297,10 @@ export default function ImportPage() {
             <div className="step" style={{ marginTop: 14 }}><span className="n">3</span> Anteprima (prime 8 righe interpretate):</div>
             <div className="previewbox">
               <table className="tbl">
-                <thead><tr>{FIELDS[entity].map(f => <th key={f.key}>{f.label}</th>)}</tr></thead>
+                <thead><tr>{visibleFields.map(f => <th key={f.key}>{f.label}</th>)}</tr></thead>
                 <tbody>
                   {mappedPreview.map((r, i) => (
-                    <tr key={i}>{FIELDS[entity].map(f => <td key={f.key} className="mono">{r[f.key] == null ? "" : String(r[f.key]).slice(0, 30)}</td>)}</tr>
+                    <tr key={i}>{visibleFields.map(f => <td key={f.key} className="mono">{r[f.key] == null ? "" : String(r[f.key]).slice(0, 30)}</td>)}</tr>
                   ))}
                 </tbody>
               </table>

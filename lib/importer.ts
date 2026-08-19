@@ -35,10 +35,14 @@ export const FIELDS: Record<EntityType, FieldDef[]> = {
   ],
   catalog: [
     { key: "name", label: "Nome", required: true, synonyms: ["nome", "servizio", "prodotto", "articolo", "descrizione", "name"] },
-    { key: "price", label: "Prezzo €", required: true, synonyms: ["prezzo", "price", "listino", "importo"] },
-    { key: "duration_min", label: "Durata (min)", synonyms: ["durata", "minuti", "min", "tempo", "duration"] },
-    { key: "direct_cost", label: "Costo diretto €", synonyms: ["costo", "costo diretto", "cost"] },
-    { key: "kind", label: "Tipo (servizio/prodotto)", synonyms: ["tipo", "categoria", "kind"] },
+    { key: "price", label: "Prezzo di vendita €", required: true, synonyms: ["prezzo", "price", "vendita", "prezzo vendita", "importo"] },
+    { key: "kind", label: "Tipo (servizio/prodotto)", synonyms: ["tipo", "tipologia", "kind"] },
+    { key: "category", label: "Categoria", synonyms: ["categoria", "category", "famiglia", "linea", "reparto"] },
+    { key: "duration_min", label: "Durata (min) — solo servizi", synonyms: ["durata", "minuti", "min", "tempo", "duration"] },
+    { key: "direct_cost", label: "Costo diretto € — solo servizi", synonyms: ["costo diretto", "cost"] },
+    { key: "list_cost", label: "Costo listino € — solo prodotti", synonyms: ["costo listino", "listino", "costo acquisto", "acquisto", "costo"] },
+    { key: "supplier_discount_pct", label: "Sconto fornitore % — solo prodotti", synonyms: ["sconto", "sconto fornitore", "sconto %", "discount"] },
+    { key: "stock_qty", label: "Giacenza — solo prodotti", synonyms: ["giacenza", "quantita", "quantità", "qta", "q.ta", "scorte", "stock", "magazzino", "esistenza"] },
   ],
 };
 
