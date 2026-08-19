@@ -29,13 +29,28 @@ export interface PageMeasurement {
   accessibility_score: number
 }
 
+/** 5xx and 429 are transient in PSI (Lighthouse hiccups, rate spikes). */
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || status >= 500
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
 /**
  * One Lighthouse run. Throws on anything that is not a real result — no
  * zero-score fallback.
+ *
+ * RETRIES (first live run lesson): PSI answers 500 routinely and
+ * transiently — the same URL succeeds seconds later. Without retries a
+ * 4-page sweep collapsed to a single measurement and the mean stopped
+ * being representative. Transient failures (5xx, 429, network/timeout)
+ * get up to 2 more attempts with 3s/6s backoff; 4xx are real errors and
+ * fail immediately. The retry budget respects the job deadline.
  */
 export async function fetchPageSpeedForUrl(
   url: string,
   strategy: (typeof STRATEGIES)[number],
+  deadlineAt?: number,
 ): Promise<PageMeasurement> {
   const key = process.env.GOOGLE_PSI_API_KEY
   if (!key) throw new DriverSourceError('GOOGLE_PSI_API_KEY is not configured')
@@ -44,17 +59,34 @@ export async function fetchPageSpeedForUrl(
     `${PSI_API_BASE}?url=${encodeURIComponent(url)}&key=${key}&strategy=${strategy}` +
     '&category=performance&category=accessibility'
 
-  let res: Response
-  try {
-    res = await fetch(endpoint, { signal: AbortSignal.timeout(90_000) })
-  } catch (err) {
-    throw new DriverSourceError(
-      `PageSpeed request failed for ${url} (${strategy}): ${err instanceof Error ? err.message : String(err)}`,
-    )
+  const MAX_ATTEMPTS = 3
+  let res: Response | null = null
+  let lastError: string | null = null
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (attempt > 1) {
+      const backoff = attempt === 2 ? 3_000 : 6_000
+      if (deadlineAt && Date.now() + backoff + 30_000 > deadlineAt) break
+      await sleep(backoff)
+    }
+    try {
+      res = await fetch(endpoint, { signal: AbortSignal.timeout(90_000) })
+    } catch (err) {
+      lastError = `PageSpeed request failed for ${url} (${strategy}): ${err instanceof Error ? err.message : String(err)}`
+      res = null
+      continue // network/timeout: transient, retry
+    }
+    if (res.ok) break
+    lastError = `PageSpeed returned ${res.status} for ${url} (${strategy})`
+    if (!isRetryableStatus(res.status)) {
+      throw new DriverSourceError(lastError)
+    }
+    res = null
   }
-  if (!res.ok) {
+
+  if (!res) {
     throw new DriverSourceError(
-      `PageSpeed returned ${res.status} for ${url} (${strategy})`,
+      `${lastError ?? `PageSpeed failed for ${url} (${strategy})`} (dopo ${MAX_ATTEMPTS} tentativi)`,
     )
   }
 
@@ -124,12 +156,13 @@ export async function measureSet(
     ),
   )
 
-  // PSI rate-limits hard; 4 in flight keeps a 5-site set inside the
-  // invocation budget without tripping it.
-  const results = await mapPool(jobs, 4, async (job) => {
+  // 2 in flight: PSI rate-limits hard AND two parallel Lighthouse runs on
+  // the same origin can trip bot protection — the retries (3 attempts with
+  // backoff) still keep a 5-site set inside the invocation budget.
+  const results = await mapPool(jobs, 2, async (job) => {
     try {
       assertDeadline(ctx.deadlineAt, `${category} for ${job.url}`)
-      const m = await fetchPageSpeedForUrl(job.url, job.strategy)
+      const m = await fetchPageSpeedForUrl(job.url, job.strategy, ctx.deadlineAt)
       measurements.push(m)
       return { site_ref: job.site.site_ref, m }
     } catch (err) {
@@ -141,6 +174,7 @@ export async function measureSet(
   const sites: SiteRawValue[] = []
   for (const site of ctx.sites) {
     const own = results.filter((r) => r && r.site_ref === site.site_ref)
+    const attempted = jobs.filter((j) => j.site.site_ref === site.site_ref).length
     const scores = own.map((r) =>
       category === 'performance' ? r!.m.performance_score : r!.m.accessibility_score,
     )
@@ -159,6 +193,12 @@ export async function measureSet(
           score: category === 'performance' ? r!.m.performance_score : r!.m.accessibility_score,
         })),
         measured_runs: own.length,
+        attempted_runs: attempted,
+        // Coverage honesty: a mean over 1 of 4 runs is a different claim
+        // than a mean over 4 of 4. The Controller warns below 100%.
+        ...(own.length < attempted
+          ? { coverage_note: `misurate ${own.length} combinazioni su ${attempted} tentate` }
+          : {}),
       },
     })
   }

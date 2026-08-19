@@ -258,6 +258,36 @@ test('authority: a failing competitor is reported unmeasured, never scored 0', a
   )
 })
 
+test('speed: a transient PSI 500 is retried, not lost (first-live-run lesson)', async () => {
+  process.env.GOOGLE_PSI_API_KEY = 'test-key'
+  const attempts = new Map<string, number>()
+  await withFetch(
+    (url) => {
+      const n = (attempts.get(url) ?? 0) + 1
+      attempts.set(url, n)
+      // First attempt per URL answers 500; the retry succeeds.
+      if (n === 1) return { status: 500, body: {} }
+      return {
+        body: {
+          lighthouseResult: {
+            categories: { performance: { score: 0.6 }, accessibility: { score: 0.9 } },
+          },
+        },
+      }
+    },
+    async () => {
+      const out = await speedWorker(ctx())
+      assert.equal(out.status, 'done')
+      if (out.status !== 'done') return
+      const client = out.sites.find((s) => s.site_ref === 'client')
+      assert.equal(client?.raw, 60)
+      const ev = client?.evidence as { measured_runs: number; attempted_runs: number }
+      // Full coverage despite every first attempt failing.
+      assert.equal(ev.measured_runs, ev.attempted_runs)
+    },
+  )
+})
+
 test('speed: an incomplete Lighthouse result is an error, not a 0', async () => {
   process.env.GOOGLE_PSI_API_KEY = 'test-key'
   await withFetch(

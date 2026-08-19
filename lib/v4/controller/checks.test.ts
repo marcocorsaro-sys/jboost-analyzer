@@ -590,3 +590,56 @@ test('counts: countFindings splits by severity', () => {
   assert.equal(counts.warning, 2) // zero_with_no_evidence + set_coverage
   assert.equal(counts.info, 1)
 })
+
+test('low_measurement_coverage: a partial PSI sweep is flagged with the numbers', () => {
+  const findings = runControllerChecks(
+    makeInput({
+      runs: [
+        makeRun({
+          driver_key: 'speed',
+          status: 'done',
+          raw_payload: {
+            sites: [
+              {
+                site_ref: 'client',
+                domain: 'benetton.com',
+                raw: 66,
+                score_relative: 100,
+                evidence: { measured_runs: 1, attempted_runs: 4 },
+              },
+            ],
+          },
+        }),
+      ],
+    }),
+  )
+  const hits = byCheck(findings, 'low_measurement_coverage')
+  assert.equal(hits.length, 1)
+  assert.equal(hits[0].severity, 'warning')
+  assert.match(hits[0].message, /1 combinazioni su 4/)
+})
+
+test('low_measurement_coverage: full coverage stays silent', () => {
+  const findings = runControllerChecks(
+    makeInput({
+      runs: [
+        makeRun({
+          driver_key: 'speed',
+          status: 'done',
+          raw_payload: {
+            sites: [
+              {
+                site_ref: 'client',
+                domain: 'benetton.com',
+                raw: 66,
+                score_relative: 100,
+                evidence: { measured_runs: 4, attempted_runs: 4 },
+              },
+            ],
+          },
+        }),
+      ],
+    }),
+  )
+  assert.equal(byCheck(findings, 'low_measurement_coverage').length, 0)
+})

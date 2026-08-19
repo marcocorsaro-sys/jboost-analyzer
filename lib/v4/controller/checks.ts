@@ -42,6 +42,7 @@ export interface ControllerFinding {
     | 'score_range'
     | 'leader_sanity'
     | 'insight_flags'
+    | 'low_measurement_coverage'
     | 'stale_drafts'
     | 'insights_error'
   driver_key?: string
@@ -421,6 +422,34 @@ export function runControllerChecks(input: ControllerInput): ControllerFinding[]
             `${run.driver_key}: ${field} = ${value} presente ma lo stato è "${run.status}". ` +
             'Un punteggio esiste solo per un driver completato.',
         })
+      }
+    }
+
+    // --- low_measurement_coverage (WARNING) --------------------------------
+    // Speed/Accessibility record attempted_runs vs measured_runs per site:
+    // a mean over 1 of 4 Lighthouse runs is a different claim than 4 of 4.
+    // (First live run: PSI 500s collapsed Benetton to a single measurement.)
+    if (run.status === 'done') {
+      for (const s of readPayloadSites(run)) {
+        const ev = (s.evidence ?? {}) as { measured_runs?: unknown; attempted_runs?: unknown }
+        const measured = Number(ev.measured_runs)
+        const attempted = Number(ev.attempted_runs)
+        if (
+          Number.isFinite(measured) &&
+          Number.isFinite(attempted) &&
+          attempted > 0 &&
+          measured < attempted
+        ) {
+          findings.push({
+            severity: 'warning',
+            check: 'low_measurement_coverage',
+            driver_key: run.driver_key,
+            message:
+              `${run.driver_key}: ${s.domain} misurato su ${measured} combinazioni su ${attempted} tentate — ` +
+              'la media è meno rappresentativa del previsto.',
+            suggestion: 'rilancia il driver: i 500 di PageSpeed sono spesso transitori',
+          })
+        }
       }
     }
 
