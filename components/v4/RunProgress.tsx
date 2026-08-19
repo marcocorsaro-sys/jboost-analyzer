@@ -612,6 +612,8 @@ export function DecisionForm({
   const [comment, setComment] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [replaceTo, setReplaceTo] = useState('')
+  const [replaceBrand, setReplaceBrand] = useState('')
 
   const send = async (decision: Record<string, unknown>) => {
     setBusy(true)
@@ -674,6 +676,42 @@ export function DecisionForm({
             style={decisionButton}
           >
             Rimuovi {(request.empty_players ?? []).join(', ')} dal set
+          </button>
+        </div>
+      )}
+
+      {request.reason === 'empty_tier' && (request.empty_players ?? []).length > 0 && (
+        // Replace (Bibbia): swap the empty competitor with another domain.
+        // The whole audit re-runs from scratch — replacing a player changes
+        // the SET every driver measured, so the route resets everything.
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <input
+            style={{ ...editInput, minWidth: '200px' }}
+            value={replaceTo}
+            onChange={(e) => setReplaceTo(e.target.value)}
+            placeholder={`Nuovo dominio al posto di ${(request.empty_players ?? [])[0]}`}
+          />
+          <input
+            style={{ ...editInput, minWidth: '140px' }}
+            value={replaceBrand}
+            onChange={(e) => setReplaceBrand(e.target.value)}
+            placeholder="Brand name (opz.)"
+          />
+          <button
+            type="button"
+            disabled={busy || !replaceTo.trim()}
+            onClick={() =>
+              send({
+                replace: {
+                  from: (request.empty_players ?? [])[0],
+                  to: replaceTo.trim(),
+                  ...(replaceBrand.trim() ? { brand_name: replaceBrand.trim() } : {}),
+                },
+              })
+            }
+            style={decisionButton}
+          >
+            Sostituisci (ri-esegue tutta l&apos;analisi)
           </button>
         </div>
       )}
