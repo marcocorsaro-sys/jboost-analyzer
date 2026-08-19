@@ -153,14 +153,27 @@ export default function Reception() {
   }, [plan, planStaff, txToday, opening, orData]);
 
   const setStatus = async (id: string, status: string) => {
-    await supabase.from("appointments").update({ status }).eq("id", id);
-    setAppts(appts.map(a => a.id === id ? { ...a, status } : a));
+    // il no-show è valido solo su un appuntamento non ancora preso in carico (idempotenza KPI)
+    const q = supabase.from("appointments").update({ status }).eq("id", id);
+    const { data } = await (status === "no_show" ? q.eq("status", "confirmed") : q).select("id");
+    if (data && data.length) setAppts(appts.map(a => a.id === id ? { ...a, status } : a));
+    else loadAll();
   };
 
   // Chiusura vendita (Blueprint §16 + spec §20-24): lavorato pieno, incassato reale,
   // credito e abbonamenti separati — "credito caricato" non è MAI un incasso automatico.
   const finalizeSale = async (a: Appt, items: any[], creditUsed: number, cashPaid: number,
     recharge: { loaded: number; paid: number; method: string } | null) => {
+    // IDEMPOTENZA (bug fix): la chiusura "prenota" la visita con un update condizionale.
+    // Se la scheda non è più "ready" (già chiusa altrove o doppio click), NESSUN movimento
+    // economico viene generato: niente doppi incassi, passaggi, scarichi credito o bonus.
+    const { data: claimed } = await supabase.from("appointments")
+      .update({ status: "completed" }).eq("id", a.id).eq("status", "ready").select("id");
+    if (!claimed || claimed.length === 0) {
+      window.alert("Questa scheda risulta già chiusa: nessun movimento è stato duplicato.");
+      window.location.reload();
+      return;
+    }
     // §5/§18: nel conto entrano SOLO i servizi finali erogati e i prodotti confermati —
     // mai i servizi sostituiti/eliminati (restano come storico per i KPI)
     const sold = items.filter(it => !it.proposed && !it.rejected && !it.removed && it.change_type !== "removed");

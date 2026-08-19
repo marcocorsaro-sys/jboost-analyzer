@@ -206,9 +206,24 @@ export default function Operatore() {
   const inizia = async (a: Appt) => {
     if (!me) return;
     setMsg(null);
+    // IDEMPOTENZA (bug fix): presa in carico condizionale — se la visita non è più
+    // in attesa (già in lavorazione, chiusa o no-show), non succede nulla.
+    const { data: claimed } = await supabase.from("appointments")
+      .update({ status: "in_service", current_staff_id: me.id, staff_id: a.staff_id ?? me.id })
+      .eq("id", a.id).in("status", ["confirmed", "checked_in"]).select("id");
+    if (!claimed || claimed.length === 0) {
+      setMsg("Questo cliente risulta già preso in carico o chiuso — aggiorno la giornata.");
+      loadDay();
+      return;
+    }
     const { error } = await supabase.from("visit_segments").insert({ organization_id: ctx.orgId, appointment_id: a.id, staff_id: me.id });
-    if (error) { setMsg(error.message.includes("one_active_segment") ? "Hai già un cliente in lavorazione: mettilo in pausa o invialo alla reception." : error.message); return; }
-    await supabase.from("appointments").update({ status: "in_service", current_staff_id: me.id, staff_id: a.staff_id ?? me.id }).eq("id", a.id);
+    if (error) {
+      // hai già un cliente attivo: rilascio la presa in carico
+      await supabase.from("appointments").update({ status: a.status, current_staff_id: null }).eq("id", a.id).eq("status", "in_service");
+      setMsg(error.message.includes("one_active_segment") ? "Hai già un cliente in lavorazione: mettilo in pausa o invialo alla reception." : error.message);
+      loadDay();
+      return;
+    }
     loadDay();
   };
   const pausa = async () => {
@@ -278,7 +293,7 @@ export default function Operatore() {
       suggested_products: props.length ? props.map(p => p.name).join(", ") : (form.prods || null),
       rebook_note: rebook != null ? "Rivederlo tra " + rebook + " giorni" : (form.rebook || null),
       current_staff_id: null,
-    }).eq("id", closing.id);
+    }).eq("id", closing.id).in("status", ["in_service", "paused", "checked_in", "confirmed"]); // mai riaprire una visita chiusa
     setClosing(null);
     loadDay();
   };
