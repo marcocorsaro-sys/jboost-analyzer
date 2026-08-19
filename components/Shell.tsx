@@ -17,6 +17,7 @@ const NAV = [
   { href: "/pianificazione", label: "Pianificazione" },
   { href: "/comunicazioni", label: "Comunicazioni" },
   { href: "/import", label: "Import" },
+  { href: "/operatore", label: "Operatore" },
 ];
 
 export default function Shell({ ctx, children }: { ctx: OrgCtx; children: React.ReactNode }) {
@@ -46,7 +47,7 @@ export default function Shell({ ctx, children }: { ctx: OrgCtx; children: React.
           <button className="btn-ghost" style={{ marginRight: 10, fontSize: 12.5 }} onClick={exitToPlatform} title="Torna alla piattaforma GPS">← GPS</button>
         )}
         <span className="brand" title="Workspace salone">{ctx.orgName}</span>
-        {NAV.map(n => (
+        {(ctx.role === "operatore" ? NAV.filter(n => n.href === "/operatore") : NAV).map(n => (
           <Link key={n.href} href={n.href} className={"nav-link" + (path === n.href ? " active" : "")}>{n.label}</Link>
         ))}
         <span className="spacer" />
