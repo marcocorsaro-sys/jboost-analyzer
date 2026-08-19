@@ -3,6 +3,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Shell from "@/components/Shell";
 import { useOrg } from "@/lib/useOrg";
+import { supabase } from "@/lib/supabase";
 import { fetchAllClients, ClientRow } from "@/lib/data";
 import { eur, num, SEGMENT_LABEL } from "@/lib/gps";
 
@@ -25,6 +26,25 @@ function ClientiInner() {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState(params.get("f") ?? "tutti");
   const [sel, setSel] = useState<ClientRow | null>(null);
+  const [wallet, setWallet] = useState<{ saldo: number; movs: any[] } | null>(null);
+  const [ricarica, setRicarica] = useState(0);
+
+  useEffect(() => {
+    if (!sel) { setWallet(null); return; }
+    supabase.from("wallet_movements").select("kind,amount,note,created_at").eq("client_id", sel.id).order("created_at", { ascending: false }).limit(10)
+      .then(({ data }) => setWallet({ saldo: (data ?? []).reduce((x: number, m: any) => x + Number(m.amount), 0), movs: (data ?? []).slice(0, 5) }));
+  }, [sel?.id]);
+
+  const doRicarica = async () => {
+    if (!sel || ricarica <= 0) return;
+    await supabase.from("wallet_movements").insert({ organization_id: ctx.orgId, client_id: sel.id, kind: "recharge", amount: ricarica, note: "Ricarica prepagata", created_by: ctx.userId ?? null });
+    // INV-01: la ricarica è incassato, mai lavorato
+    await supabase.from("transactions").insert({ organization_id: ctx.orgId, tx_date: new Date().toISOString().slice(0, 10), description: "Ricarica prepagata — " + sel.full_name, worked_value: 0, cash_value: ricarica, kind: "recharge", data_quality: "observed" });
+    setRicarica(0);
+    setWallet(w => w ? { ...w, saldo: w.saldo + 0 } : w);
+    const { data } = await supabase.from("wallet_movements").select("kind,amount,note,created_at").eq("client_id", sel.id).order("created_at", { ascending: false }).limit(10);
+    setWallet({ saldo: (data ?? []).reduce((x: number, m: any) => x + Number(m.amount), 0), movs: (data ?? []).slice(0, 5) });
+  };
 
   useEffect(() => { if (ctx.orgId) fetchAllClients(ctx.orgId).then(setClients).catch(console.error); }, [ctx.orgId]);
 
@@ -106,6 +126,23 @@ function ClientiInner() {
           <div className="row"><span>Data di nascita</span><b>{sel.birth_date ?? "—"}</b></div>
           <div className="row"><span>Consenso privacy</span><b>{sel.privacy_consent == null ? "—" : sel.privacy_consent ? "Sì" : "No"}</b></div>
           <div className="row"><span>Qualità dato</span><b className="tag-quality">{sel.data_quality}</b></div>
+          <div style={{ background: "#f7f3ea", border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", marginTop: 12 }}>
+            <div className="kpi-label" style={{ marginBottom: 6 }}>💳 Prepagata / credito</div>
+            <div className="row"><span>Saldo disponibile</span><b style={{ color: (wallet?.saldo ?? 0) > 0 ? "#1e7a4f" : undefined }}>{eur(wallet?.saldo ?? 0)}</b></div>
+            {ctx.role !== "operatore" && (
+              <div style={{ display: "flex", gap: 6, margin: "8px 0" }}>
+                <input type="number" min={0} placeholder="€" value={ricarica || ""} style={{ width: 90 }} onChange={e => setRicarica(Number(e.target.value))} />
+                <button className="btn sm" onClick={doRicarica} disabled={ricarica <= 0}>+ Ricarica</button>
+              </div>
+            )}
+            {(wallet?.movs ?? []).map((m: any, i: number) => (
+              <div className="row" key={i} style={{ fontSize: 12.5 }}>
+                <span>{new Date(m.created_at).toLocaleDateString("it-IT")} · {m.kind === "recharge" ? "ricarica" : m.kind === "use" ? "utilizzo" : "rettifica"}</span>
+                <b style={{ color: Number(m.amount) >= 0 ? "#1e7a4f" : "#b3402a" }}>{Number(m.amount) >= 0 ? "+" : ""}{eur(Number(m.amount))}</b>
+              </div>
+            ))}
+            <p className="sub" style={{ marginTop: 4 }}>La ricarica genera incassato (mai lavorato); l'utilizzo scala il saldo alla chiusura vendita.</p>
+          </div>
           <p className="sub" style={{ marginTop: 14 }}>Metriche ricostruite dallo storico del gestionale (2020 → oggi). Con l'arrivo delle transazioni live diventeranno <i>observed</i>.</p>
         </div>
       )}

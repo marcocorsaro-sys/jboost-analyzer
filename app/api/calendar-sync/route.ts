@@ -110,7 +110,10 @@ async function syncWix(conn: any, staffList: { id: string; key: string }[]): Pro
     if (!cursor || (json.bookings ?? []).length < 100) break;
   }
 
-  return bookings.map((b: any) => {
+  // Filtro fantasmi (Blueprint Scenario D): CREATED senza contatto = tentativo di prenotazione mai completato
+  const real = bookings.filter((b: any) => !(b.status === "CREATED" && !b.contactDetails?.contactId));
+
+  return real.map((b: any) => {
     const slot = b.bookedEntity?.slot ?? {};
     // nome cliente: Wix a volte mette il nome completo in firstName
     const fn = b.contactDetails?.firstName ?? "";

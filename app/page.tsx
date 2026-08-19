@@ -12,6 +12,7 @@ export default function Dashboard() {
   const [clients, setClients] = useState<ClientRow[] | null>(null);
   const [cam, setCam] = useState<number | null>(null);
   const [planMonth, setPlanMonth] = useState<string | null>(null);
+  const [debito, setDebito] = useState<number | null>(null);
 
   useEffect(() => {
     if (!ctx.orgId) return;
@@ -25,6 +26,8 @@ export default function Dashboard() {
         const cap = planCapacity(plan as Plan, (ps ?? []) as PlanStaff[]);
         setCam(cap.cam); setPlanMonth(plan.month);
       }
+      const { data: wm } = await supabase.from("wallet_movements").select("amount").eq("organization_id", ctx.orgId);
+      setDebito((wm ?? []).reduce((x: number, m: any) => x + Number(m.amount), 0));
     })();
   }, [ctx.orgId]);
 
@@ -94,6 +97,11 @@ export default function Dashboard() {
               <div className="kpi-label">Concentrazione (whale)</div>
               <div className="kpi-value">{Math.round(S.top10share * 100)}%</div>
               <div className="kpi-note">del valore dal top 10% ({num(S.top10n)} clienti)</div>
+            </div>
+            <div className="card" style={{ borderColor: (debito ?? 0) > 0 ? "#b3402a" : undefined }}>
+              <div className="kpi-label">Debito operativo</div>
+              <div className="kpi-value" style={{ color: (debito ?? 0) > 0 ? "#b3402a" : undefined }}>{eur(debito ?? 0, 0)}</div>
+              <div className="kpi-note">credito venduto e ancora da erogare (tempo reale)</div>
             </div>
           </div>
 

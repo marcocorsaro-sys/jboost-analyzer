@@ -25,7 +25,7 @@ export default function Operatore() {
   const [msg, setMsg] = useState<string | null>(null);
   // chiusura scheda
   const [closing, setClosing] = useState<Appt | null>(null);
-  const [done, setDone] = useState<{ name: string; price: number; kind: string }[]>([]);
+  const [done, setDone] = useState<{ name: string; price: number; kind: string; proposed?: boolean }[]>([]);
   const [form, setForm] = useState({ tech: "", pers: "", prods: "", rebook: "" });
   const [passTarget, setPassTarget] = useState("");
   // risultati
@@ -106,19 +106,23 @@ export default function Operatore() {
   const mySeg = useMemo(() => segs.find(s => s.staff_id === me?.id && s.status === "active") ?? null, [segs, me]);
   const myPaused = useMemo(() => segs.filter(s => s.staff_id === me?.id && s.status === "paused"), [segs, me]);
   const current = useMemo(() => mySeg ? appts.find(a => a.id === mySeg.appointment_id) ?? null : null, [mySeg, appts]);
-  const myQueue = useMemo(() => appts.filter(a => a.status === "checked_in" && (a.staff_id === me?.id || !a.staff_id)), [appts, me]);
+  // Arrivo automatico: i prenotati del giorno compaiono da soli all'operatore assegnato, senza check-in della reception
+  const myQueue = useMemo(() => appts
+    .filter(a => ["confirmed", "checked_in"].includes(a.status) && (a.staff_id === me?.id || !a.staff_id))
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at)), [appts, me]);
 
   const clientOf = (a: Appt | null) => (a?.client_name ? clientsByKey[normKey(a.client_name)] ?? null : null);
   const hhmm = (iso: string) => new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
 
+  // Nota: nessun dato economico del cliente in vista operatore (richiesta Dimitar)
   const suggestFor = (c: any): string => {
     if (!c) return "Cliente nuovo o senza storico: raccogli contatto e consenso privacy, proponi il prossimo appuntamento prima che esca.";
     const out: string[] = [];
     if (c.at_risk) out.push("Era fermo da " + c.recency_days + " giorni: proponi SUBITO il riappuntamento prima del pagamento.");
-    if (c.segment === "premium") out.push("Cliente Premium (" + eur(Number(c.total_value), 0) + " storico): candidato ideale per un trattamento aggiuntivo o un upgrade.");
-    if (Number(c.avg_ticket ?? 0) < 30) out.push("Fiche media " + eur(c.avg_ticket) + ": prova un servizio extra mirato (trattamento cute, barba).");
+    if (c.segment === "premium") out.push("Cliente Premium: candidato ideale per un trattamento aggiuntivo o un upgrade.");
+    if (c.segment === "fidelizzato") out.push("Cliente fidelizzato: un prodotto mirato a fine servizio è la proposta giusta.");
     if (!nextByKey[c.normalized_key]) out.push("Nessun prossimo appuntamento in agenda: chiudi il rebooking oggi.");
-    else out.push("Ha già il prossimo appuntamento il " + new Date(nextByKey[c.normalized_key]).toLocaleDateString("it-IT") + ": confermaglielo, niente prompt di rebooking (regola INV-14).");
+    else out.push("Ha già il prossimo appuntamento il " + new Date(nextByKey[c.normalized_key]).toLocaleDateString("it-IT") + ": confermaglielo, niente prompt di rebooking.");
     return out.slice(0, 3).join(" ");
   };
 
@@ -252,8 +256,6 @@ export default function Operatore() {
               {c ? (
                 <div className="grid kpis" style={{ marginTop: 8 }}>
                   <div><div className="kpi-label">Passaggi</div><div className="kpi-value" style={{ fontSize: 22 }}>{num(c.visits_count)}</div></div>
-                  <div><div className="kpi-label">Valore storico</div><div className="kpi-value" style={{ fontSize: 22 }}>{eur(Number(c.total_value), 0)}</div></div>
-                  <div><div className="kpi-label">Fiche media</div><div className="kpi-value" style={{ fontSize: 22 }}>{eur(c.avg_ticket)}</div></div>
                   <div><div className="kpi-label">Ultima visita</div><div className="kpi-value" style={{ fontSize: 22 }}>{c.last_visit ?? "—"}</div></div>
                   <div><div className="kpi-label">Prossimo app.</div><div className="kpi-value" style={{ fontSize: 22 }}>{nextByKey[c.normalized_key] ? new Date(nextByKey[c.normalized_key]).toLocaleDateString("it-IT") : "—"}</div></div>
                 </div>
@@ -319,14 +321,15 @@ export default function Operatore() {
           <label className="fld">Servizi e prodotti effettivamente eseguiti/venduti</label>
           {done.map((d, i) => (
             <div className="row" key={i}>
-              <span>{d.kind === "product" ? "🧴" : "✂"} {d.name}</span>
+              <span>{d.kind === "product" ? "🧴" : "✂"} {d.name}{d.proposed && <span className="badge b-warn" style={{ marginLeft: 6 }}>proposto</span>}</span>
               <span><b>{eur(d.price)}</b> <button className="btn sm secondary" onClick={() => setDone(done.filter((_, j) => j !== i))}>✕</button></span>
             </div>
           ))}
           <div style={{ display: "flex", gap: 8, margin: "10px 0 16px", flexWrap: "wrap" }}>
             <select id="addsvc" onChange={e => {
               const it = catalog.find(x => x.id === e.target.value);
-              if (it) setDone([...done, { name: it.name, price: Number(it.price), kind: it.kind }]);
+              // i prodotti partono come PROPOSTA: diventano vendita solo se la reception conferma
+              if (it) setDone([...done, { name: it.name, price: Number(it.price), kind: it.kind, proposed: it.kind === "product" }]);
               e.target.value = "";
             }}>
               <option value="">+ Aggiungi dal catalogo…</option>
