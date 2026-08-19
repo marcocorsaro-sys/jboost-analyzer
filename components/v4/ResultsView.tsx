@@ -25,6 +25,7 @@ import DriverPanel, { type ScoreView } from './DriverPanel'
 import ExecutiveSummaryTab from './ExecutiveSummaryTab'
 import OutputPreviewTab from './OutputPreviewTab'
 import PublishDialog from './PublishDialog'
+import { ControllerChip, ControllerPanel, type ControllerResponse } from './ControllerPanel'
 import type { EditsResponse, InsightsResponse, SiteMeta } from './results-shared'
 import { card, mutedLabel, pill, primaryButton, ghostButton, scoreColor } from './results-shared'
 
@@ -91,9 +92,35 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
     }
   }, [analysisId])
 
+  // Controller: the deterministic reviewer. Recomputed server-side on every
+  // GET (nothing persisted), so refreshing after each loadAll keeps the chip
+  // honest about the CURRENT set — the zara.it lesson.
+  const [controller, setController] = useState<ControllerResponse | null>(null)
+  const [controllerOpen, setControllerOpen] = useState(false)
+  const [controllerLoading, setControllerLoading] = useState(false)
+  const [controllerError, setControllerError] = useState<string | null>(null)
+
+  const loadController = useCallback(async () => {
+    setControllerLoading(true)
+    try {
+      const res = await fetch(`/api/v4/analyses/${analysisId}/controller`, { cache: 'no-store' })
+      const body = await res.json()
+      if (!res.ok) {
+        setControllerError(body.error ?? `errore ${res.status}`)
+        return
+      }
+      setController(body as ControllerResponse)
+      setControllerError(null)
+    } catch (err) {
+      setControllerError(err instanceof Error ? err.message : 'network error')
+    } finally {
+      setControllerLoading(false)
+    }
+  }, [analysisId])
+
   const loadAll = useCallback(async () => {
-    await Promise.all([loadStatus(), loadInsights(), loadEdits()])
-  }, [loadStatus, loadInsights, loadEdits])
+    await Promise.all([loadStatus(), loadInsights(), loadEdits(), loadController()])
+  }, [loadStatus, loadInsights, loadEdits, loadController])
 
   useEffect(() => {
     loadAll()
@@ -246,6 +273,11 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
         <span style={pill(auditState.color)}>
           {t(auditState.key as Parameters<typeof t>[0])}
         </span>
+        <ControllerChip
+          data={controller}
+          open={controllerOpen}
+          onToggle={() => setControllerOpen((v) => !v)}
+        />
         {progress.error > 0 && (
           <span style={pill('#ef4444')}>
             {progress.error} {t('v4res.state_error')}
@@ -298,6 +330,16 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
           {t('v4res.refdate')} {status.refDate ?? '—'}
         </span>
       </div>
+
+      {/* Controller findings panel (inline, toggled by the header chip). */}
+      {controllerOpen && (
+        <ControllerPanel
+          data={controller}
+          loading={controllerLoading}
+          error={controllerError}
+          onRecheck={loadController}
+        />
+      )}
 
       {/* ------------------------------------------------------- tab bar -- */}
       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>

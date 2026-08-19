@@ -51,6 +51,24 @@ const en = {
   'audits.open': 'Open',
   'audits.switch_to_client': 'Switch to client',
   'audits.switch_tooltip': 'Available in the ongoing phase (promotion to client)',
+  'audits.col_controller': 'Controller',
+  'audits.controller_clean': 'clean',
+
+  // Controller — the deterministic audit reviewer (finding messages stay in
+  // Italian from the engine, like the pause messages; this is UI chrome only)
+  'v4ctrl.chip': 'Controller',
+  'v4ctrl.title': 'Automatic review (Controller)',
+  'v4ctrl.subtitle': 'Deterministic checks across every driver: domains outside the set, stuck jobs, broken invariants. The Controller reports, it never fixes.',
+  'v4ctrl.recheck': 'Re-check',
+  'v4ctrl.rechecking': 'Re-checking…',
+  'v4ctrl.clean': 'No anomalies found.',
+  'v4ctrl.loading': 'Running checks…',
+  'v4ctrl.load_error': 'Controller check failed',
+  'v4ctrl.checked_at': 'checked at',
+  'v4ctrl.suggestion': 'suggestion',
+  'v4ctrl.sev_error': 'error',
+  'v4ctrl.sev_warning': 'warning',
+  'v4ctrl.sev_info': 'info',
 
   // Settings — APIs / data sources / defaults (Bibbia 04)
   'settings.connectors': 'APIs & data sources',

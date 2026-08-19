@@ -51,6 +51,24 @@ const it = {
   'audits.open': 'Apri',
   'audits.switch_to_client': 'Switch to client',
   'audits.switch_tooltip': 'Disponibile nella fase ongoing (promozione a cliente)',
+  'audits.col_controller': 'Controller',
+  'audits.controller_clean': 'pulito',
+
+  // Controller — il revisore automatico (i messaggi dei findings arrivano già
+  // in italiano dal motore, come i messaggi delle pause; qui solo la cornice UI)
+  'v4ctrl.chip': 'Controller',
+  'v4ctrl.title': 'Revisione automatica (Controller)',
+  'v4ctrl.subtitle': 'Controlli deterministici su tutti i driver: domini fuori dal set, job bloccati, invarianti violate. Il Controller segnala, non corregge mai da solo.',
+  'v4ctrl.recheck': 'Ricontrolla',
+  'v4ctrl.rechecking': 'Ricontrollo…',
+  'v4ctrl.clean': 'Nessuna anomalia rilevata.',
+  'v4ctrl.loading': 'Controlli in corso…',
+  'v4ctrl.load_error': 'Verifica del Controller fallita',
+  'v4ctrl.checked_at': 'verificato alle',
+  'v4ctrl.suggestion': 'suggerimento',
+  'v4ctrl.sev_error': 'errore',
+  'v4ctrl.sev_warning': 'warning',
+  'v4ctrl.sev_info': 'info',
 
   // Settings — API / data source / default (Bibbia 04)
   'settings.connectors': 'API e data source',

@@ -2,12 +2,13 @@ import { cookies } from 'next/headers'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
-import { createClient, getUser } from '@/lib/supabase/server'
+import { createClient, getProfileRole, getUser } from '@/lib/supabase/server'
 import { listV4Audits, AUDIT_STATE_META } from '@/lib/v4/audits'
 import { getScoreBand } from '@/lib/constants'
 import { formatLocalDate, isValidLocale, type Locale } from '@/lib/i18n'
 import T from '@/components/ui/T'
 import SwitchToClientButton from '@/components/audits/SwitchToClientButton'
+import ControllerBadge from '@/components/audits/ControllerBadge'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,6 +40,11 @@ export default async function AuditsPage() {
 
   const supabase = await createClient()
   const audits = await listV4Audits(supabase)
+
+  // Controller column, admins only: the sweep crosses ownership boundaries,
+  // so the server decides here whether to render the client island at all —
+  // the badge then fetches ?scope=all lazily, never blocking this render.
+  const isAdmin = (await getProfileRole(user.id)) === 'admin'
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -86,6 +92,11 @@ export default async function AuditsPage() {
                 <th className="px-4 py-3 text-center font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   <T k="audits.col_score" />
                 </th>
+                {isAdmin && (
+                  <th className="px-4 py-3 text-center font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <T k="audits.col_controller" />
+                  </th>
+                )}
                 <th className="px-4 py-3 text-right font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   <T k="audits.col_actions" />
                 </th>
@@ -126,6 +137,11 @@ export default async function AuditsPage() {
                         {a.overallScore ?? '—'}
                       </span>
                     </td>
+                    {isAdmin && (
+                      <td className="px-4 py-3 text-center">
+                        <ControllerBadge analysisId={a.id} />
+                      </td>
+                    )}
                     <td className="whitespace-nowrap px-4 py-3 text-right">
                       {/* A draft never launched has no results to open: the
                           action is resuming the setup wizard on it. */}
