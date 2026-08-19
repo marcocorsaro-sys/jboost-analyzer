@@ -52,7 +52,13 @@ export default function Shell({ ctx, children }: { ctx: OrgCtx; children: React.
         ))}
         <span className="spacer" />
         <span className="userbox">{ctx.userEmail}<br />{ctx.role}</span>
-        <button className="btn-ghost" style={{ marginLeft: 12 }} onClick={async () => { await supabase.auth.signOut(); router.replace("/login"); }}>Esci</button>
+        <button className="btn-ghost" style={{ marginLeft: 8, fontSize: 12 }} title="Cambia la tua password" onClick={async () => {
+          const p = window.prompt("Nuova password (minimo 8 caratteri):");
+          if (!p) return;
+          const { data, error } = await supabase.rpc("change_my_password", { p_new: p });
+          window.alert(error ? "Errore: " + error.message : String(data) === "ok" ? "Password aggiornata." : String(data));
+        }}>🔑</button>
+        <button className="btn-ghost" style={{ marginLeft: 6 }} onClick={async () => { await supabase.auth.signOut(); router.replace("/login"); }}>Esci</button>
       </div>
       <div className="page">
         {children}

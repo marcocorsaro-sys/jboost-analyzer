@@ -5,7 +5,8 @@ import { useOrg } from "@/lib/useOrg";
 import { supabase } from "@/lib/supabase";
 import { eur, num } from "@/lib/gps";
 
-type Staff = { id: string; display_name: string; color: string | null; is_productive: boolean; active: boolean; operator_code: string | null; monthly_cost: number | null; monthly_target: number };
+type Staff = { id: string; display_name: string; color: string | null; is_productive: boolean; active: boolean; operator_code: string | null; monthly_cost: number | null; monthly_target: number; user_id: string | null };
+const ROLES = ["operatore", "reception", "manager", "titolare"];
 
 const COLORS = ["#dc2626", "#2563eb", "#db2777", "#0d9488", "#7c3aed", "#ca8a04"];
 
@@ -14,7 +15,11 @@ export default function Team() {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [worked, setWorked] = useState<Record<string, { services: number; products: number }>>({});
   const [draft, setDraft] = useState({ display_name: "", color: COLORS[0], monthly_cost: 0, monthly_target: 0, operator_code: "" });
+  const [roles, setRoles] = useState<Record<string, string>>({});
+  const [acc, setAcc] = useState<Record<string, { email: string; pwd: string; role: string }>>({});
+  const [accMsg, setAccMsg] = useState<Record<string, string>>({});
   const month = new Date().toISOString().slice(0, 7);
+  const canEdit = ["titolare", "manager", "consulente"].includes(ctx.role ?? "") || ctx.isAdmin;
 
   const load = async () => {
     const { data } = await supabase.from("staff_members").select("*").eq("organization_id", ctx.orgId).order("created_at");
@@ -29,6 +34,22 @@ export default function Team() {
       else acc[t.staff_id].services += Number(t.worked_value);
     }
     setWorked(acc);
+    const { data: mems } = await supabase.from("memberships").select("user_id,role").eq("organization_id", ctx.orgId);
+    setRoles(Object.fromEntries((mems ?? []).map((m: any) => [m.user_id, m.role])));
+  };
+
+  const createAccount = async (s: Staff) => {
+    const a = acc[s.id] ?? { email: "", pwd: "", role: "operatore" };
+    setAccMsg({ ...accMsg, [s.id]: "" });
+    const { data, error } = await supabase.rpc("create_staff_account", { p_staff: s.id, p_email: a.email.trim(), p_password: a.pwd, p_role: a.role });
+    setAccMsg({ ...accMsg, [s.id]: error ? "Errore: " + error.message : String(data) === "ok" ? "Accesso creato: comunica email e password temporanea al collaboratore." : String(data) });
+    if (!error && String(data) === "ok") load();
+  };
+
+  const changeRole = async (s: Staff, role: string) => {
+    const { data, error } = await supabase.rpc("set_member_role", { p_staff: s.id, p_role: role });
+    setAccMsg({ ...accMsg, [s.id]: error ? "Errore: " + error.message : String(data) === "ok" ? "Ruolo aggiornato." : String(data) });
+    if (!error && String(data) === "ok") load();
   };
 
   useEffect(() => { if (ctx.orgId) load(); }, [ctx.orgId]);
@@ -72,12 +93,12 @@ export default function Team() {
                 </b>
                 <span style={{ display: "flex", gap: 6 }}>
                   {s.operator_code && <span className="badge b-premium mono">{s.operator_code}</span>}
-                  <button className="btn sm secondary" onClick={() => update(s.id, { active: !s.active })}>{s.active ? "Attivo" : "Inattivo"}</button>
+                  <button className="btn sm secondary" disabled={!canEdit} onClick={() => update(s.id, { active: !s.active })}>{s.active ? "Attivo" : "Inattivo"}</button>
                 </span>
               </div>
 
               <div className="row" style={{ marginTop: 10 }}><span>Obiettivo {month}</span>
-                <b><input type="number" value={s.monthly_target} style={{ width: 90, padding: "3px 6px", textAlign: "right" }} onChange={e => update(s.id, { monthly_target: Number(e.target.value) })} /> €</b>
+                <b><input type="number" disabled={!canEdit} value={s.monthly_target} style={{ width: 90, padding: "3px 6px", textAlign: "right" }} onChange={e => update(s.id, { monthly_target: Number(e.target.value) })} /> €</b>
               </div>
               <div style={{ margin: "8px 0" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
@@ -91,10 +112,41 @@ export default function Team() {
               <div className="row"><span>Servizi lavorati</span><b>{eur(w.services, 0)}</b></div>
               <div className="row"><span>Prodotti venduti</span><b>{eur(w.products, 0)}</b></div>
               <div className="row"><span>Costo €/mese</span>
-                <b><input type="number" value={s.monthly_cost ?? 0} style={{ width: 90, padding: "3px 6px", textAlign: "right" }} onChange={e => update(s.id, { monthly_cost: Number(e.target.value) })} /> €</b>
+                <b><input type="number" disabled={!canEdit} value={s.monthly_cost ?? 0} style={{ width: 90, padding: "3px 6px", textAlign: "right" }} onChange={e => update(s.id, { monthly_cost: Number(e.target.value) })} /> €</b>
               </div>
               <div className="row"><span>Codice operatore</span>
-                <b><input value={s.operator_code ?? ""} style={{ width: 110, padding: "3px 6px", textAlign: "right", textTransform: "uppercase" }} onChange={e => update(s.id, { operator_code: e.target.value.toUpperCase() || null as any })} /></b>
+                <b><input disabled={!canEdit} value={s.operator_code ?? ""} style={{ width: 110, padding: "3px 6px", textAlign: "right", textTransform: "uppercase" }} onChange={e => update(s.id, { operator_code: e.target.value.toUpperCase() || null as any })} /></b>
+              </div>
+              <div style={{ background: "#f7f3ea", border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", margin: "10px 0" }}>
+                <div className="kpi-label" style={{ marginBottom: 6 }}># Accesso GPS</div>
+                {s.user_id ? (
+                  <>
+                    <div className="row"><span>Stato account</span><b><span className="badge b-ok">attivo</span></b></div>
+                    <div className="row" style={{ borderBottom: "none" }}><span>Ruolo GPS</span>
+                      <b>
+                        {canEdit ? (
+                          <select value={roles[s.user_id] ?? "operatore"} onChange={e => changeRole(s, e.target.value)}>
+                            {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                          </select>
+                        ) : <span className="badge b-premium">{roles[s.user_id] ?? "—"}</span>}
+                      </b>
+                    </div>
+                  </>
+                ) : canEdit ? (
+                  <>
+                    <input style={{ width: "100%", marginBottom: 6 }} type="email" placeholder="Email del collaboratore"
+                      value={acc[s.id]?.email ?? ""} onChange={e => setAcc({ ...acc, [s.id]: { email: e.target.value, pwd: acc[s.id]?.pwd ?? "", role: acc[s.id]?.role ?? "operatore" } })} />
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input style={{ flex: 1 }} placeholder="Password temporanea (min 8)"
+                        value={acc[s.id]?.pwd ?? ""} onChange={e => setAcc({ ...acc, [s.id]: { email: acc[s.id]?.email ?? "", pwd: e.target.value, role: acc[s.id]?.role ?? "operatore" } })} />
+                      <select value={acc[s.id]?.role ?? "operatore"} onChange={e => setAcc({ ...acc, [s.id]: { email: acc[s.id]?.email ?? "", pwd: acc[s.id]?.pwd ?? "", role: e.target.value } })}>
+                        {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                      <button className="btn sm" onClick={() => createAccount(s)}>Crea</button>
+                    </div>
+                  </>
+                ) : <div className="row" style={{ borderBottom: "none" }}><span>Stato account</span><b><span className="badge b-warn">non invitato</span></b></div>}
+                {accMsg[s.id] && <p className="sub" style={{ marginTop: 6, color: accMsg[s.id].startsWith("Errore") || accMsg[s.id].startsWith("errore") ? "#b3402a" : "#1e5c38" }}>{accMsg[s.id]}</p>}
               </div>
               <div className="row" style={{ borderBottom: "none" }}>
                 <span>Bonus {reached ? "incassabile" : "(bloccato fino al target)"}</span>
@@ -106,7 +158,8 @@ export default function Team() {
         })}
       </div>
 
-      <div className="card section" style={{ display: "flex", gap: 10, alignItems: "end", flexWrap: "wrap" }}>
+      {!canEdit && <p className="sub" style={{ marginTop: 12 }}>Come reception puoi consultare le schede, ma ruoli e dati dei collaboratori li modifica solo il titolare o un manager.</p>}
+      {canEdit && <div className="card section" style={{ display: "flex", gap: 10, alignItems: "end", flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: 180 }}><label className="fld">Nuovo collaboratore</label><input style={{ width: "100%" }} value={draft.display_name} onChange={e => setDraft({ ...draft, display_name: e.target.value })} placeholder="Nome e cognome" /></div>
         <div><label className="fld">Colore</label>
           <select value={draft.color} onChange={e => setDraft({ ...draft, color: e.target.value })}>
@@ -117,7 +170,7 @@ export default function Team() {
         <div><label className="fld">Obiettivo €</label><input type="number" style={{ width: 100 }} value={draft.monthly_target} onChange={e => setDraft({ ...draft, monthly_target: Number(e.target.value) })} /></div>
         <div><label className="fld">Codice</label><input style={{ width: 110, textTransform: "uppercase" }} value={draft.operator_code} onChange={e => setDraft({ ...draft, operator_code: e.target.value.toUpperCase() })} /></div>
         <button className="btn" onClick={add}>+ Aggiungi</button>
-      </div>
+      </div>}
       <p className="sub" style={{ marginTop: 8 }}>Ricorda: dopo aver aggiunto un collaboratore, imposta i suoi turni in Pianificazione perché entri nella capacità produttiva e nel CAM.</p>
     </Shell>
   );

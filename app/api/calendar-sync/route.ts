@@ -78,30 +78,58 @@ async function syncCalendly(conn: any): Promise<Appt[]> {
   return out;
 }
 
-async function syncWix(conn: any): Promise<Appt[]> {
+async function syncWix(conn: any, staffList: { id: string; key: string }[]): Promise<Appt[]> {
   const { api_key, site_id } = conn.config ?? {};
   if (!api_key || !site_id) throw new Error("API key o Site ID Wix mancanti");
-  const res = await fetch("https://www.wixapis.com/bookings/v2/bookings/query", {
-    method: "POST",
-    headers: { Authorization: api_key, "wix-site-id": site_id, "Content-Type": "application/json" },
-    body: JSON.stringify({ query: { sort: [{ fieldName: "startDate", order: "DESC" }], cursorPaging: { limit: 100 } } }),
-  });
-  if (!res.ok) throw new Error("Wix Bookings API: HTTP " + res.status + " — verifica API key e Site ID");
-  const json = await res.json();
-  const bookings = json.bookings ?? json.extendedBookings ?? [];
+  const since = new Date(Date.now() - 7 * 86400000).toISOString();
+  const norm = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, "").trim();
+
+  const page = async (cursor: string | null) => {
+    const body = JSON.stringify({
+      query: cursor
+        ? { cursorPaging: { limit: 100, cursor } }
+        : { filter: { "bookedEntity.slot.startDate": { "$gte": since } }, cursorPaging: { limit: 100 } },
+    });
+    const call = (auth: string) => fetch("https://www.wixapis.com/bookings/v2/bookings/query", {
+      method: "POST",
+      headers: { Authorization: auth, "wix-site-id": site_id, "Content-Type": "application/json" },
+      body,
+    });
+    let res = await call(api_key);
+    if (res.status === 401 || res.status === 403) res = await call("Bearer " + api_key);
+    if (!res.ok) throw new Error("Wix Bookings API: HTTP " + res.status + " — verifica API key (permessi Bookings) e Site ID");
+    return res.json();
+  };
+
+  const bookings: any[] = [];
+  let cursor: string | null = null;
+  for (let i = 0; i < 5; i++) {
+    const json: any = await page(cursor);
+    bookings.push(...(json.bookings ?? []));
+    cursor = json.pagingMetadata?.cursors?.next ?? null;
+    if (!cursor || (json.bookings ?? []).length < 100) break;
+  }
+
   return bookings.map((b: any) => {
-    const slot = b.bookedEntity?.slot ?? b.slot ?? {};
+    const slot = b.bookedEntity?.slot ?? {};
+    // nome cliente: Wix a volte mette il nome completo in firstName
+    const fn = b.contactDetails?.firstName ?? "";
+    const ln = b.contactDetails?.lastName ?? "";
+    const clientName = fn.toLowerCase().includes(ln.toLowerCase()) && ln ? fn : [fn, ln].filter(Boolean).join(" ");
+    // operatore: match resource.name → staff GPS
+    const resName = slot.resource?.name ? norm(slot.resource.name) : null;
+    const staffMatch = resName ? staffList.find(s => s.key.includes(resName) || resName.includes(s.key.split(" ")[0])) : null;
     return {
       organization_id: conn.organization_id,
       source_system: "wix",
       external_id: b.id,
-      starts_at: slot.startDate ?? b.startDate ?? b.createdDate,
-      ends_at: slot.endDate ?? b.endDate ?? null,
-      client_name: b.contactDetails ? [b.contactDetails.firstName, b.contactDetails.lastName].filter(Boolean).join(" ") : null,
-      staff_id: conn.staff_id ?? null,
-      service_name: b.bookedEntity?.title ?? b.bookedEntity?.slot?.serviceName ?? null,
+      starts_at: slot.startDate ?? b.createdDate,
+      ends_at: slot.endDate ?? null,
+      client_name: clientName || null,
+      staff_id: staffMatch?.id ?? conn.staff_id ?? null,
+      service_name: b.bookedEntity?.title ?? null,
       status: ["CANCELED", "DECLINED"].includes(b.status) ? "cancelled" : "confirmed",
-      raw: b,
+      raw: { id: b.id, status: b.status, resource: slot.resource?.name, contactId: b.contactDetails?.contactId, phone: b.contactDetails?.phone, email: b.contactDetails?.email },
       last_synced_at: new Date().toISOString(),
     } as Appt;
   }).filter((a: Appt) => a.starts_at);
@@ -120,7 +148,11 @@ export async function POST(req: NextRequest) {
     let rows: Appt[] = [];
     if (conn.provider === "ics") rows = await syncIcs(conn);
     else if (conn.provider === "calendly") rows = await syncCalendly(conn);
-    else if (conn.provider === "wix") rows = await syncWix(conn);
+    else if (conn.provider === "wix") {
+      const { data: st } = await supabase.from("staff_members").select("id,display_name").eq("organization_id", conn.organization_id);
+      const staffList = (st ?? []).map((s: any) => ({ id: s.id, key: s.display_name.toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, "").trim() }));
+      rows = await syncWix(conn, staffList);
+    }
 
     let upserted = 0;
     for (let i = 0; i < rows.length; i += 200) {
