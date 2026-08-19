@@ -201,10 +201,20 @@ export default function ImportPage() {
           }
           inserts.push(base);
         });
-        for (let i = 0; i < inserts.length; i += 400) {
-          const { error } = await supabase.from("catalog_items").insert(inserts.slice(i, i + 400));
+        // dedup interno al file (stesso nome+tipo → vince l'ultima riga), poi upsert:
+        // reimportare lo stesso file AGGIORNA le voci esistenti (prezzi, giacenze, sconti) senza duplicarle
+        const byKey = new Map<string, any>();
+        for (const it of inserts) byKey.set(it.name.toLowerCase().trim() + "|" + it.kind, it);
+        const unique = Array.from(byKey.values());
+        const { data: existing } = await supabase.from("catalog_items").select("name_key,kind").eq("organization_id", ctx.orgId);
+        const existSet = new Set((existing ?? []).map((x: any) => x.name_key + "|" + x.kind));
+        for (let i = 0; i < unique.length; i += 400) {
+          const { error } = await supabase.from("catalog_items")
+            .upsert(unique.slice(i, i + 400), { onConflict: "organization_id,name_key,kind" });
           if (error) throw error;
-          imported += Math.min(400, inserts.length - i);
+        }
+        for (const it of unique) {
+          if (existSet.has(it.name.toLowerCase().trim() + "|" + it.kind)) updated += 1; else imported += 1;
         }
       }
 
