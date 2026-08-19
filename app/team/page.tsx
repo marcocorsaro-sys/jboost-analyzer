@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import Shell from "@/components/Shell";
 import { useOrg } from "@/lib/useOrg";
 import { supabase } from "@/lib/supabase";
-import { eur, num } from "@/lib/gps";
+import { eur, num, staffAvailabilitySplit, buildOccupancy, occupiedMinutesFor, occupancyAlert, Occupancy } from "@/lib/gps";
 
 type Staff = { id: string; display_name: string; color: string | null; is_productive: boolean; active: boolean; operator_code: string | null; monthly_cost: number | null; monthly_target: number; user_id: string | null };
 const ROLES = ["operatore", "reception", "manager", "titolare"];
@@ -18,6 +18,7 @@ export default function Team() {
   const [roles, setRoles] = useState<Record<string, string>>({});
   const [acc, setAcc] = useState<Record<string, { email: string; pwd: string; role: string }>>({});
   const [accMsg, setAccMsg] = useState<Record<string, string>>({});
+  const [occs, setOccs] = useState<Record<string, Occupancy>>({});
   const month = new Date().toISOString().slice(0, 7);
   const canEdit = ["titolare", "manager", "consulente"].includes(ctx.role ?? "") || ctx.isAdmin;
 
@@ -36,6 +37,28 @@ export default function Team() {
     setWorked(acc);
     const { data: mems } = await supabase.from("memberships").select("user_id,role").eq("organization_id", ctx.orgId);
     setRoles(Object.fromEntries((mems ?? []).map((m: any) => [m.user_id, m.role])));
+
+    // Occupazione individuale (§14bis, richiesta Dimitar): disponibili/trascorsi/mancanti/occupati per collaboratore
+    const { data: plan } = await supabase.from("business_plans").select("id,month")
+      .eq("organization_id", ctx.orgId).order("month", { ascending: false }).limit(1).maybeSingle();
+    if (plan) {
+      const { data: ps } = await supabase.from("plan_staff").select("*").eq("plan_id", plan.id);
+      const { data: sg } = await supabase.from("visit_segments").select("staff_id,status,started_at,ended_at,active_minutes")
+        .eq("organization_id", ctx.orgId).gte("started_at", month + "-01T00:00:00");
+      const { data: txi } = await supabase.from("transactions").select("staff_id,catalog_item_id,kind")
+        .eq("organization_id", ctx.orgId).eq("status", "completed").gte("tx_date", month + "-01");
+      const { data: cat } = await supabase.from("catalog_items").select("id,duration_min").eq("organization_id", ctx.orgId);
+      const durByItem = Object.fromEntries((cat ?? []).map((c: any) => [c.id, Number(c.duration_min) || 0]));
+      const o: Record<string, Occupancy> = {};
+      for (const row of (ps ?? []) as any[]) {
+        if (!row.include_capacity) continue;
+        const split = staffAvailabilitySplit(row, plan.month);
+        if (split.total <= 0) continue;
+        const occupied = occupiedMinutesFor(row.staff_id, (sg ?? []) as any, (txi ?? []) as any, durByItem);
+        o[row.staff_id] = buildOccupancy(split, occupied);
+      }
+      setOccs(o);
+    }
   };
 
   const createAccount = async (s: Staff) => {
@@ -64,6 +87,11 @@ export default function Team() {
     setDraft({ display_name: "", color: COLORS[(staff.length + 1) % COLORS.length], monthly_cost: 0, monthly_target: 0, operator_code: "" });
     load();
   };
+
+  const capacityIds = Object.keys(occs);
+  const salonAvgWorked = capacityIds.length
+    ? capacityIds.reduce((a, id) => { const w = worked[id]; return a + (w ? w.services + w.products : 0); }, 0) / capacityIds.length
+    : 0;
 
   return (
     <Shell ctx={ctx}>
@@ -111,6 +139,26 @@ export default function Team() {
 
               <div className="row"><span>Servizi lavorati</span><b>{eur(w.services, 0)}</b></div>
               <div className="row"><span>Prodotti venduti</span><b>{eur(w.products, 0)}</b></div>
+              {occs[s.id] && (() => {
+                const o = occs[s.id];
+                const alert = occupancyAlert(o.pct, tot, salonAvgWorked, o.elapsed);
+                return (
+                  <div style={{ background: "#f4f7f4", border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", margin: "10px 0" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <span className="kpi-label">Occupazione mese</span>
+                      <b style={{ fontSize: 18, color: o.pct >= 0.75 ? "#1e7a4f" : o.pct >= 0.5 ? "#b8860b" : "#b3402a" }}>{Math.round(o.pct * 100)}%</b>
+                    </div>
+                    <div className="bar-track"><div className="bar-fill" style={{ width: Math.min(100, o.pct * 100) + "%", background: o.pct >= 0.75 ? "#1e7a4f" : "var(--gold)" }} /></div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 6, flexWrap: "wrap", gap: 4 }}>
+                      <span>disponibili <b>{num(o.total)}</b>′</span>
+                      <span>trascorsi <b>{num(o.elapsed)}</b>′</span>
+                      <span>occupati <b>{num(o.occupied)}</b>′</span>
+                      <span>mancanti <b>{num(o.remaining)}</b>′</span>
+                    </div>
+                    {alert && <div className="alert" style={{ marginTop: 8, background: "#fdf3e4", borderColor: "#d9a441", color: "#7a5312" }}>⚠️ {alert}</div>}
+                  </div>
+                );
+              })()}
               <div className="row"><span>Costo €/mese</span>
                 <b><input type="number" disabled={!canEdit} value={s.monthly_cost ?? 0} style={{ width: 90, padding: "3px 6px", textAlign: "right" }} onChange={e => update(s.id, { monthly_cost: Number(e.target.value) })} /> €</b>
               </div>

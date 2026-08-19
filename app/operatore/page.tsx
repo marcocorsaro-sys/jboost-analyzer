@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import Shell from "@/components/Shell";
 import { useOrg } from "@/lib/useOrg";
 import { supabase } from "@/lib/supabase";
-import { eur, num, SEGMENT_LABEL } from "@/lib/gps";
+import { eur, num, SEGMENT_LABEL, staffAvailabilitySplit, buildOccupancy, occupiedMinutesFor, Occupancy } from "@/lib/gps";
 import { normKey } from "@/lib/importer";
 
 type Staff = { id: string; display_name: string; color: string | null; operator_code: string | null; monthly_target: number; active: boolean };
@@ -31,6 +31,7 @@ export default function Operatore() {
   // risultati
   const [myTx, setMyTx] = useState<{ services: number; products: number }>({ services: 0, products: 0 });
   const [salonAvg, setSalonAvg] = useState<number>(0);
+  const [occ, setOcc] = useState<Occupancy | null>(null);
   // comunicazioni
   const [comms, setComms] = useState<any[]>([]);
   const [acks, setAcks] = useState<Set<string>>(new Set());
@@ -90,6 +91,24 @@ export default function Operatore() {
       .eq("organization_id", ctx.orgId).eq("status", "completed").gte("tx_date", month + "-01");
     const tot = (all ?? []).reduce((a: number, t: any) => a + Number(t.worked_value), 0);
     setSalonAvg(staff.length ? tot / staff.length : 0);
+
+    // Occupazione individuale (richiesta Dimitar): minuti disponibili / trascorsi / mancanti / occupati
+    const { data: plan } = await supabase.from("business_plans").select("id,month")
+      .eq("organization_id", ctx.orgId).order("month", { ascending: false }).limit(1).maybeSingle();
+    if (plan) {
+      const { data: ps } = await supabase.from("plan_staff").select("*").eq("plan_id", plan.id).eq("staff_id", me.id).maybeSingle();
+      if (ps) {
+        const split = staffAvailabilitySplit(ps as any, plan.month);
+        const { data: sg } = await supabase.from("visit_segments").select("staff_id,status,started_at,ended_at,active_minutes")
+          .eq("organization_id", ctx.orgId).eq("staff_id", me.id).gte("started_at", month + "-01T00:00:00");
+        const { data: txi } = await supabase.from("transactions").select("staff_id,catalog_item_id,kind")
+          .eq("organization_id", ctx.orgId).eq("staff_id", me.id).eq("status", "completed").gte("tx_date", month + "-01");
+        const { data: cat } = await supabase.from("catalog_items").select("id,duration_min").eq("organization_id", ctx.orgId);
+        const durByItem = Object.fromEntries((cat ?? []).map((c: any) => [c.id, Number(c.duration_min) || 0]));
+        const occupied = occupiedMinutesFor(me.id, (sg ?? []) as any, (txi ?? []) as any, durByItem);
+        setOcc(buildOccupancy(split, occupied));
+      } else setOcc(null);
+    }
   };
 
   const loadComms = async () => {
@@ -361,6 +380,24 @@ export default function Operatore() {
             <div className="card gold"><div className="kpi-label">Bonus {reached ? "incassabile" : "potenziale"}</div><div className="kpi-value">{eur(reached ? bonus : bonusPotential)}</div><div className="kpi-note">{reached ? "15% oltre target + 10% prodotti" : "si sblocca al 100% del target"}</div></div>
             <div className="card dark"><div className="kpi-label">Media salone</div><div className="kpi-value">{eur(salonAvg, 0)}</div><div className="kpi-note">lavorato medio per operatore</div></div>
           </div>
+          {occ && occ.total > 0 && (
+            <div className="card section" style={{ borderColor: "#c9a227", borderWidth: 2 }}>
+              <div className="section-title">
+                <h2>La mia occupazione</h2>
+                <b style={{ fontSize: 22, color: occ.pct >= 0.75 ? "#1e7a4f" : occ.pct >= 0.5 ? "#b8860b" : "#b3402a" }}>{Math.round(occ.pct * 100)}%</b>
+              </div>
+              <div className="bar-track" style={{ height: 14 }}>
+                <div className="bar-fill" style={{ width: Math.min(100, occ.pct * 100) + "%", background: occ.pct >= 0.75 ? "#1e7a4f" : "var(--gold)" }} />
+              </div>
+              <p className="sub" style={{ marginTop: 6 }}>minuti occupati sui minuti già trascorsi del mese</p>
+              <div className="grid kpis" style={{ marginTop: 10 }}>
+                <div className="card"><div className="kpi-label">Minuti disponibili nel mese</div><div className="kpi-value">{num(occ.total)}</div><div className="kpi-note">{num(Math.round(occ.total / 60))} ore dai tuoi turni</div></div>
+                <div className="card"><div className="kpi-label">Minuti trascorsi</div><div className="kpi-value">{num(occ.elapsed)}</div><div className="kpi-note">da inizio mese a oggi</div></div>
+                <div className="card"><div className="kpi-label">Minuti mancanti</div><div className="kpi-value">{num(occ.remaining)}</div><div className="kpi-note">alla fine del mese</div></div>
+                <div className="card gold"><div className="kpi-label">Minuti occupati</div><div className="kpi-value">{num(occ.occupied)}</div><div className="kpi-note">lavoro in poltrona fino a ora</div></div>
+              </div>
+            </div>
+          )}
           <div className="card section">
             <div className="section-title"><h2>Suggerimenti GPS</h2><span className="sub">basati sui tuoi numeri del mese</span></div>
             {(() => {
@@ -372,6 +409,10 @@ export default function Operatore() {
                 if (daysLeft > 0) tips.push("Per centrare l'obiettivo servono " + eur((target - tot) / daysLeft, 0) + " al giorno nei prossimi " + daysLeft + " giorni: un servizio aggiuntivo o un upgrade al giorno bastano.");
               }
               if (tot > 0 && salonAvg > 0 && tot < salonAvg * 0.8) tips.push("Sei sotto la media salone: chiedi alla reception di indirizzarti i walk-in e proponi il riappuntamento a ogni cliente prima del pagamento.");
+              if (occ && occ.elapsed > 600) {
+                if (occ.pct >= 0.75 && salonAvg > 0 && tot < salonAvg * 0.85) tips.push("Sei molto occupato (" + Math.round(occ.pct * 100) + "%) ma il lavorato non segue: il limite è il mix di servizi. Punta su servizi a valore più alto e upgrade, non su più clienti.");
+                if (occ.pct < 0.5) tips.push("La tua agenda è occupata solo al " + Math.round(occ.pct * 100) + "%: ogni riappuntamento chiuso in poltrona riempie i " + num(occ.remaining) + " minuti che mancano a fine mese.");
+              }
               tips.push("Ai clienti Premium proponi l'upgrade (trattamento cute, foot care); ai clienti che erano fermi da mesi chiudi il riappuntamento in poltrona, non in cassa.");
               return tips.map((t, i) => <div className="alert" key={i}>💡 {t}</div>);
             })()}
