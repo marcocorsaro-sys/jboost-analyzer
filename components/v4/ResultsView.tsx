@@ -27,7 +27,7 @@ import OutputPreviewTab from './OutputPreviewTab'
 import PublishDialog from './PublishDialog'
 import { ControllerChip, ControllerPanel, type ControllerResponse } from './ControllerPanel'
 import type { EditsResponse, InsightsResponse, SiteMeta } from './results-shared'
-import { card, mutedLabel, pill, primaryButton, ghostButton, scoreColor } from './results-shared'
+import { card, mutedLabel, pill, primaryButton, ghostButton, scoreColor, fill, MEASURE_LABEL_KEY } from './results-shared'
 
 // recharts radar reused from V1, in its own lazy chunk (V1 pattern).
 const SpiderChart = nextDynamic(() => import('@/components/analyzer/SpiderChart'), {
@@ -579,8 +579,35 @@ function OverviewCard({
   const { t } = useLocale()
   const def = getV4Driver(row.driver_key)
   const hasAbs = def?.hasAbsoluteView ?? false
-  const score = view === 'absolute' && hasAbs ? row.score_absolute : row.score_relative
+  const effectiveView: ScoreView = view === 'absolute' && hasAbs ? 'absolute' : 'relative'
+  const score = effectiveView === 'absolute' ? row.score_absolute : row.score_relative
   const s = STATUS_STYLE[row.status]
+
+  // Explicit score line (never a bare 100): what the number IS in this view.
+  // Relative: "reale 57 (measure) · leader del set" / "… · 74% del leader".
+  // Absolute: "measure · n° 2 di 3" (or "Nel set: leader").
+  const clientRank = row.sites.find((x) => x.site_ref === 'client')?.rank ?? null
+  const measureKey = MEASURE_LABEL_KEY[row.driver_key]
+  const measureLabel = measureKey ? t(measureKey) : row.driver_key
+  const scoreLine =
+    effectiveView === 'absolute'
+      ? `${t('v4res.abs_label')} · ${
+          clientRank === 1
+            ? t('v4res.in_set_leader')
+            : clientRank !== null
+              ? fill(t('v4res.in_set_rank'), { rank: clientRank, n: row.sites.length })
+              : measureLabel
+        }`
+      : [
+          `${t('v4res.ov_real_prefix')} ${fmt(row.raw_value)} (${measureLabel})`,
+          clientRank === 1
+            ? t('v4res.ov_leader')
+            : score !== null && score !== undefined
+              ? fill(t('v4res.ov_pct'), { pct: Math.round(Number(score)) })
+              : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')
 
   const summarySnippet = (() => {
     if (insight?.status === 'done') {
@@ -608,14 +635,20 @@ function OverviewCard({
         {row.edited && <span style={pill('#f59e0b')}>{t('v4res.edited_badge')}</span>}
       </div>
 
-      <div style={{ display: 'flex', gap: '14px', alignItems: 'baseline' }}>
-        <span style={{ fontSize: '28px', fontWeight: 700, color: scoreColor(score ?? null) }}>{fmt(score)}</span>
-        <span style={{ fontSize: '11px', color: '#6b7280' }}>
-          {t('v4res.raw')} {fmt(row.raw_value)}
+      <div style={{ display: 'flex', gap: '14px', alignItems: 'baseline', flexWrap: 'wrap' }}>
+        <span
+          style={{ fontSize: '28px', fontWeight: 700, color: scoreColor(score ?? null), cursor: 'help' }}
+          title={t('v4res.formula_note')}
+        >
+          {fmt(score)}
         </span>
         <span style={pill('#6b7280')}>
           {t(def?.family === 'business' ? 'v4res.family_business' : 'v4res.family_development')}
         </span>
+      </div>
+      {/* One explicit line under the number: what it is, and the real measure. */}
+      <div style={{ fontSize: '11px', color: '#a0a0a0' }} title={t('v4res.formula_note')}>
+        {scoreLine}
       </div>
 
       {row.status === 'error' && row.error && (

@@ -8,6 +8,7 @@
  */
 
 import type React from 'react'
+import type { TranslationKey } from '@/lib/i18n'
 
 // ---------------------------------------------------------------------------
 // Wire shapes
@@ -101,6 +102,24 @@ export function fill(template: string, vars: Record<string, string | number>): s
   return template.replace(/\{(\w+)\}/g, (_m, k: string) =>
     vars[k] !== undefined ? String(vars[k]) : `{${k}}`,
   )
+}
+
+/**
+ * What each driver's raw ACTUALLY measures — the "misura reale" caption that
+ * keeps a Relative 100 from reading as an absolute grade (a PSI-57 site shows
+ * "100" as leader of its set; the label is what stops the misreading).
+ */
+export const MEASURE_LABEL_KEY: Record<string, TranslationKey> = {
+  awareness: 'v4res.measure_awareness',
+  ai_visibility: 'v4res.measure_ai_visibility',
+  discoverability: 'v4res.measure_discoverability',
+  traffic: 'v4res.measure_traffic',
+  compliance: 'v4res.measure_compliance',
+  schema: 'v4res.measure_schema',
+  speed: 'v4res.measure_speed',
+  accessibility: 'v4res.measure_accessibility',
+  content: 'v4res.measure_content',
+  authority: 'v4res.measure_authority',
 }
 
 /** Score band colour (UI only; 9a-style bands). null gets the muted grey. */

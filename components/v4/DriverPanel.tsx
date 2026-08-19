@@ -33,6 +33,7 @@ import {
   pill,
   fill,
   scoreColor,
+  MEASURE_LABEL_KEY,
   PRIORITY_COLORS,
   ghostButton,
   primaryButton,
@@ -85,6 +86,40 @@ export default function DriverPanel({
 
   const output = insight?.status === 'done' ? insight.output : null
 
+  // ---- single-driver relaunch ("Rilancia questo driver") -------------------
+  // done rows need force + an inline confirm (the re-measure is destructive:
+  // it replaces the data with today's — edits and decisions taken survive).
+  const [retryOpen, setRetryOpen] = useState(false)
+  const [retrying, setRetrying] = useState(false)
+  const [retryNote, setRetryNote] = useState<string | null>(null)
+  const canRetry = row.status === 'done' || row.status === 'error' || row.status === 'queued'
+
+  const retryThisDriver = async (force: boolean) => {
+    setRetrying(true)
+    setRetryNote(null)
+    try {
+      const res = await fetch(`/api/v4/analyses/${analysisId}/retry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ driver: row.driver_key, ...(force ? { force: true } : {}) }),
+      })
+      const body = await res.json()
+      if (!res.ok && res.status !== 207) {
+        setRetryNote(body.error ?? `errore ${res.status}`)
+        return
+      }
+      if (Array.isArray(body.dispatchErrors) && body.dispatchErrors.length > 0) {
+        setRetryNote(body.dispatchErrors.join(' | '))
+      }
+      setRetryOpen(false)
+      onChanged()
+    } catch (err) {
+      setRetryNote(err instanceof Error ? err.message : 'network error')
+    } finally {
+      setRetrying(false)
+    }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* ------------------------------------------------ 1 · SCORE ------- */}
@@ -98,7 +133,21 @@ export default function DriverPanel({
             {t(def?.family === 'business' ? 'v4res.family_business' : 'v4res.family_development')}
           </span>
           {row.edited && <span style={pill('#f59e0b')}>{t('v4res.edited_badge')}</span>}
-          <span style={{ marginLeft: 'auto' }}>
+          <span style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {canRetry && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (row.status === 'done') setRetryOpen(!retryOpen)
+                  else void retryThisDriver(false)
+                }}
+                disabled={retrying}
+                style={{ ...ghostButton, color: retrying ? '#6b7280' : '#a0a0a0' }}
+                title={t('v4res.retry_hint')}
+              >
+                {retrying ? t('v4res.retrying') : t('v4res.retry_driver')}
+              </button>
+            )}
             {row.status === 'done' && (
               <button type="button" onClick={() => setEditing(!editing)} style={ghostButton}>
                 {editing ? t('v4res.close') : t('v4res.edit_button')}
@@ -106,6 +155,40 @@ export default function DriverPanel({
             )}
           </span>
         </div>
+
+        {/* Inline confirm: re-measuring a done driver replaces its data with
+            today's — never on a single click. Edits and decisions survive. */}
+        {retryOpen && row.status === 'done' && (
+          <div
+            style={{
+              marginTop: '12px',
+              padding: '10px 14px',
+              background: '#f59e0b15',
+              border: '1px solid #f59e0b40',
+              borderRadius: '8px',
+              display: 'flex',
+              gap: '12px',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+            }}
+          >
+            <span style={{ fontSize: '13px', color: '#f59e0b' }}>{t('v4res.retry_driver_confirm')}</span>
+            <button
+              type="button"
+              onClick={() => void retryThisDriver(true)}
+              disabled={retrying}
+              style={primaryButton(!retrying)}
+            >
+              {retrying ? t('v4res.retrying') : t('v4res.retry_driver_yes')}
+            </button>
+            <button type="button" onClick={() => setRetryOpen(false)} style={ghostButton}>
+              {t('v4res.retry_driver_no')}
+            </button>
+          </div>
+        )}
+        {retryNote && (
+          <div style={{ marginTop: '10px', fontSize: '12px', color: '#f59e0b' }}>{retryNote}</div>
+        )}
 
         {view === 'absolute' && !def?.hasAbsoluteView && (
           <div style={{ marginTop: '10px', fontSize: '12px', color: '#f59e0b' }}>
@@ -130,15 +213,16 @@ export default function DriverPanel({
           <div style={{ marginTop: '14px', fontSize: '13px', color: '#14b8a6' }}>{t('v4res.driver_pending')}</div>
         ) : (
           <div style={{ marginTop: '16px', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
-            {/* Client score chip. */}
-            <ScoreChip
+            {/* Client headline: the big score NEVER without its view label —
+                a Relative 100 is a set comparison, not an absolute grade. */}
+            <ScoreHeadline
               label={sites.find((s) => s.is_client)?.name ?? t('v4res.client')}
+              driverKey={row.driver_key}
+              view={effectiveView}
               score={headlineScore}
               raw={row.raw_value}
               rank={clientSite?.rank ?? null}
-              isClient
-              rawLabel={t('v4res.raw')}
-              leaderLabel={t('v4res.leader')}
+              setSize={row.sites.length}
             />
             {/* Competitor chips, side by side (sheet 6 B.6). */}
             {row.sites
@@ -270,6 +354,92 @@ export default function DriverPanel({
 }
 
 // ---------------------------------------------------------------------------
+
+/**
+ * The client's big score, with the view label ALWAYS visible and talking
+ * (README 01 §6 threshold transparency, extended to the score itself):
+ *
+ *  Relative view:  100 · "Confronto col set — leader" (or "… — 74% del
+ *                  leader"), and UNDER it the real measure line:
+ *                  "Misura reale: 57 (PageSpeed performance medio)".
+ *  Absolute view:  57 · "Misura reale (0-100)", and under it the position
+ *                  in the set: "Nel set: leader" or "n° 2 di 3".
+ *
+ * The ⓘ tooltip carries the formula, so nobody can read a leader-index 100
+ * as an absolute grade again (the Benetton PSI-57 lesson).
+ */
+function ScoreHeadline({
+  label,
+  driverKey,
+  view,
+  score,
+  raw,
+  rank,
+  setSize,
+}: {
+  label: string
+  driverKey: string
+  view: ScoreView
+  score: number | null
+  raw: number | null
+  rank: number | null
+  setSize: number
+}) {
+  const { t } = useLocale()
+  const measureKey = MEASURE_LABEL_KEY[driverKey]
+  const measureLabel = measureKey ? t(measureKey) : driverKey
+
+  const viewLabel =
+    view === 'absolute'
+      ? t('v4res.abs_label')
+      : rank === 1 && score !== null
+        ? t('v4res.rel_leader')
+        : score !== null
+          ? fill(t('v4res.rel_pct'), { pct: Math.round(Number(score)) })
+          : t('v4res.view_relative')
+
+  const subLine =
+    view === 'absolute'
+      ? `${measureLabel} · ${
+          rank === 1
+            ? t('v4res.in_set_leader')
+            : rank !== null
+              ? fill(t('v4res.in_set_rank'), { rank, n: setSize })
+              : t('v4res.not_measured')
+        }`
+      : `${t('v4res.real_measure')}: ${fmt(raw)} (${measureLabel})`
+
+  return (
+    <div
+      style={{
+        border: '1px solid #c8e64a55',
+        borderRadius: '10px',
+        padding: '12px 18px',
+        minWidth: '260px',
+        background: '#c8e64a08',
+      }}
+    >
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'baseline' }}>
+        <span style={{ fontSize: '12px', color: '#c8e64a' }}>{label}</span>
+        {rank === 1 && <span style={pill('#c8e64a')}>{t('v4res.leader')}</span>}
+      </div>
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'baseline', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '30px', fontWeight: 700, color: scoreColor(score) }}>{fmt(score)}</span>
+        <span style={{ fontSize: '12px', color: '#a0a0a0' }}>
+          {viewLabel}{' '}
+          <span
+            title={t('v4res.formula_note')}
+            aria-label={t('v4res.formula_note')}
+            style={{ cursor: 'help', color: '#6b7280' }}
+          >
+            ⓘ
+          </span>
+        </span>
+      </div>
+      <div style={{ fontSize: '12px', color: '#e5e7eb', marginTop: '2px' }}>{subLine}</div>
+    </div>
+  )
+}
 
 function ScoreChip({
   label,

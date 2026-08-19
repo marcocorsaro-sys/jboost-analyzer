@@ -905,6 +905,33 @@ const it = {
   'v4res.pub_done': 'modifiche pubblicate.',
   'v4res.pub_rerun_started': 'Rilancio avviato per:',
   'v4res.pub_nothing': 'Niente da pubblicare: nessuna modifica in bozza.',
+  // V4 — score espliciti e parlanti (il 100 della vista Relativa è un
+  // confronto col set, MAI un voto assoluto — dirlo ovunque compaia uno score)
+  'v4res.rel_leader': 'Confronto col set — leader',
+  'v4res.rel_pct': 'Confronto col set — {pct}% del leader',
+  'v4res.abs_label': 'Misura reale (0-100)',
+  'v4res.real_measure': 'Misura reale',
+  'v4res.in_set_leader': 'Nel set: leader',
+  'v4res.in_set_rank': 'n° {rank} di {n}',
+  'v4res.formula_note': 'Relativo = 100 × valore / migliore del set (foglio 8). Assoluto = la misura reale riportata dalla fonte.',
+  'v4res.ov_real_prefix': 'reale',
+  'v4res.ov_leader': 'leader del set',
+  'v4res.ov_pct': '{pct}% del leader',
+  'v4res.measure_awareness': 'volume di ricerca brand intercettato',
+  'v4res.measure_ai_visibility': 'GEO score J-Horizon',
+  'v4res.measure_discoverability': 'keyword non-brand in top 10',
+  'v4res.measure_traffic': 'visite medie mensili',
+  'v4res.measure_compliance': 'Site Health Semrush',
+  'v4res.measure_schema': 'qualità structured data',
+  'v4res.measure_speed': 'PageSpeed performance medio',
+  'v4res.measure_accessibility': 'PageSpeed accessibility medio',
+  'v4res.measure_content': 'punteggio questionario',
+  'v4res.measure_authority': 'DR Ahrefs',
+  // V4 — rilancio del singolo driver
+  'v4res.retry_driver': 'Rilancia questo driver',
+  'v4res.retry_driver_confirm': 'Rimisura i dati alla data di oggi; gli edit e le decisioni prese restano. Confermare?',
+  'v4res.retry_driver_yes': 'Conferma rimisura',
+  'v4res.retry_driver_no': 'Annulla',
   // V4 — Questionario Content (Bibbia 9a/9b, UI v5 a tab per sito)
   'v4content.title': 'Questionario Content',
   'v4content.subtitle': 'Una risposta per domanda, per sito. Cliente obbligatorio, competitor opzionali (driver Development).',
@@ -1055,6 +1082,15 @@ const it = {
   'v4setup.err_network': 'errore di rete',
   'v4setup.err_upload': 'caricamento fallito',
   'v4setup.err_start_failed': 'Setup salvato ma l’avvio è fallito',
+  // V4 setup — prefill assistito da AI + normalizzazione input
+  'v4setup.ai_suggest': 'Suggerisci con AI',
+  'v4setup.ai_suggesting': 'Suggerisco…',
+  'v4setup.ai_suggest_hint': 'Scrape della homepage + Sonnet: pre-compila brand, tipo sito, settore, competitor, cluster tematici e URL dei template dalla sitemap. Tutto resta modificabile — niente viene salvato da solo.',
+  'v4setup.ai_suggest_needs_domain': 'Inserisci prima un dominio cliente valido.',
+  'v4setup.ai_suggest_done': 'Suggerimenti inseriti nei campi vuoti — verificali e correggili prima di salvare.',
+  'v4setup.ai_suggest_failed': 'Suggerimento AI fallito',
+  'v4setup.invalid_domain': 'Dominio non valido: atteso qualcosa come brand.com',
+  'v4setup.invalid_url': 'URL non valida: serve un indirizzo http(s):// completo',
 } as const
 
 export default it

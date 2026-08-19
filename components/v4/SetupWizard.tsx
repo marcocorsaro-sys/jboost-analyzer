@@ -35,6 +35,7 @@ import {
   SITE_TYPE_LABELS,
   TEMPLATE_KEYS,
   TEMPLATE_LABELS,
+  isHttpUrl,
   withMandatoryDrivers,
   type AttachmentKind,
   type IndustryPreset,
@@ -151,6 +152,52 @@ function bareDomain(raw: string): string {
     .replace(/^www\./, '')
     .replace(/\/.*$/, '')
 }
+
+// ---------------------------------------------------------------------------
+// Input normalization + inline validation (every domain/URL field of the
+// wizard normalizes on blur and explains what is wrong, in place)
+// ---------------------------------------------------------------------------
+
+const DOMAIN_RE = /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/
+
+/** Non-empty input that does not normalize to a plausible domain. */
+function domainInvalid(raw: string): boolean {
+  return raw.trim() !== '' && !DOMAIN_RE.test(bareDomain(raw))
+}
+
+/**
+ * URL normalization on blur: strip spaces, add https:// when missing,
+ * lowercase the host, drop the trailing slash of a bare origin. The PATH is
+ * left untouched (paths can be case-sensitive).
+ */
+function normalizeUrlInput(raw: string): string {
+  const compact = raw.trim().replace(/\s+/g, '')
+  if (!compact) return ''
+  const withProto = /^https?:\/\//i.test(compact) ? compact : `https://${compact}`
+  try {
+    const u = new URL(withProto)
+    u.hostname = u.hostname.toLowerCase()
+    let s = u.toString()
+    if (u.pathname === '/' && !u.search && !u.hash) s = s.replace(/\/$/, '')
+    return s
+  } catch {
+    return compact
+  }
+}
+
+/** Non-empty input that is not a valid http(s) URL. */
+function urlInvalid(raw: string): boolean {
+  return raw.trim() !== '' && !isHttpUrl(raw.trim())
+}
+
+/** 'zalando.com' -> 'Zalando' — competitor brand-name suggestion. */
+function brandFromDomain(raw: string): string {
+  const root = bareDomain(raw).split('.')[0] ?? ''
+  return root ? root.charAt(0).toUpperCase() + root.slice(1) : ''
+}
+
+const invalidInputStyle: React.CSSProperties = { ...inputStyle, border: '1px solid #ef4444' }
+const fieldErrorStyle: React.CSSProperties = { fontSize: '12px', color: '#ef4444', marginTop: '4px' }
 
 // ---------------------------------------------------------------------------
 // Small reusable pieces
@@ -466,6 +513,111 @@ export default function SetupWizard({
   }
 
   // ---------------------------------------------------------------------
+  // "Suggerisci con AI" — POST /api/v4/analyses/suggest (Firecrawl + Sonnet,
+  // adapted from the V1 pre-sales intake). Every suggestion is a PREFILL of
+  // EMPTY fields only: what the analyst already typed always wins, and
+  // nothing is saved until they save/launch themselves.
+  // ---------------------------------------------------------------------
+
+  const [suggesting, setSuggesting] = useState(false)
+  const [suggestNote, setSuggestNote] = useState<string | null>(null)
+  const [suggestWarnings, setSuggestWarnings] = useState<string[]>([])
+
+  const suggestWithAi = async () => {
+    const domain = bareDomain(clientDomain)
+    if (!domain || !DOMAIN_RE.test(domain)) {
+      setSuggestNote(t('v4setup.ai_suggest_needs_domain'))
+      return
+    }
+    setSuggesting(true)
+    setSuggestNote(null)
+    setSuggestWarnings([])
+    try {
+      const res = await fetch('/api/v4/analyses/suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain, country: countries[0] ?? null }),
+      })
+      const data = (await res.json()) as {
+        error?: string
+        brandName?: string | null
+        brandVariants?: string[]
+        siteType?: string | null
+        industryPreset?: string | null
+        sector?: string | null
+        competitors?: Array<{ domain?: string; brandName?: string }>
+        thematicClusters?: string[]
+        templateUrls?: Record<string, string>
+        warnings?: string[]
+      }
+      if (!res.ok) {
+        setSuggestNote(`${t('v4setup.ai_suggest_failed')}: ${data.error ?? res.status}`)
+        return
+      }
+
+      if (!clientBrand.trim() && data.brandName) setClientBrand(data.brandName)
+      if (!brandVariants.trim() && (data.brandVariants?.length ?? 0) > 0) {
+        setBrandVariants(data.brandVariants!.join(', '))
+      }
+      if (!siteType && data.siteType) setSiteType(data.siteType)
+      if (!industryPreset && data.industryPreset) setIndustryPreset(data.industryPreset as IndustryPreset)
+      if (!sector.trim() && data.sector) setSector(data.sector)
+
+      if ((data.competitors?.length ?? 0) > 0) {
+        setCompetitors((prev) => {
+          const kept = prev.filter((c) => bareDomain(c.domain))
+          const have = new Set(kept.map((c) => bareDomain(c.domain)))
+          const merged = [...kept]
+          for (const s of data.competitors!) {
+            if (merged.length >= MAX_COMPETITORS) break
+            const d = bareDomain(String(s.domain ?? ''))
+            if (!d || d === domain || have.has(d)) continue
+            have.add(d)
+            merged.push({ domain: d, brandName: String(s.brandName ?? '') || brandFromDomain(d) })
+          }
+          return merged.length > 0 ? merged : prev
+        })
+      }
+
+      if (clusters.length === 0 && (data.thematicClusters?.length ?? 0) > 0) {
+        setClusters(data.thematicClusters!.map(String))
+      }
+
+      // Template example URLs come from the site's own sitemap (never
+      // invented — Block 3). Fill only the client slots still empty, and flag
+      // the templates on the four page drivers ONLY when the analyst has not
+      // flagged anything yet (equivalent to the historical "every page driver
+      // applies" default — and it makes the prefilled fields visible).
+      const urls = data.templateUrls ?? {}
+      const suggestedKeys = Object.keys(urls)
+      if (suggestedKeys.length > 0) {
+        setTemplates((prev) => {
+          const client = { ...(prev.client ?? {}) }
+          for (const [key, url] of Object.entries(urls)) {
+            if (!client[key] && typeof url === 'string') client[key] = url
+          }
+          return { ...prev, client }
+        })
+        setDriverTemplates((prev) => {
+          const anyFlag = Object.values(prev).some((arr) => (arr ?? []).length > 0)
+          if (anyFlag) return prev
+          const withHome = [...new Set(['homepage', ...suggestedKeys])]
+          return { ...prev, speed: withHome, accessibility: withHome, schema: withHome, content: withHome }
+        })
+      }
+
+      setSuggestWarnings((data.warnings ?? []).map(String))
+      setSuggestNote(t('v4setup.ai_suggest_done'))
+    } catch (err) {
+      setSuggestNote(
+        `${t('v4setup.ai_suggest_failed')}: ${err instanceof Error ? err.message : t('v4setup.err_network')}`,
+      )
+    } finally {
+      setSuggesting(false)
+    }
+  }
+
+  // ---------------------------------------------------------------------
   // Step-3 helpers
   // ---------------------------------------------------------------------
 
@@ -580,16 +732,22 @@ export default function SetupWizard({
             {TEMPLATE_KEYS.filter((k) => selected.includes(k)).map((key) => (
               <div key={key} style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '12px', alignItems: 'center' }}>
                 <span style={{ fontSize: '12px', color: '#a0a0a0' }}>{TEMPLATE_LABELS[key]}</span>
-                <input
-                  style={inputStyle}
-                  value={templates.client?.[key] ?? ''}
-                  onChange={(e) => setTemplateUrl('client', key, e.target.value)}
-                  placeholder={
-                    key === 'homepage'
-                      ? `https://${bareDomain(clientDomain)} (default)`
-                      : t('v4setup.template_url_placeholder')
-                  }
-                />
+                <div>
+                  <input
+                    style={urlInvalid(templates.client?.[key] ?? '') ? invalidInputStyle : inputStyle}
+                    value={templates.client?.[key] ?? ''}
+                    onChange={(e) => setTemplateUrl('client', key, e.target.value)}
+                    onBlur={(e) => setTemplateUrl('client', key, normalizeUrlInput(e.target.value))}
+                    placeholder={
+                      key === 'homepage'
+                        ? `https://${bareDomain(clientDomain)} (default)`
+                        : t('v4setup.template_url_placeholder')
+                    }
+                  />
+                  {urlInvalid(templates.client?.[key] ?? '') && (
+                    <div style={fieldErrorStyle}>{t('v4setup.invalid_url')}</div>
+                  )}
+                </div>
               </div>
             ))}
             <div style={smallHint}>{t('v4setup.template_urls_shared')}</div>
@@ -679,11 +837,13 @@ export default function SetupWizard({
         <div>
           <label style={labelStyle}>{t('v4setup.domain')} *</label>
           <input
-            style={inputStyle}
+            style={domainInvalid(clientDomain) ? invalidInputStyle : inputStyle}
             value={clientDomain}
             onChange={(e) => setClientDomain(e.target.value)}
+            onBlur={() => setClientDomain((v) => (v.trim() ? bareDomain(v) : v))}
             placeholder="es. benetton.com"
           />
+          {domainInvalid(clientDomain) && <div style={fieldErrorStyle}>{t('v4setup.invalid_domain')}</div>}
         </div>
         <div>
           <label style={labelStyle}>{t('v4setup.brand_name')} *</label>
@@ -695,6 +855,31 @@ export default function SetupWizard({
           />
         </div>
       </div>
+
+      {/* AI-assisted prefill: fills the EMPTY fields of the whole wizard
+          (brand, site type, sector, competitors, clusters, template URLs).
+          Everything stays editable; nothing is saved on its own. */}
+      <div style={{ marginTop: '12px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={() => void suggestWithAi()}
+          disabled={suggesting}
+          style={{
+            ...ghostButton,
+            borderColor: '#c8e64a40',
+            color: suggesting ? '#6b7280' : '#c8e64a',
+          }}
+        >
+          {suggesting ? `↻ ${t('v4setup.ai_suggesting')}` : `✨ ${t('v4setup.ai_suggest')}`}
+        </button>
+        <span style={{ fontSize: '12px', color: '#6b7280', flex: 1, minWidth: '260px' }}>
+          {t('v4setup.ai_suggest_hint')}
+        </span>
+      </div>
+      {suggestNote && <div style={{ marginTop: '8px', fontSize: '12px', color: '#c8e64a' }}>{suggestNote}</div>}
+      {suggestWarnings.length > 0 && (
+        <div style={{ marginTop: '4px', fontSize: '12px', color: '#f59e0b' }}>{suggestWarnings.join(' · ')}</div>
+      )}
 
       <div style={{ marginTop: '16px' }}>
         <label style={labelStyle}>{t('v4setup.brand_variants')}</label>
@@ -829,41 +1014,56 @@ export default function SetupWizard({
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {competitors.map((c, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 40px', gap: '12px' }}>
-            <input
-              style={inputStyle}
-              value={c.domain}
-              onChange={(e) => {
-                const next = [...competitors]
-                next[i] = { ...next[i], domain: e.target.value }
-                setCompetitors(next)
-              }}
-              placeholder={`${t('v4setup.competitor_domain')} ${i + 1}`}
-            />
-            <input
-              style={inputStyle}
-              value={c.brandName}
-              onChange={(e) => {
-                const next = [...competitors]
-                next[i] = { ...next[i], brandName: e.target.value }
-                setCompetitors(next)
-              }}
-              placeholder={`${t('v4setup.competitor_brand')} *`}
-            />
-            <button
-              type="button"
-              onClick={() => setCompetitors(competitors.filter((_, j) => j !== i))}
-              style={{
-                background: 'transparent',
-                border: '1px solid #2a2d35',
-                borderRadius: '8px',
-                color: '#6b7280',
-                cursor: 'pointer',
-              }}
-              aria-label={`${t('v4setup.remove')} competitor ${i + 1}`}
-            >
-              ×
-            </button>
+          <div key={i}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 40px', gap: '12px' }}>
+              <input
+                style={domainInvalid(c.domain) ? invalidInputStyle : inputStyle}
+                value={c.domain}
+                onChange={(e) => {
+                  const next = [...competitors]
+                  next[i] = { ...next[i], domain: e.target.value }
+                  setCompetitors(next)
+                }}
+                onBlur={() => {
+                  // Normalize the domain and, when the brand is still empty,
+                  // suggest it from the domain ('zalando.com' -> 'Zalando').
+                  const next = [...competitors]
+                  const nd = next[i].domain.trim() ? bareDomain(next[i].domain) : next[i].domain
+                  const nb =
+                    next[i].brandName.trim() === '' && nd && DOMAIN_RE.test(nd)
+                      ? brandFromDomain(nd)
+                      : next[i].brandName
+                  next[i] = { domain: nd, brandName: nb }
+                  setCompetitors(next)
+                }}
+                placeholder={`${t('v4setup.competitor_domain')} ${i + 1}`}
+              />
+              <input
+                style={inputStyle}
+                value={c.brandName}
+                onChange={(e) => {
+                  const next = [...competitors]
+                  next[i] = { ...next[i], brandName: e.target.value }
+                  setCompetitors(next)
+                }}
+                placeholder={`${t('v4setup.competitor_brand')} *`}
+              />
+              <button
+                type="button"
+                onClick={() => setCompetitors(competitors.filter((_, j) => j !== i))}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid #2a2d35',
+                  borderRadius: '8px',
+                  color: '#6b7280',
+                  cursor: 'pointer',
+                }}
+                aria-label={`${t('v4setup.remove')} competitor ${i + 1}`}
+              >
+                ×
+              </button>
+            </div>
+            {domainInvalid(c.domain) && <div style={fieldErrorStyle}>{t('v4setup.invalid_domain')}</div>}
           </div>
         ))}
       </div>
@@ -977,16 +1177,22 @@ export default function SetupWizard({
                           style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '12px', alignItems: 'center' }}
                         >
                           <span style={{ fontSize: '12px', color: '#a0a0a0' }}>{TEMPLATE_LABELS[key]}</span>
-                          <input
-                            style={inputStyle}
-                            value={templates[site.site_ref]?.[key] ?? ''}
-                            onChange={(e) => setTemplateUrl(site.site_ref, key, e.target.value)}
-                            placeholder={
-                              key === 'homepage'
-                                ? `https://${site.domain} (default)`
-                                : t('v4setup.template_url_placeholder')
-                            }
-                          />
+                          <div>
+                            <input
+                              style={urlInvalid(templates[site.site_ref]?.[key] ?? '') ? invalidInputStyle : inputStyle}
+                              value={templates[site.site_ref]?.[key] ?? ''}
+                              onChange={(e) => setTemplateUrl(site.site_ref, key, e.target.value)}
+                              onBlur={(e) => setTemplateUrl(site.site_ref, key, normalizeUrlInput(e.target.value))}
+                              placeholder={
+                                key === 'homepage'
+                                  ? `https://${site.domain} (default)`
+                                  : t('v4setup.template_url_placeholder')
+                              }
+                            />
+                            {urlInvalid(templates[site.site_ref]?.[key] ?? '') && (
+                              <div style={fieldErrorStyle}>{t('v4setup.invalid_url')}</div>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>

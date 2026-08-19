@@ -905,6 +905,33 @@ const en = {
   'v4res.pub_done': 'edits published.',
   'v4res.pub_rerun_started': 'Re-run started for:',
   'v4res.pub_nothing': 'Nothing to publish: no draft edits.',
+  // V4 — explicit, self-explaining scores (a 100 in the Relative view is a
+  // set comparison, NEVER an absolute grade — say so wherever a score shows)
+  'v4res.rel_leader': 'Compared with the set — leader',
+  'v4res.rel_pct': 'Compared with the set — {pct}% of the leader',
+  'v4res.abs_label': 'Real measure (0-100)',
+  'v4res.real_measure': 'Real measure',
+  'v4res.in_set_leader': 'In the set: leader',
+  'v4res.in_set_rank': 'no. {rank} of {n}',
+  'v4res.formula_note': 'Relative = 100 × value / best of the set (sheet 8). Absolute = the real measure reported by the source.',
+  'v4res.ov_real_prefix': 'real',
+  'v4res.ov_leader': 'set leader',
+  'v4res.ov_pct': '{pct}% of the leader',
+  'v4res.measure_awareness': 'branded search volume captured',
+  'v4res.measure_ai_visibility': 'J-Horizon GEO score',
+  'v4res.measure_discoverability': 'non-brand keywords in top 10',
+  'v4res.measure_traffic': 'mean monthly visits',
+  'v4res.measure_compliance': 'Semrush Site Health',
+  'v4res.measure_schema': 'structured data quality',
+  'v4res.measure_speed': 'average PageSpeed performance',
+  'v4res.measure_accessibility': 'average PageSpeed accessibility',
+  'v4res.measure_content': 'questionnaire score',
+  'v4res.measure_authority': 'Ahrefs DR',
+  // V4 — single-driver relaunch
+  'v4res.retry_driver': 'Relaunch this driver',
+  'v4res.retry_driver_confirm': 'Re-measures the data as of today; your edits and the decisions taken survive. Confirm?',
+  'v4res.retry_driver_yes': 'Confirm re-measure',
+  'v4res.retry_driver_no': 'Cancel',
   // V4 — Content questionnaire (Bibbia sheets 9a/9b, v5 tab-per-site UI)
   'v4content.title': 'Content questionnaire',
   'v4content.subtitle': 'One answer per question, per site. Client mandatory, competitors optional (Development driver).',
@@ -1055,6 +1082,15 @@ const en = {
   'v4setup.err_network': 'network error',
   'v4setup.err_upload': 'upload failed',
   'v4setup.err_start_failed': 'Setup saved but the launch failed',
+  // V4 setup — AI-assisted prefill + input normalization
+  'v4setup.ai_suggest': 'Suggest with AI',
+  'v4setup.ai_suggesting': 'Suggesting…',
+  'v4setup.ai_suggest_hint': 'Homepage scrape + Sonnet: pre-fills brand, site type, sector, competitors, thematic clusters and template URLs from the sitemap. Everything stays editable — nothing is saved on its own.',
+  'v4setup.ai_suggest_needs_domain': 'Enter a valid client domain first.',
+  'v4setup.ai_suggest_done': 'Suggestions filled into the empty fields — review and correct them before saving.',
+  'v4setup.ai_suggest_failed': 'AI suggestion failed',
+  'v4setup.invalid_domain': 'Invalid domain: expected something like brand.com',
+  'v4setup.invalid_url': 'Invalid URL: must be a full http(s):// address',
 } as const
 
 export type TranslationKey = keyof typeof en
