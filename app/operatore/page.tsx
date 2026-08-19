@@ -38,6 +38,9 @@ export default function Operatore() {
 
   const today = new Date().toISOString().slice(0, 10);
   const month = today.slice(0, 7);
+  // tick ogni 30s per aggiornare il conto alla rovescia "arriva tra X minuti"
+  const [, setTick] = useState(0);
+  useEffect(() => { const t = setInterval(() => setTick(x => x + 1), 30000); return () => clearInterval(t); }, []);
 
   useEffect(() => {
     if (!ctx.orgId) return;
@@ -132,6 +135,21 @@ export default function Operatore() {
 
   const clientOf = (a: Appt | null) => (a?.client_name ? clientsByKey[normKey(a.client_name)] ?? null : null);
   const hhmm = (iso: string) => new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+
+  // Prossimo cliente: la sua scheda compare da sola quando chiudi quella attuale (richiesta Dimitar)
+  const nextUp = !current ? myQueue[0] ?? null : null;
+  const minsTo = (iso: string) => Math.round((new Date(iso).getTime() - Date.now()) / 60000);
+  const arrivalLabel = (m: number, name: string) =>
+    m > 1 ? name + " arriva tra " + m + " minuti"
+      : m >= -1 ? name + " sta arrivando adesso"
+      : name + " è in ritardo di " + Math.abs(m) + " minuti";
+  // Suggerimenti tempo-morto generici v1 — in futuro ogni titolare potrà personalizzarli
+  const idleTip = (m: number) => {
+    if (m > 20) return "Hai tempo: sistema lo scaffale dei prodotti, controlla le giacenze o riordina la postazione.";
+    if (m > 5) return "Dai un'occhiata veloce al suo storico qui sopra e prepara una proposta: un upgrade di servizio o un prodotto mirato.";
+    if (m >= -1) return "Sta per entrare: postazione pronta e proposta già in mente.";
+    return "Se la postazione è pronta, segnala il ritardo alla reception: un walk-in può riempire questo buco.";
+  };
 
   // Nota: nessun dato economico del cliente in vista operatore (richiesta Dimitar)
   const suggestFor = (c: any): string => {
@@ -292,10 +310,44 @@ export default function Operatore() {
                 <button className="btn" onClick={openInvia}>✓ Invia alla reception</button>
               </div>
             </div>
-          ) : (
+          ) : nextUp ? (() => {
+            const nc = clientOf(nextUp);
+            const m = minsTo(nextUp.starts_at);
+            const firstName = (nextUp.client_name ?? "Il prossimo cliente").split(" ")[0];
+            return (
+              <div className="card" style={{ borderColor: "#c9a227", borderWidth: 2 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", flexWrap: "wrap", gap: 10 }}>
+                  <div>
+                    <div className="kpi-label" style={{ marginBottom: 4 }}>Prossimo cliente</div>
+                    <h2 className="serif" style={{ margin: 0, fontSize: 24 }}>{nextUp.client_name ?? "Cliente"}</h2>
+                    <p style={{ margin: "6px 0" }}>
+                      {nc && <span className={"badge b-" + (nc.segment ?? "base")}>{SEGMENT_LABEL[nc.segment ?? "base"]}</span>}
+                      {nc?.at_risk && <span className="badge b-risk" style={{ marginLeft: 6 }}>era a rischio</span>}
+                      <span className="sub" style={{ marginLeft: nc ? 8 : 0 }}>{nextUp.service_name ?? "servizio da definire"} · appuntamento {hhmm(nextUp.starts_at)}</span>
+                    </p>
+                  </div>
+                  <span className="badge" style={{ background: m < 0 ? "#f3d9d3" : "#eee4c8", color: m < 0 ? "#8a2f1d" : "#6b5310", fontSize: 14, padding: "6px 12px" }}>
+                    ⏱ {arrivalLabel(m, firstName)}
+                  </span>
+                </div>
+                {nc ? (
+                  <div className="grid kpis" style={{ marginTop: 8 }}>
+                    <div><div className="kpi-label">Passaggi</div><div className="kpi-value" style={{ fontSize: 22 }}>{num(nc.visits_count)}</div></div>
+                    <div><div className="kpi-label">Ultima visita</div><div className="kpi-value" style={{ fontSize: 22 }}>{nc.last_visit ?? "—"}</div></div>
+                    <div><div className="kpi-label">Prossimo app.</div><div className="kpi-value" style={{ fontSize: 22 }}>{nextByKey[nc.normalized_key] ? new Date(nextByKey[nc.normalized_key]).toLocaleDateString("it-IT") : "—"}</div></div>
+                  </div>
+                ) : <p className="sub">Nessuna scheda storica per questo nome — verrà creata alla chiusura.</p>}
+                <div className="alert" style={{ marginTop: 12 }}>💡 {suggestFor(nc)}</div>
+                <div className="alert" style={{ background: "#f0ede4", borderColor: "#d3cbb4" }}>🕐 {idleTip(m)} <span className="sub">(suggerimento generico — presto personalizzabile dal titolare)</span></div>
+                <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+                  <button className="btn" onClick={() => inizia(nextUp)}>▶ Inizia lavoro</button>
+                </div>
+              </div>
+            );
+          })() : (
             <div className="card" style={{ textAlign: "center", padding: 30 }}>
-              <p className="serif" style={{ fontSize: 19, margin: 0 }}>Nessun cliente in lavorazione</p>
-              <p className="sub">Prendi in carico un cliente dalla coda qui sotto.</p>
+              <p className="serif" style={{ fontSize: 19, margin: 0 }}>Nessun cliente in lavorazione né in arrivo</p>
+              <p className="sub">Quando la reception aggiunge un appuntamento per te, la scheda comparirà qui da sola.</p>
             </div>
           )}
 
@@ -315,9 +367,9 @@ export default function Operatore() {
           )}
 
           <div className="section">
-            <div className="section-title"><h2>La mia coda ({myQueue.length})</h2><span className="sub">check-in fatti, in attesa</span></div>
-            {myQueue.length === 0 && <p className="sub">Nessun cliente in attesa per te.</p>}
-            {myQueue.map(a => {
+            <div className="section-title"><h2>{nextUp ? "In arrivo dopo (" + Math.max(0, myQueue.length - 1) + ")" : "La mia coda (" + myQueue.length + ")"}</h2><span className="sub">appuntamenti di oggi in sequenza</span></div>
+            {(nextUp ? myQueue.slice(1) : myQueue).length === 0 && <p className="sub">Nessun altro cliente in attesa per te.</p>}
+            {(nextUp ? myQueue.slice(1) : myQueue).map(a => {
               const cc = clientOf(a);
               return (
                 <div className="card row" key={a.id} style={{ marginBottom: 8 }}>
