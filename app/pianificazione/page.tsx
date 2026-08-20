@@ -26,8 +26,14 @@ export default function Pianificazione() {
   useEffect(() => {
     if (!ctx.orgId) return;
     (async () => {
-      const { data: p } = await supabase.from("business_plans").select("*")
-        .eq("organization_id", ctx.orgId).order("month", { ascending: false }).limit(1).maybeSingle();
+      // stesso piano usato dalla Reception: prima il piano ATTIVO, solo in mancanza il più recente
+      let { data: p } = await supabase.from("business_plans").select("*")
+        .eq("organization_id", ctx.orgId).eq("status", "active")
+        .order("month", { ascending: false }).limit(1).maybeSingle();
+      if (!p) {
+        ({ data: p } = await supabase.from("business_plans").select("*")
+          .eq("organization_id", ctx.orgId).order("month", { ascending: false }).limit(1).maybeSingle());
+      }
       if (!p) return;
       setPlan(p as Plan);
       const { data: ps } = await supabase.from("plan_staff").select("*").eq("plan_id", p.id);
@@ -88,25 +94,44 @@ export default function Pianificazione() {
   };
   const applyTotal = async () => {
     if (!plan) return;
-    await supabase.from("business_plans").update({ monthly_total: obiettivo }).eq("id", plan.id);
+    const { data, error } = await supabase.from("business_plans").update({ monthly_total: obiettivo }).eq("id", plan.id).select("id");
+    if (error || !data?.length) { setSaved("⚠️ ERRORE: obiettivo NON applicato (" + (error?.message ?? "nessuna riga") + ")"); return; }
     setPlan({ ...plan, monthly_total: obiettivo });
-    setSaved("Obiettivo economico applicato al piano: " + eur(obiettivo, 0));
+    setSaved("Obiettivo applicato ✓ " + eur(obiettivo, 0) + " — CAM ricalcolato, valido anche in Reception.");
+  };
+
+  // BUG FIX (Dimitar): autosalvataggio per riga — ogni campo persiste da solo su modifica,
+  // senza dipendere dal pulsante "Salva piano". Gli errori non sono più silenziosi.
+  const patchRow = (i: number, patch: any) =>
+    setRows(rows.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  const persistRow = async (id: string, patch: any) => {
+    const { data, error } = await supabase.from("plan_staff").update(patch).eq("id", id).select("id");
+    if (error || !data?.length) {
+      setSaved("⚠️ ERRORE salvataggio riga: " + (error?.message ?? "nessuna riga aggiornata") + " — la modifica NON è persistita.");
+      return false;
+    }
+    setSaved("Salvato ✓ — CAM ricalcolato con i nuovi dati (Reception aggiornata al prossimo caricamento).");
+    return true;
   };
 
   const save = async () => {
     if (!plan) return;
     setSaved(null);
-    await supabase.from("business_plans").update({
+    const { data: pu, error: pe } = await supabase.from("business_plans").update({
       monthly_total: plan.monthly_total,
       productive_coefficient: plan.productive_coefficient,
       expected_occupancy: (plan as any).expected_occupancy ?? 75,
       notes: plan.notes,
-    }).eq("id", plan.id);
+    }).eq("id", plan.id).select("id");
+    if (pe || !pu?.length) { setSaved("⚠️ ERRORE salvataggio piano: " + (pe?.message ?? "nessuna riga aggiornata")); return; }
+    let ok = 0;
     for (const r of rows) {
       const { id, staff_id, display_name, ...fields } = r as any;
-      await supabase.from("plan_staff").update(fields).eq("id", id);
+      const { data, error } = await supabase.from("plan_staff").update(fields).eq("id", id).select("id");
+      if (error || !data?.length) { setSaved("⚠️ ERRORE su una riga operatore: " + (error?.message ?? "non aggiornata")); return; }
+      ok++;
     }
-    setSaved("Piano salvato.");
+    setSaved(`Piano salvato ✓ (${ok} operatori) — nuovo CAM: ${cap ? eur(cap.cam, 4) : "—"}, già valido anche in Reception.`);
   };
 
   return (
@@ -175,7 +200,8 @@ export default function Pianificazione() {
             </div>
             <div className="card">
               <label className="fld">Totale mensile da coprire (manuale, finché la struttura costi non è completa)</label>
-              <input type="number" value={plan.monthly_total} onChange={e => setPlan({ ...plan, monthly_total: Number(e.target.value) })} style={{ width: "100%" }} />
+              <input type="number" value={plan.monthly_total} onChange={e => setPlan({ ...plan, monthly_total: Number(e.target.value) })}
+                onBlur={async e => { const { error } = await supabase.from("business_plans").update({ monthly_total: Number(e.target.value) }).eq("id", plan.id); setSaved(error ? "⚠️ ERRORE: totale non salvato" : "Totale salvato ✓ — CAM aggiornato ovunque."); }} style={{ width: "100%" }} />
               <label className="fld" style={{ marginTop: 14 }}>Occupazione Target del salone — OT % (obiettivo, non entra nel CAM)</label>
               <input type="number" min={10} max={100} value={(plan as any).expected_occupancy ?? 75} onChange={e => setPlan({ ...plan, expected_occupancy: Number(e.target.value) } as any)} style={{ width: "100%" }} />
               <p className="sub" style={{ marginTop: 8 }}>L'OT si imposta qui (anche per singolo collaboratore, righe sotto). L'Occupazione Reale (OR) invece la calcola GPS da solo durante la giornata e la vedi in Reception e in Team, confrontata in punti percentuali con il target.</p>
@@ -193,11 +219,17 @@ export default function Pianificazione() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
                   <b className="serif" style={{ fontSize: 17 }}>{staffNames[r.staff_id] ?? "Operatore"}</b>
                   <span style={{ display: "flex", gap: 14, alignItems: "center", fontSize: 13 }}>
-                    <span>Costo €/mese <input type="number" value={r.monthly_cost} style={{ width: 90, padding: "5px 8px" }} onChange={e => setRows(rows.map((x, j) => j === i ? { ...x, monthly_cost: Number(e.target.value) } : x))} /></span>
-                    <label><input type="checkbox" checked={r.include_capacity} onChange={e => setRows(rows.map((x, j) => j === i ? { ...x, include_capacity: e.target.checked } : x))} /> capacità</label>
-                    <label><input type="checkbox" checked={r.include_cost} onChange={e => setRows(rows.map((x, j) => j === i ? { ...x, include_cost: e.target.checked } : x))} /> costi</label>
-                    <span>Partecipazione capacità <input type="number" min={0} max={100} value={(r as any).capacity_pct ?? 100} style={{ width: 62, padding: "5px 6px", textAlign: "right" }} onChange={e => setRows(rows.map((x, j) => j === i ? { ...x, capacity_pct: Number(e.target.value) } as any : x))} />%</span>
-                    <span title="Occupazione Target individuale — l'OR reale la calcola GPS">OT <input type="number" min={0} max={100} value={(r as any).occupancy_target_pct ?? 75} style={{ width: 58, padding: "5px 6px", textAlign: "right" }} onChange={e => setRows(rows.map((x, j) => j === i ? { ...x, occupancy_target_pct: Number(e.target.value) } as any : x))} />%</span>
+                    <span>Costo €/mese <input type="number" value={r.monthly_cost} style={{ width: 90, padding: "5px 8px" }}
+                      onChange={e => patchRow(i, { monthly_cost: Number(e.target.value) })}
+                      onBlur={e => persistRow(r.id, { monthly_cost: Number(e.target.value) })} /></span>
+                    <label><input type="checkbox" checked={r.include_capacity} onChange={e => { patchRow(i, { include_capacity: e.target.checked }); persistRow(r.id, { include_capacity: e.target.checked }); }} /> capacità</label>
+                    <label><input type="checkbox" checked={r.include_cost} onChange={e => { patchRow(i, { include_cost: e.target.checked }); persistRow(r.id, { include_cost: e.target.checked }); }} /> costi</label>
+                    <span>Partecipazione capacità <input type="number" min={0} max={100} value={(r as any).capacity_pct ?? 100} style={{ width: 62, padding: "5px 6px", textAlign: "right" }}
+                      onChange={e => patchRow(i, { capacity_pct: Number(e.target.value) })}
+                      onBlur={e => persistRow(r.id, { capacity_pct: Number(e.target.value) })} />%</span>
+                    <span title="Occupazione Target individuale — l'OR reale la calcola GPS">OT <input type="number" min={0} max={100} value={(r as any).occupancy_target_pct ?? 75} style={{ width: 58, padding: "5px 6px", textAlign: "right" }}
+                      onChange={e => patchRow(i, { occupancy_target_pct: Number(e.target.value) })}
+                      onBlur={e => persistRow(r.id, { occupancy_target_pct: Number(e.target.value) })} />%</span>
                     <b>{num(Math.round(plan ? (sched?.configured ? sched.staffMonth(r.staff_id, plan.month).total * ((Number((r as any).capacity_pct ?? 100)) / 100) : planCapacity(plan, [r]).productiveMinutes) : 0))} min prod./mese</b>
                   </span>
                 </div>
@@ -206,7 +238,8 @@ export default function Pianificazione() {
                     <div key={d.k as string} style={{ textAlign: "center" }}>
                       <div className="fld" style={{ marginBottom: 4 }}>{d.l}</div>
                       <input type="number" min={0} max={14} step={0.5} value={Number(r[d.k]) || 0} style={{ width: "100%", textAlign: "center", padding: "6px 4px" }}
-                        onChange={e => setRows(rows.map((x, j) => j === i ? { ...x, [d.k]: Number(e.target.value) } : x))} />
+                        onChange={e => patchRow(i, { [d.k]: Number(e.target.value) })}
+                        onBlur={e => persistRow(r.id, { [d.k]: Number(e.target.value) })} />
                     </div>
                   ))}
                 </div>
