@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { B } from '@/lib/brand'
 
 // "Fotografia MarTech solida": 5 big cards — CMS, Web Analytics,
 // MKT Automation, Core Web Vitals Desktop, Core Web Vitals Mobile.
@@ -44,11 +45,11 @@ const ESSENTIAL_CATEGORIES: Array<{ key: string; label: string; hint: string }> 
 ]
 
 function scoreColor(score: number | undefined | null): string {
-  if (score === null || score === undefined) return '#6b7280'
-  if (score >= 90) return '#22c55e'
-  if (score >= 75) return '#38bdf8'
-  if (score >= 50) return '#f59e0b'
-  return '#ef4444'
+  if (score === null || score === undefined) return B.muted
+  if (score >= 90) return B.success
+  if (score >= 75) return B.info
+  if (score >= 50) return B.warning
+  return B.error
 }
 
 function scoreLabel(score: number | undefined | null): string {
@@ -104,9 +105,9 @@ function CategoryCard({
 
   return (
     <div style={{
-      background: '#1a1c24',
+      background: B.surface,
       borderRadius: '14px',
-      border: `1px solid ${refreshError ? '#ef4444' : '#2a2d35'}`,
+      border: `1px solid ${refreshError ? B.error : B.border}`,
       padding: '28px',
       display: 'flex',
       flexDirection: 'column',
@@ -118,10 +119,10 @@ function CategoryCard({
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div style={{
-          fontFamily: "'JetBrains Mono', monospace",
+          fontFamily: B.fontMono,
           fontSize: '11px',
           fontWeight: 700,
-          color: '#c8e64a',
+          color: B.primary,
           textTransform: 'uppercase',
           letterSpacing: '1.5px',
         }}>
@@ -138,14 +139,14 @@ function CategoryCard({
               display: 'inline-flex',
               alignItems: 'center',
               gap: '5px',
-              background: refreshing ? '#2a2d35' : '#c8e64a14',
-              border: `1px solid ${refreshing ? '#2a2d35' : '#c8e64a55'}`,
+              background: refreshing ? B.border : B.primarySoft,
+              border: `1px solid ${refreshing ? B.border : `${B.primary}55`}`,
               borderRadius: '6px',
-              color: refreshing ? '#6b7280' : '#c8e64a',
+              color: refreshing ? B.muted : B.primary,
               padding: '5px 10px',
               fontSize: '11px',
               fontWeight: 700,
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: B.fontMono,
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
               cursor: refreshing ? 'default' : 'pointer',
@@ -161,10 +162,10 @@ function CategoryCard({
       {primary ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           <div style={{
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
             fontSize: '40px',
             fontWeight: 700,
-            color: '#ffffff',
+            color: B.ink,
             letterSpacing: '-1px',
             lineHeight: '1.05',
             wordBreak: 'break-word',
@@ -172,17 +173,17 @@ function CategoryCard({
             {primary.tool_name}
           </div>
           {primary.tool_version && (
-            <div style={{ fontSize: '12px', color: '#9ca3af', fontFamily: "'JetBrains Mono', monospace" }}>
+            <div style={{ fontSize: '12px', color: B.muted, fontFamily: B.fontMono }}>
               v{primary.tool_version}
             </div>
           )}
         </div>
       ) : (
         <div style={{
-          fontFamily: "'JetBrains Mono', monospace",
+          fontFamily: B.fontMono,
           fontSize: '40px',
           fontWeight: 700,
-          color: '#4b5563',
+          color: B.muted,
           letterSpacing: '-1px',
           lineHeight: '1.05',
         }}>
@@ -192,13 +193,13 @@ function CategoryCard({
 
       <div style={{ flex: 1 }} />
 
-      <div style={{ fontSize: '12px', color: '#6b7280' }}>
+      <div style={{ fontSize: '12px', color: B.muted }}>
         {primary
           ? `${Math.round(primary.confidence * 100)}% confidence · ${hint}`
           : hint}
       </div>
       {others.length > 0 && (
-        <div style={{ fontSize: '12px', color: '#9ca3af' }}>
+        <div style={{ fontSize: '12px', color: B.muted }}>
           + {others.map(t => t.tool_name).join(', ')}
         </div>
       )}
@@ -231,9 +232,9 @@ function CwvCard({
 
   return (
     <div style={{
-      background: '#1a1c24',
+      background: B.surface,
       borderRadius: '14px',
-      border: `1px solid ${showFallback ? '#3a3d45' : scoreColor(overall) + '40'}`,
+      border: `1px solid ${showFallback ? B.border : scoreColor(overall) + '40'}`,
       padding: '28px',
       display: 'flex',
       flexDirection: 'column',
@@ -244,19 +245,19 @@ function CwvCard({
         display: 'flex',
         alignItems: 'center',
         gap: '8px',
-        fontFamily: "'JetBrains Mono', monospace",
+        fontFamily: B.fontMono,
         fontSize: '11px',
         fontWeight: 700,
-        color: '#c8e64a',
+        color: B.primary,
         textTransform: 'uppercase',
         letterSpacing: '1.5px',
       }}>
         Core Web Vitals · {label}
         {loading && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#6b7280', fontWeight: 600, letterSpacing: 0 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: B.muted, fontWeight: 600, letterSpacing: 0 }}>
             <span className="animate-spin" style={{
               width: 10, height: 10, borderRadius: '50%',
-              border: '2px solid #2a2d35', borderTopColor: '#c8e64a',
+              border: `2px solid ${B.border}`, borderTopColor: B.primary,
               display: 'inline-block',
             }} />
             aggiorno…
@@ -267,16 +268,16 @@ function CwvCard({
       {showFallback ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={{
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
             fontSize: '72px',
             fontWeight: 700,
-            color: '#4b5563',
+            color: B.muted,
             lineHeight: '1',
             letterSpacing: '-2px',
           }}>
             —
           </div>
-          <div style={{ fontSize: '12px', color: '#9ca3af', lineHeight: '1.4' }}>
+          <div style={{ fontSize: '12px', color: B.muted, lineHeight: '1.4' }}>
             {loading
               ? `Recupero i Core Web Vitals ${label.toLowerCase()} da PageSpeed…`
               : noData
@@ -286,7 +287,7 @@ function CwvCard({
         </div>
       ) : (
         <div style={{
-          fontFamily: "'JetBrains Mono', monospace",
+          fontFamily: B.fontMono,
           fontSize: '72px',
           fontWeight: 700,
           color: scoreColor(overall),
@@ -305,19 +306,19 @@ function CwvCard({
         gap: '8px',
         fontSize: '12px',
         paddingTop: '12px',
-        borderTop: '1px solid #2a2d35',
+        borderTop: `1px solid ${B.border}`,
       }}>
         <div>
-          <div style={{ color: '#6b7280', marginBottom: '2px' }}>SEO</div>
-          <div style={{ color: scoreColor(seo), fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: '16px' }}>{scoreLabel(seo)}</div>
+          <div style={{ color: B.muted, marginBottom: '2px' }}>SEO</div>
+          <div style={{ color: scoreColor(seo), fontFamily: B.fontMono, fontWeight: 700, fontSize: '16px' }}>{scoreLabel(seo)}</div>
         </div>
         <div>
-          <div style={{ color: '#6b7280', marginBottom: '2px' }}>A11Y</div>
-          <div style={{ color: scoreColor(a11y), fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: '16px' }}>{scoreLabel(a11y)}</div>
+          <div style={{ color: B.muted, marginBottom: '2px' }}>A11Y</div>
+          <div style={{ color: scoreColor(a11y), fontFamily: B.fontMono, fontWeight: 700, fontSize: '16px' }}>{scoreLabel(a11y)}</div>
         </div>
         <div>
-          <div style={{ color: '#6b7280', marginBottom: '2px' }}>Best Pr.</div>
-          <div style={{ color: scoreColor(bp), fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: '16px' }}>{scoreLabel(bp)}</div>
+          <div style={{ color: B.muted, marginBottom: '2px' }}>Best Pr.</div>
+          <div style={{ color: scoreColor(bp), fontFamily: B.fontMono, fontWeight: 700, fontSize: '16px' }}>{scoreLabel(bp)}</div>
         </div>
       </div>
     </div>
@@ -360,12 +361,12 @@ export default function MartechEssentials({ tools, cwv, cwvLoading = false, clie
       {desktopMissing && (
         <div style={{
           padding: '10px 14px',
-          background: '#1a1c24',
+          background: B.surface,
           borderRadius: '8px',
-          border: '1px solid #2a2d35',
+          border: `1px solid ${B.border}`,
           fontSize: '11px',
-          color: '#6b7280',
-          fontFamily: "'JetBrains Mono', monospace",
+          color: B.muted,
+          fontFamily: B.fontMono,
         }}>
           ℹ Il dato Desktop non è ancora presente — verrà popolato al prossimo run di analisi.
         </div>
@@ -374,8 +375,8 @@ export default function MartechEssentials({ tools, cwv, cwvLoading = false, clie
       {cwv?.analysis_date && (
         <div style={{
           fontSize: '10px',
-          color: '#4b5563',
-          fontFamily: "'JetBrains Mono', monospace",
+          color: B.muted,
+          fontFamily: B.fontMono,
           letterSpacing: '0.5px',
         }}>
           CWV da analisi completata il {new Date(cwv.analysis_date).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })}

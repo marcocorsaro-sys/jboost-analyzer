@@ -502,8 +502,8 @@ export default function ClientKnowledgePage() {
               {documents.map((doc) => {
                 const fromLegacy = typeof doc.metadata === 'object' && doc.metadata !== null && (doc.metadata as Record<string, unknown>).origin === 'legacy_client_files'
                 return (
-                  <tr key={doc.id} className="border-b border-[#1f2129]">
-                    <td className="px-4 py-3 text-[#e0e0e0] text-[13px] max-w-[300px] overflow-hidden text-ellipsis whitespace-nowrap">
+                  <tr key={doc.id} className="border-b border-border">
+                    <td className="px-4 py-3 text-foreground text-[13px] max-w-[300px] overflow-hidden text-ellipsis whitespace-nowrap">
                       {doc.source_name}
                       {fromLegacy && (
                         <span className="ml-2 text-[10px] text-amber-500" title="Migrated from legacy client_files">
@@ -616,8 +616,8 @@ export default function ClientKnowledgePage() {
                         (file.extraction_status === 'completed' || file.extraction_status === 'unsupported')
                       const isMigrating = migrating.has(file.id)
                       return (
-                        <tr key={file.id} className="border-b border-[#1f2129]">
-                          <td className="px-4 py-3 text-[#e0e0e0] text-[13px] max-w-[300px] overflow-hidden text-ellipsis whitespace-nowrap">
+                        <tr key={file.id} className="border-b border-border">
+                          <td className="px-4 py-3 text-foreground text-[13px] max-w-[300px] overflow-hidden text-ellipsis whitespace-nowrap">
                             {file.file_name}
                           </td>
                           <td className="px-4 py-3">

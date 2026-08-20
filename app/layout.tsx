@@ -1,8 +1,17 @@
 import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
+import { Source_Sans_3 } from 'next/font/google'
 import './globals.css'
 import { ThemeProvider } from '@/components/theme-provider'
 import { isValidLocale } from '@/lib/i18n'
+
+/** JAKALA UI font — Source Sans 3, weights 400/600/700, system-ui fallback. */
+const sourceSans = Source_Sans_3({
+  subsets: ['latin'],
+  weight: ['400', '600', '700'],
+  variable: '--font-sans',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: 'JBoost Analyzer',
@@ -20,7 +29,7 @@ export default async function RootLayout({
 
   return (
     <html lang={lang} suppressHydrationWarning>
-      <body className="antialiased">
+      <body className={`${sourceSans.variable} antialiased`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

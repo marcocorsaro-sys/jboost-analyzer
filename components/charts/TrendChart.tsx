@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts'
+import { B } from '@/lib/brand'
 
 interface TrendDataPoint {
   date: string
@@ -24,16 +25,18 @@ interface TrendChartProps {
   showOverall?: boolean
 }
 
+// Categorical series palette (legacy V1 trend): brand tokens where a
+// semantic exists, AA-darkened distinct hues (readable on white) elsewhere.
 const DRIVER_COLORS: Record<string, string> = {
-  compliance: '#8b5cf6',
-  experience: '#06b6d4',
-  discoverability: '#f59e0b',
-  content: '#ec4899',
-  accessibility: '#10b981',
-  authority: '#ef4444',
-  aso_visibility: '#6366f1',
-  ai_relevance: '#14b8a6',
-  awareness: '#f97316',
+  compliance: '#7c3aed',
+  experience: '#0e7490',
+  discoverability: B.warning,
+  content: '#db2777',
+  accessibility: B.success,
+  authority: B.error,
+  aso_visibility: B.chartCompetitors[0],
+  ai_relevance: B.teal,
+  awareness: '#c2410c',
 }
 
 const DRIVER_LABELS: Record<string, string> = {
@@ -61,9 +64,9 @@ export default function TrendChart({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: '#6b7280',
+        color: B.muted,
         fontSize: '13px',
-        background: '#111318',
+        background: B.bg,
         borderRadius: '8px',
       }}>
         Servono almeno 2 analisi per visualizzare il trend
@@ -80,36 +83,36 @@ export default function TrendChart({
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={formattedData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#2a2d35" />
+        <CartesianGrid strokeDasharray="3 3" stroke={B.border} />
         <XAxis
           dataKey="dateLabel"
-          stroke="#6b7280"
+          stroke={B.muted}
           fontSize={11}
-          fontFamily="'JetBrains Mono', monospace"
+          fontFamily={B.fontMono}
           tickLine={false}
         />
         <YAxis
           domain={[0, 100]}
-          stroke="#6b7280"
+          stroke={B.muted}
           fontSize={11}
-          fontFamily="'JetBrains Mono', monospace"
+          fontFamily={B.fontMono}
           tickLine={false}
           width={35}
         />
         <Tooltip
           contentStyle={{
-            background: '#1a1c24',
-            border: '1px solid #2a2d35',
+            background: B.surface,
+            border: `1px solid ${B.border}`,
             borderRadius: '8px',
             fontSize: '12px',
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
           }}
-          labelStyle={{ color: '#c8e64a', fontWeight: 600 }}
+          labelStyle={{ color: B.primary, fontWeight: 600 }}
           itemStyle={{ padding: '2px 0' }}
         />
         {(showOverall || drivers.length === 0) && (
           <Legend
-            wrapperStyle={{ fontSize: '11px', fontFamily: "'JetBrains Mono', monospace" }}
+            wrapperStyle={{ fontSize: '11px', fontFamily: B.fontMono }}
           />
         )}
 
@@ -118,10 +121,10 @@ export default function TrendChart({
           <Line
             type="monotone"
             dataKey="overall_score"
-            stroke="#c8e64a"
+            stroke={B.primary}
             strokeWidth={2.5}
-            dot={{ fill: '#c8e64a', strokeWidth: 0, r: 4 }}
-            activeDot={{ r: 6, fill: '#c8e64a' }}
+            dot={{ fill: B.primary, strokeWidth: 0, r: 4 }}
+            activeDot={{ r: 6, fill: B.primary }}
             name="Score Totale"
             connectNulls
           />
@@ -133,9 +136,9 @@ export default function TrendChart({
             key={driverKey}
             type="monotone"
             dataKey={driverKey}
-            stroke={DRIVER_COLORS[driverKey] || '#6b7280'}
+            stroke={DRIVER_COLORS[driverKey] || B.muted}
             strokeWidth={1.5}
-            dot={{ fill: DRIVER_COLORS[driverKey] || '#6b7280', strokeWidth: 0, r: 3 }}
+            dot={{ fill: DRIVER_COLORS[driverKey] || B.muted, strokeWidth: 0, r: 3 }}
             name={DRIVER_LABELS[driverKey] || driverKey}
             connectNulls
             strokeDasharray={showOverall ? '4 2' : undefined}

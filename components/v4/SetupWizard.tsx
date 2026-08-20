@@ -43,6 +43,7 @@ import {
   type IndustryPreset,
   type SetupAttachment,
 } from '@/lib/v4/setup'
+import { B } from '@/lib/brand'
 
 const MAX_COMPETITORS = 4
 
@@ -53,10 +54,10 @@ const MAX_COMPETITORS = 4
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '10px 14px',
-  background: '#111318',
-  border: '1px solid #2a2d35',
+  background: B.bg,
+  border: `1px solid ${B.border}`,
   borderRadius: '8px',
-  color: '#ffffff',
+  color: B.ink,
   fontSize: '14px',
   outline: 'none',
   fontFamily: 'inherit',
@@ -66,38 +67,38 @@ const labelStyle: React.CSSProperties = {
   display: 'block',
   fontSize: '12px',
   fontWeight: 600,
-  color: '#a0a0a0',
+  color: B.muted,
   marginBottom: '6px',
-  fontFamily: "'JetBrains Mono', monospace",
+  fontFamily: B.fontMono,
   textTransform: 'uppercase',
   letterSpacing: '0.5px',
 }
 
 const sectionStyle: React.CSSProperties = {
-  background: '#1a1c24',
+  background: B.surface,
   borderRadius: '12px',
-  border: '1px solid #2a2d35',
+  border: `1px solid ${B.border}`,
   padding: '24px',
 }
 
 const sectionTitleStyle: React.CSSProperties = {
-  fontFamily: "'JetBrains Mono', monospace",
+  fontFamily: B.fontMono,
   fontSize: '14px',
   fontWeight: 700,
-  color: '#ffffff',
+  color: B.ink,
   textTransform: 'uppercase',
   letterSpacing: '0.5px',
   marginBottom: '4px',
 }
 
-const hintStyle: React.CSSProperties = { fontSize: '12px', color: '#6b7280', marginBottom: '18px' }
-const smallHint: React.CSSProperties = { fontSize: '12px', color: '#6b7280', marginTop: '6px' }
+const hintStyle: React.CSSProperties = { fontSize: '12px', color: B.muted, marginBottom: '18px' }
+const smallHint: React.CSSProperties = { fontSize: '12px', color: B.muted, marginTop: '6px' }
 
 const ghostButton: React.CSSProperties = {
   background: 'transparent',
-  border: '1px solid #2a2d35',
+  border: `1px solid ${B.border}`,
   borderRadius: '8px',
-  color: '#a0a0a0',
+  color: B.muted,
   padding: '8px 16px',
   fontSize: '13px',
   cursor: 'pointer',
@@ -108,11 +109,11 @@ const chipStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: '6px',
   padding: '4px 10px',
-  background: '#111318',
-  border: '1px solid #2a2d35',
+  background: B.bg,
+  border: `1px solid ${B.border}`,
   borderRadius: '999px',
   fontSize: '12px',
-  color: '#e5e7eb',
+  color: B.ink,
 }
 
 interface CompetitorRow {
@@ -198,8 +199,8 @@ function brandFromDomain(raw: string): string {
   return root ? root.charAt(0).toUpperCase() + root.slice(1) : ''
 }
 
-const invalidInputStyle: React.CSSProperties = { ...inputStyle, border: '1px solid #ef4444' }
-const fieldErrorStyle: React.CSSProperties = { fontSize: '12px', color: '#ef4444', marginTop: '4px' }
+const invalidInputStyle: React.CSSProperties = { ...inputStyle, border: `1px solid ${B.error}` }
+const fieldErrorStyle: React.CSSProperties = { fontSize: '12px', color: B.error, marginTop: '4px' }
 
 // ---------------------------------------------------------------------------
 // Small reusable pieces
@@ -239,7 +240,7 @@ function ChipInput({
                 type="button"
                 aria-label={`${removeLabel} ${v}`}
                 onClick={() => onChange(values.filter((x) => x !== v))}
-                style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', padding: 0 }}
+                style={{ background: 'none', border: 'none', color: B.muted, cursor: 'pointer', padding: 0 }}
               >
                 ×
               </button>
@@ -705,7 +706,7 @@ export default function SetupWizard({
           if (file) void uploadFile(kind, file)
           e.target.value = ''
         }}
-        style={{ fontSize: '13px', color: '#a0a0a0' }}
+        style={{ fontSize: '13px', color: B.muted }}
       />
       <div style={smallHint}>
         {uploading === kind ? t('v4setup.uploading') : hint} {t('v4setup.upload_parse_note')}
@@ -740,7 +741,7 @@ export default function SetupWizard({
           {TEMPLATE_KEYS.map((key) => (
             <label
               key={key}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#e5e7eb', cursor: 'pointer' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: B.ink, cursor: 'pointer' }}
             >
               <input
                 type="checkbox"
@@ -756,7 +757,7 @@ export default function SetupWizard({
           <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {TEMPLATE_KEYS.filter((k) => selected.includes(k)).map((key) => (
               <div key={key} style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '12px', alignItems: 'center' }}>
-                <span style={{ fontSize: '12px', color: '#a0a0a0' }}>{TEMPLATE_LABELS[key]}</span>
+                <span style={{ fontSize: '12px', color: B.muted }}>{TEMPLATE_LABELS[key]}</span>
                 <div>
                   <UrlAutocompleteInput
                     value={templates.client?.[key] ?? ''}
@@ -814,7 +815,7 @@ export default function SetupWizard({
             />
             <div style={smallHint}>{t('v4setup.clusters_hint')}</div>
             {clusters.length > 0 && (clusters.length < CLUSTERS_MIN || clusters.length > CLUSTERS_MAX) && (
-              <div style={{ fontSize: '12px', color: '#f59e0b', marginTop: '4px' }}>
+              <div style={{ fontSize: '12px', color: B.warning, marginTop: '4px' }}>
                 {t('v4setup.req_clusters')}
               </div>
             )}
@@ -894,19 +895,19 @@ export default function SetupWizard({
           disabled={suggesting}
           style={{
             ...ghostButton,
-            borderColor: '#c8e64a40',
-            color: suggesting ? '#6b7280' : '#c8e64a',
+            borderColor: `${B.primary}40`,
+            color: suggesting ? B.muted : B.primary,
           }}
         >
           {suggesting ? `↻ ${t('v4setup.ai_suggesting')}` : `✨ ${t('v4setup.ai_suggest')}`}
         </button>
-        <span style={{ fontSize: '12px', color: '#6b7280', flex: 1, minWidth: '260px' }}>
+        <span style={{ fontSize: '12px', color: B.muted, flex: 1, minWidth: '260px' }}>
           {t('v4setup.ai_suggest_hint')}
         </span>
       </div>
-      {suggestNote && <div style={{ marginTop: '8px', fontSize: '12px', color: '#c8e64a' }}>{suggestNote}</div>}
+      {suggestNote && <div style={{ marginTop: '8px', fontSize: '12px', color: B.primary }}>{suggestNote}</div>}
       {suggestWarnings.length > 0 && (
-        <div style={{ marginTop: '4px', fontSize: '12px', color: '#f59e0b' }}>{suggestWarnings.join(' · ')}</div>
+        <div style={{ marginTop: '4px', fontSize: '12px', color: B.warning }}>{suggestWarnings.join(' · ')}</div>
       )}
 
       <div style={{ marginTop: '16px' }}>
@@ -926,7 +927,7 @@ export default function SetupWizard({
           {ANALYSIS_COUNTRIES.map((c) => (
             <label
               key={c.code}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#e5e7eb', cursor: 'pointer' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: B.ink, cursor: 'pointer' }}
             >
               <input
                 type="checkbox"
@@ -1004,8 +1005,8 @@ export default function SetupWizard({
                   ...ghostButton,
                   padding: '6px 14px',
                   fontSize: '12px',
-                  color: targetAudienceMode === m ? '#111318' : '#a0a0a0',
-                  background: targetAudienceMode === m ? '#c8e64a' : 'transparent',
+                  color: targetAudienceMode === m ? B.bg : B.muted,
+                  background: targetAudienceMode === m ? B.primary : 'transparent',
                   fontWeight: targetAudienceMode === m ? 700 : 400,
                 }}
               >
@@ -1081,9 +1082,9 @@ export default function SetupWizard({
                 onClick={() => setCompetitors(competitors.filter((_, j) => j !== i))}
                 style={{
                   background: 'transparent',
-                  border: '1px solid #2a2d35',
+                  border: `1px solid ${B.border}`,
                   borderRadius: '8px',
-                  color: '#6b7280',
+                  color: B.muted,
                   cursor: 'pointer',
                 }}
                 aria-label={`${t('v4setup.remove')} competitor ${i + 1}`}
@@ -1100,7 +1101,7 @@ export default function SetupWizard({
         <button
           type="button"
           onClick={() => setCompetitors([...competitors, { domain: '', brandName: '' }])}
-          style={{ ...ghostButton, marginTop: '12px', border: '1px dashed #2a2d35' }}
+          style={{ ...ghostButton, marginTop: '12px', border: `1px dashed ${B.border}` }}
         >
           + {t('v4setup.add_competitor')}
         </button>
@@ -1122,8 +1123,8 @@ export default function SetupWizard({
               key={dr.key}
               style={{
                 padding: '12px 14px',
-                background: '#111318',
-                border: `1px solid ${enabled ? '#c8e64a40' : '#2a2d35'}`,
+                background: B.bg,
+                border: `1px solid ${enabled ? `${B.primary}40` : B.border}`,
                 borderRadius: '8px',
               }}
             >
@@ -1143,26 +1144,26 @@ export default function SetupWizard({
                   style={{ marginTop: '3px' }}
                 />
                 <span style={{ flex: 1 }}>
-                  <span style={{ display: 'block', fontSize: '14px', color: '#ffffff' }}>
+                  <span style={{ display: 'block', fontSize: '14px', color: B.ink }}>
                     {dr.label}
                     {isBusiness && (
                       <span
                         style={{
                           marginLeft: '10px',
                           fontSize: '11px',
-                          color: '#c8e64a',
-                          fontFamily: "'JetBrains Mono', monospace",
+                          color: B.primary,
+                          fontFamily: B.fontMono,
                         }}
                       >
                         {t('v4setup.mandatory_badge')}
                       </span>
                     )}
                   </span>
-                  <span style={{ display: 'block', fontSize: '12px', color: '#6b7280' }}>
+                  <span style={{ display: 'block', fontSize: '12px', color: B.muted }}>
                     {isBusiness ? 'Business' : 'Development'} · {t('v4setup.data_source')}: {dr.source}
                   </span>
                   {isBusiness && !hasCompetitor && (
-                    <span style={{ display: 'block', fontSize: '12px', color: '#f59e0b', marginTop: '4px' }}>
+                    <span style={{ display: 'block', fontSize: '12px', color: B.warning, marginTop: '4px' }}>
                       {t('v4setup.needs_competitor')}
                     </span>
                   )}
@@ -1191,9 +1192,9 @@ export default function SetupWizard({
                       style={{
                         fontSize: '13px',
                         fontWeight: 600,
-                        color: '#c8e64a',
+                        color: B.primary,
                         marginBottom: '10px',
-                        fontFamily: "'JetBrains Mono', monospace",
+                        fontFamily: B.fontMono,
                       }}
                     >
                       {site.label}
@@ -1204,7 +1205,7 @@ export default function SetupWizard({
                           key={key}
                           style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '12px', alignItems: 'center' }}
                         >
-                          <span style={{ fontSize: '12px', color: '#a0a0a0' }}>{TEMPLATE_LABELS[key]}</span>
+                          <span style={{ fontSize: '12px', color: B.muted }}>{TEMPLATE_LABELS[key]}</span>
                           <div>
                             <UrlAutocompleteInput
                               value={templates[site.site_ref]?.[key] ?? ''}
@@ -1245,22 +1246,22 @@ export default function SetupWizard({
       <div
         style={{
           padding: '12px 14px',
-          background: '#111318',
-          border: '1px dashed #2a2d35',
+          background: B.bg,
+          border: `1px dashed ${B.border}`,
           borderRadius: '8px',
           opacity: 0.6,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '14px', color: '#ffffff' }}>{t('v4setup.ga_gsc')}</span>
+          <span style={{ fontSize: '14px', color: B.ink }}>{t('v4setup.ga_gsc')}</span>
           <span
             style={{
               fontSize: '11px',
               padding: '2px 8px',
               borderRadius: '999px',
-              background: '#6b728020',
-              color: '#6b7280',
-              fontFamily: "'JetBrains Mono', monospace",
+              background: `${B.muted}20`,
+              color: B.muted,
+              fontFamily: B.fontMono,
             }}
           >
             {t('v4setup.future_badge')}
@@ -1327,7 +1328,7 @@ export default function SetupWizard({
       <h2 style={sectionTitleStyle}>5 · {t('v4setup.step5')}</h2>
       <p style={hintStyle}>{t('v4setup.step5_hint')}</p>
 
-      <div style={{ fontSize: '13px', color: '#e5e7eb', lineHeight: 2 }}>
+      <div style={{ fontSize: '13px', color: B.ink, lineHeight: 2 }}>
         <div>
           {t('v4setup.summary_site')}: <strong>{bareDomain(clientDomain) || '—'}</strong>
           {clientBrand ? ` (${clientBrand})` : ''} · {countries.join(', ') || '—'}
@@ -1357,10 +1358,10 @@ export default function SetupWizard({
           style={{
             marginTop: '16px',
             padding: '12px 16px',
-            background: '#f59e0b15',
-            border: '1px solid #f59e0b40',
+            background: `${B.warning}15`,
+            border: `1px solid ${B.warning}40`,
             borderRadius: '8px',
-            color: '#f59e0b',
+            color: B.warning,
             fontSize: '13px',
           }}
         >
@@ -1373,7 +1374,7 @@ export default function SetupWizard({
         </div>
       )}
 
-      <div style={{ marginTop: '20px', fontSize: '12px', color: '#6b7280' }}>
+      <div style={{ marginTop: '20px', fontSize: '12px', color: B.muted }}>
         {t('v4setup.launch_note')}
       </div>
 
@@ -1384,13 +1385,13 @@ export default function SetupWizard({
         style={{
           marginTop: '16px',
           padding: '12px 26px',
-          background: canLaunch ? '#2563eb' : '#2a2d35',
-          color: canLaunch ? '#ffffff' : '#6b7280',
+          background: canLaunch ? B.primary : B.border,
+          color: canLaunch ? B.onPrimary : B.muted,
           border: 'none',
           borderRadius: '8px',
           fontSize: '14px',
           fontWeight: 700,
-          fontFamily: "'JetBrains Mono', monospace",
+          fontFamily: B.fontMono,
           cursor: canLaunch ? 'pointer' : 'default',
         }}
       >
@@ -1416,11 +1417,11 @@ export default function SetupWizard({
               style={{
                 padding: '8px 14px',
                 borderRadius: '8px',
-                border: `1px solid ${active ? '#c8e64a' : '#2a2d35'}`,
-                background: active ? '#c8e64a15' : 'transparent',
-                color: active ? '#c8e64a' : '#a0a0a0',
+                border: `1px solid ${active ? B.primary : B.border}`,
+                background: active ? B.primarySoft : 'transparent',
+                color: active ? B.primary : B.muted,
                 fontSize: '12px',
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: B.fontMono,
                 cursor: 'pointer',
               }}
             >
@@ -1436,10 +1437,10 @@ export default function SetupWizard({
         <div
           style={{
             padding: '12px 16px',
-            background: '#ef444420',
-            border: '1px solid #ef4444',
+            background: `${B.error}20`,
+            border: `1px solid ${B.error}`,
             borderRadius: '8px',
-            color: '#ef4444',
+            color: B.error,
             fontSize: '13px',
           }}
         >
@@ -1462,14 +1463,14 @@ export default function SetupWizard({
           <button
             type="button"
             onClick={() => setStep(step + 1)}
-            style={{ ...ghostButton, borderColor: '#c8e64a40', color: '#c8e64a' }}
+            style={{ ...ghostButton, borderColor: `${B.primary}40`, color: B.primary }}
           >
             {t('v4setup.next')} →
           </button>
         )}
         <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
           {savedAt && (
-            <span style={{ fontSize: '12px', color: '#6b7280' }}>
+            <span style={{ fontSize: '12px', color: B.muted }}>
               {t('v4setup.draft_saved')} {savedAt}
             </span>
           )}

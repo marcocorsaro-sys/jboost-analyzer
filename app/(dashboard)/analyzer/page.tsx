@@ -9,6 +9,7 @@ import { useLocale } from '@/lib/i18n'
 import AnalysisProgress from '@/components/analyzer/AnalysisProgress'
 import DomainAutocomplete from '@/components/ui/DomainAutocomplete'
 import Link from 'next/link'
+import { B } from '@/lib/brand'
 
 interface ClientOption {
   id: string
@@ -412,7 +413,7 @@ export default function AnalyzerPage() {
             border: '1px solid rgba(245, 158, 11, 0.25)',
           }}
         >
-          <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--amber, #f59e0b)' }}>
+          <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: `var(--amber, ${B.warning})` }}>
             {t('analyzer.analysisPaused')}
           </div>
           <div className="text-sm mb-1" style={{ color: 'var(--white)' }}>
@@ -429,7 +430,7 @@ export default function AnalyzerPage() {
                 {t('analyzer.criticAnomalies')}
               </div>
               {criticVerdict.anomalies.map((a, i) => {
-                const sevColor = a.severity === 'critical' ? 'var(--red)' : a.severity === 'warning' ? 'var(--amber, #f59e0b)' : 'var(--teal)'
+                const sevColor = a.severity === 'critical' ? 'var(--red)' : a.severity === 'warning' ? `var(--amber, ${B.warning})` : 'var(--teal)'
                 return (
                   <div key={i} className="p-3 rounded text-xs" style={{ background: 'hsl(var(--card))', border: `1px solid ${sevColor}` }}>
                     <div style={{ color: sevColor, fontWeight: 600, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -615,13 +616,13 @@ export default function AnalyzerPage() {
                 disabled={suggesting || !domain.trim() || isRunning}
                 style={{
                   padding: '6px 12px',
-                  background: suggesting || !domain.trim() ? '#2a2d35' : '#1e2028',
-                  color: suggesting || !domain.trim() ? '#6b7280' : '#c8e64a',
-                  border: '1px solid #c8e64a40',
+                  background: suggesting || !domain.trim() ? B.border : B.surface2,
+                  color: suggesting || !domain.trim() ? B.muted : B.primary,
+                  border: `1px solid ${B.primary}40`,
                   borderRadius: '6px',
                   fontSize: '11px',
                   fontWeight: 700,
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: B.fontMono,
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
                   cursor: suggesting || !domain.trim() ? 'default' : 'pointer',
@@ -629,12 +630,12 @@ export default function AnalyzerPage() {
               >
                 {suggesting ? '↻ Suggerisco…' : '✨ Suggerisci con AI'}
               </button>
-              <span style={{ fontSize: '11px', color: '#6b7280' }}>
+              <span style={{ fontSize: '11px', color: B.muted }}>
                 Firecrawl + Sonnet → pre-popola paese, lingua, 4 competitor
               </span>
             </div>
             {suggestError && (
-              <p style={{ marginTop: '6px', fontSize: '11px', color: '#ef4444' }}>{suggestError}</p>
+              <p style={{ marginTop: '6px', fontSize: '11px', color: B.error }}>{suggestError}</p>
             )}
           </div>
 
@@ -774,7 +775,7 @@ export default function AnalyzerPage() {
             <div className="flex flex-wrap gap-2">
               {DRIVERS.map(d => (
                 <span key={d.key} className="px-3 py-1 rounded-full text-xs font-medium"
-                  style={{ background: 'rgba(200, 230, 74, 0.08)', color: 'var(--lime)' }}>
+                  style={{ background: B.primarySoft, color: 'var(--lime)' }}>
                   {d.label}
                 </span>
               ))}

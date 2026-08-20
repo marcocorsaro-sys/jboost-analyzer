@@ -5,6 +5,7 @@ import { createClient, getUser, getProfileRole } from '@/lib/supabase/server'
 import { getSettingsInventory } from '@/lib/admin/connector-status'
 import T from '@/components/ui/T'
 import PreferencesForm from '@/components/settings/PreferencesForm'
+import { B } from '@/lib/brand'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +36,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="max-w-[640px] p-8">
-      <h1 className="mb-8 font-mono text-2xl font-bold text-foreground">
+      <h1 className="mb-8 text-2xl font-bold tracking-tight text-foreground">
         <T k="settings.title" />
       </h1>
 
@@ -59,8 +60,8 @@ export default async function SettingsPage() {
                   className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
                   style={
                     c.configured
-                      ? { background: '#22c55e18', color: '#22c55e' }
-                      : { background: '#ef444418', color: '#ef4444' }
+                      ? { background: `${B.success}18`, color: B.success }
+                      : { background: `${B.error}18`, color: B.error }
                   }
                 >
                   {c.configured ? (

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useLocale } from '@/lib/i18n'
+import { B } from '@/lib/brand'
 
 interface PromoteButtonProps {
   clientId: string
@@ -53,25 +54,25 @@ export default function PromoteButton({ clientId }: PromoteButtonProps) {
         disabled={loading}
         style={{
           padding: '10px 20px',
-          background: loading ? '#2a2d35' : '#22c55e',
-          color: loading ? '#6b7280' : '#111318',
+          background: loading ? B.border : B.success,
+          color: loading ? B.muted : B.bg,
           border: 'none',
           borderRadius: '8px',
           fontSize: '13px',
           fontWeight: 700,
           cursor: loading ? 'default' : 'pointer',
-          fontFamily: "'JetBrains Mono', monospace",
+          fontFamily: B.fontMono,
         }}
       >
         {loading ? t('common.loading') : t('clients.promote_to_active')}
       </button>
       {success && (
-        <div style={{ fontSize: '12px', color: '#22c55e' }}>
+        <div style={{ fontSize: '12px', color: B.success }}>
           {t('clients.promoted_success')}
         </div>
       )}
       {error && (
-        <div style={{ fontSize: '12px', color: '#ef4444' }}>
+        <div style={{ fontSize: '12px', color: B.error }}>
           {error}
         </div>
       )}

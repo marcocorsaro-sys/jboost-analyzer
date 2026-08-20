@@ -39,12 +39,13 @@ import {
   primaryButton,
 } from './results-shared'
 import type { HistogramSite } from './charts/V4Histogram'
+import { B } from '@/lib/brand'
 
 // recharts stays in its own lazy chunk (same pattern as the V1 SpiderChart).
 const V4Histogram = nextDynamic(() => import('./charts/V4Histogram'), {
   ssr: false,
   loading: () => (
-    <div style={{ height: 300, background: '#1a1c24', borderRadius: '12px', border: '1px solid #2a2d35' }} aria-hidden />
+    <div style={{ height: 300, background: B.surface, borderRadius: '12px', border: `1px solid ${B.border}` }} aria-hidden />
   ),
 })
 
@@ -129,10 +130,10 @@ export default function DriverPanel({
             {def?.label ?? row.driver_key} · {t('v4res.sec_score')}
           </h3>
           <span style={pill(STATUS_STYLE[row.status].color)}>{STATUS_STYLE[row.status].label}</span>
-          <span style={pill('#6b7280')}>
+          <span style={pill(B.muted)}>
             {t(def?.family === 'business' ? 'v4res.family_business' : 'v4res.family_development')}
           </span>
-          {row.edited && <span style={pill('#f59e0b')}>{t('v4res.edited_badge')}</span>}
+          {row.edited && <span style={pill(B.warning)}>{t('v4res.edited_badge')}</span>}
           <span style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
             {canRetry && (
               <button
@@ -142,7 +143,7 @@ export default function DriverPanel({
                   else void retryThisDriver(false)
                 }}
                 disabled={retrying}
-                style={{ ...ghostButton, color: retrying ? '#6b7280' : '#a0a0a0' }}
+                style={{ ...ghostButton, color: retrying ? B.muted : B.muted }}
                 title={t('v4res.retry_hint')}
               >
                 {retrying ? t('v4res.retrying') : t('v4res.retry_driver')}
@@ -163,8 +164,8 @@ export default function DriverPanel({
             style={{
               marginTop: '12px',
               padding: '10px 14px',
-              background: '#f59e0b15',
-              border: '1px solid #f59e0b40',
+              background: `${B.warning}15`,
+              border: `1px solid ${B.warning}40`,
               borderRadius: '8px',
               display: 'flex',
               gap: '12px',
@@ -172,7 +173,7 @@ export default function DriverPanel({
               flexWrap: 'wrap',
             }}
           >
-            <span style={{ fontSize: '13px', color: '#f59e0b' }}>{t('v4res.retry_driver_confirm')}</span>
+            <span style={{ fontSize: '13px', color: B.warning }}>{t('v4res.retry_driver_confirm')}</span>
             <button
               type="button"
               onClick={() => void retryThisDriver(true)}
@@ -187,11 +188,11 @@ export default function DriverPanel({
           </div>
         )}
         {retryNote && (
-          <div style={{ marginTop: '10px', fontSize: '12px', color: '#f59e0b' }}>{retryNote}</div>
+          <div style={{ marginTop: '10px', fontSize: '12px', color: B.warning }}>{retryNote}</div>
         )}
 
         {view === 'absolute' && !def?.hasAbsoluteView && (
-          <div style={{ marginTop: '10px', fontSize: '12px', color: '#f59e0b' }}>
+          <div style={{ marginTop: '10px', fontSize: '12px', color: B.warning }}>
             {t('v4res.relative_only_note')}
           </div>
         )}
@@ -201,16 +202,16 @@ export default function DriverPanel({
             style={{
               marginTop: '14px',
               padding: '12px 16px',
-              background: '#ef444415',
-              border: '1px solid #ef444440',
+              background: `${B.error}15`,
+              border: `1px solid ${B.error}40`,
               borderRadius: '8px',
             }}
           >
-            <div style={{ ...mutedLabel, color: '#ef4444', marginBottom: '4px' }}>{t('v4res.driver_error')}</div>
-            <div style={{ fontSize: '13px', color: '#ef4444', lineHeight: 1.5 }}>{row.error ?? '—'}</div>
+            <div style={{ ...mutedLabel, color: B.error, marginBottom: '4px' }}>{t('v4res.driver_error')}</div>
+            <div style={{ fontSize: '13px', color: B.error, lineHeight: 1.5 }}>{row.error ?? '—'}</div>
           </div>
         ) : row.status === 'queued' || row.status === 'running' ? (
-          <div style={{ marginTop: '14px', fontSize: '13px', color: '#14b8a6' }}>{t('v4res.driver_pending')}</div>
+          <div style={{ marginTop: '14px', fontSize: '13px', color: B.teal }}>{t('v4res.driver_pending')}</div>
         ) : (
           <div style={{ marginTop: '16px', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
             {/* Client headline: the big score NEVER without its view label —
@@ -252,16 +253,16 @@ export default function DriverPanel({
             style={{
               marginTop: '12px',
               padding: '10px 14px',
-              background: '#111318',
-              border: '1px solid #2a2d35',
+              background: B.bg,
+              border: `1px solid ${B.border}`,
               borderRadius: '8px',
             }}
           >
             <div style={{ ...mutedLabel, marginBottom: '6px' }}>{t('v4res.attachments')}</div>
             {row.attachments!.map((a) => (
-              <div key={a.path ?? a.name} style={{ fontSize: '13px', color: '#e5e7eb', lineHeight: 1.7 }}>
+              <div key={a.path ?? a.name} style={{ fontSize: '13px', color: B.ink, lineHeight: 1.7 }}>
                 {a.name}
-                <span style={{ color: '#6b7280', marginLeft: '8px', fontSize: '12px' }}>
+                <span style={{ color: B.muted, marginLeft: '8px', fontSize: '12px' }}>
                   {t('v4res.attachment_pending')}
                 </span>
               </div>
@@ -290,7 +291,7 @@ export default function DriverPanel({
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <h3 style={{ ...sectionTitle, margin: 0 }}>{t('v4res.sec_summary')}</h3>
           {insight?.status === 'done' && insight.hallucination_flags && insight.hallucination_flags.length > 0 && (
-            <span style={pill('#f59e0b')} title={insight.hallucination_flags.join(', ')}>
+            <span style={pill(B.warning)} title={insight.hallucination_flags.join(', ')}>
               ⚠ {t('v4res.hallucination_flags')}: {insight.hallucination_flags.slice(0, 4).join(', ')}
               {insight.hallucination_flags.length > 4 ? '…' : ''}
             </span>
@@ -412,31 +413,31 @@ function ScoreHeadline({
   return (
     <div
       style={{
-        border: '1px solid #c8e64a55',
+        border: `1px solid ${B.primary}55`,
         borderRadius: '10px',
         padding: '12px 18px',
         minWidth: '260px',
-        background: '#c8e64a08',
+        background: B.primarySoft,
       }}
     >
       <div style={{ display: 'flex', gap: '8px', alignItems: 'baseline' }}>
-        <span style={{ fontSize: '12px', color: '#c8e64a' }}>{label}</span>
-        {rank === 1 && <span style={pill('#c8e64a')}>{t('v4res.leader')}</span>}
+        <span style={{ fontSize: '12px', color: B.primary }}>{label}</span>
+        {rank === 1 && <span style={pill(B.primary)}>{t('v4res.leader')}</span>}
       </div>
       <div style={{ display: 'flex', gap: '10px', alignItems: 'baseline', flexWrap: 'wrap' }}>
         <span style={{ fontSize: '30px', fontWeight: 700, color: scoreColor(score) }}>{fmt(score)}</span>
-        <span style={{ fontSize: '12px', color: '#a0a0a0' }}>
+        <span style={{ fontSize: '12px', color: B.muted }}>
           {viewLabel}{' '}
           <span
             title={t('v4res.formula_note')}
             aria-label={t('v4res.formula_note')}
-            style={{ cursor: 'help', color: '#6b7280' }}
+            style={{ cursor: 'help', color: B.muted }}
           >
             ⓘ
           </span>
         </span>
       </div>
-      <div style={{ fontSize: '12px', color: '#e5e7eb', marginTop: '2px' }}>{subLine}</div>
+      <div style={{ fontSize: '12px', color: B.ink, marginTop: '2px' }}>{subLine}</div>
     </div>
   )
 }
@@ -461,19 +462,19 @@ function ScoreChip({
   return (
     <div
       style={{
-        border: `1px solid ${isClient ? '#c8e64a55' : '#2a2d35'}`,
+        border: `1px solid ${isClient ? `${B.primary}55` : B.border}`,
         borderRadius: '10px',
         padding: '12px 18px',
         minWidth: '140px',
-        background: isClient ? '#c8e64a08' : 'transparent',
+        background: isClient ? B.primarySoft : 'transparent',
       }}
     >
       <div style={{ display: 'flex', gap: '8px', alignItems: 'baseline' }}>
-        <span style={{ fontSize: '12px', color: isClient ? '#c8e64a' : '#a0a0a0' }}>{label}</span>
-        {rank === 1 && <span style={pill('#c8e64a')}>{leaderLabel}</span>}
+        <span style={{ fontSize: '12px', color: isClient ? B.primary : B.muted }}>{label}</span>
+        {rank === 1 && <span style={pill(B.primary)}>{leaderLabel}</span>}
       </div>
       <div style={{ fontSize: '30px', fontWeight: 700, color: scoreColor(score) }}>{fmt(score)}</div>
-      <div style={{ fontSize: '11px', color: '#6b7280' }}>
+      <div style={{ fontSize: '11px', color: B.muted }}>
         {rawLabel} {fmt(raw ?? null)}
       </div>
     </div>
@@ -502,10 +503,10 @@ function CriteriaCaption({ row, clientSite }: { row: DriverRow; clientSite: Site
             return tier ? { pos: tier.pos, vol: tier.vol } : null
           })()
     return (
-      <div style={{ marginTop: '12px', fontSize: '12px', color: '#a0a0a0' }}>
+      <div style={{ marginTop: '12px', fontSize: '12px', color: B.muted }}>
         {rule ? fill(t('v4res.disco_criteria'), { pos: rule.pos, vol: rule.vol }) : ''}
         {' · '}
-        {t('v4res.tier_label')}: <span style={{ color: '#c8e64a' }}>{tierKey}</span>
+        {t('v4res.tier_label')}: <span style={{ color: B.primary }}>{tierKey}</span>
       </div>
     )
   }
@@ -513,13 +514,13 @@ function CriteriaCaption({ row, clientSite }: { row: DriverRow; clientSite: Site
   if (row.driver_key === 'awareness') {
     const ev = (clientSite?.evidence ?? {}) as { brand_terms?: string[] }
     return (
-      <div style={{ marginTop: '12px', fontSize: '12px', color: '#a0a0a0' }}>
+      <div style={{ marginTop: '12px', fontSize: '12px', color: B.muted }}>
         {t('v4res.awareness_criteria')}
         {Array.isArray(ev.brand_terms) && ev.brand_terms.length > 0 && (
           <>
             {' · '}
             {t('v4res.awareness_brand_terms')}:{' '}
-            <span style={{ color: '#c8e64a' }}>{ev.brand_terms.join(', ')}</span>
+            <span style={{ color: B.primary }}>{ev.brand_terms.join(', ')}</span>
           </>
         )}
       </div>
@@ -570,7 +571,7 @@ function SummaryBody({
 
   if (insight?.status === 'error') {
     return (
-      <div style={{ fontSize: '13px', color: '#ef4444', lineHeight: 1.5 }}>
+      <div style={{ fontSize: '13px', color: B.error, lineHeight: 1.5 }}>
         {t('v4res.insights_error')}: {insight.error}
       </div>
     )
@@ -579,12 +580,12 @@ function SummaryBody({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
       {comment ? (
-        <div style={{ fontSize: '14px', color: '#e5e5e5', lineHeight: 1.6 }}>{comment}</div>
+        <div style={{ fontSize: '14px', color: B.ink, lineHeight: 1.6 }}>{comment}</div>
       ) : (
-        <div style={{ fontSize: '13px', color: '#6b7280' }}>{t('v4res.insights_placeholder')}</div>
+        <div style={{ fontSize: '13px', color: B.muted }}>{t('v4res.insights_placeholder')}</div>
       )}
       {extras.map((x, i) => (
-        <div key={i} style={{ fontSize: '12px', color: '#a0a0a0', lineHeight: 1.5 }}>
+        <div key={i} style={{ fontSize: '12px', color: B.muted, lineHeight: 1.5 }}>
           {x}
         </div>
       ))}
@@ -607,23 +608,23 @@ function IssuesList({ output, family }: { output: Record<string, unknown> | null
   const items = readItems(output, family, t('v4res.priority'), t('v4res.relevance'))
 
   if (items.length === 0) {
-    return <div style={{ fontSize: '13px', color: '#6b7280' }}>{t('v4res.no_issues')}</div>
+    return <div style={{ fontSize: '13px', color: B.muted }}>{t('v4res.no_issues')}</div>
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       {items.map((item, i) => (
-        <div key={i} style={{ borderLeft: '2px solid #2a2d35', paddingLeft: '14px' }}>
+        <div key={i} style={{ borderLeft: `2px solid ${B.border}`, paddingLeft: '14px' }}>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'baseline', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: '#ffffff' }}>{item.titolo ?? '—'}</span>
+            <span style={{ fontSize: '14px', fontWeight: 600, color: B.ink }}>{item.titolo ?? '—'}</span>
             {item.badge && (
-              <span style={pill(PRIORITY_COLORS[item.badge] ?? '#6b7280')}>
+              <span style={pill(PRIORITY_COLORS[item.badge] ?? B.muted)}>
                 {item.badgeLabel}: {item.badge}
               </span>
             )}
           </div>
           {item.spiegazione && (
-            <div style={{ fontSize: '13px', color: '#a0a0a0', lineHeight: 1.6, marginTop: '4px' }}>
+            <div style={{ fontSize: '13px', color: B.muted, lineHeight: 1.6, marginTop: '4px' }}>
               {item.spiegazione}
             </div>
           )}
@@ -639,7 +640,7 @@ function SolutionsList({ output, family }: { output: Record<string, unknown> | n
   if (family === 'business') {
     // Sheet 15 business schema has no per-item solution: the strategic
     // solutions are synthesised in the Executive Summary (sheet 16 C).
-    return <div style={{ fontSize: '13px', color: '#6b7280', lineHeight: 1.6 }}>{t('v4res.solutions_business_note')}</div>
+    return <div style={{ fontSize: '13px', color: B.muted, lineHeight: 1.6 }}>{t('v4res.solutions_business_note')}</div>
   }
 
   const items = (Array.isArray(output?.items) ? (output!.items as DevInsightItem[]) : []).filter(
@@ -647,22 +648,22 @@ function SolutionsList({ output, family }: { output: Record<string, unknown> | n
   )
 
   if (items.length === 0) {
-    return <div style={{ fontSize: '13px', color: '#6b7280' }}>{t('v4res.no_issues')}</div>
+    return <div style={{ fontSize: '13px', color: B.muted }}>{t('v4res.no_issues')}</div>
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       {items.map((item, i) => (
-        <div key={i} style={{ borderLeft: '2px solid #c8e64a55', paddingLeft: '14px' }}>
+        <div key={i} style={{ borderLeft: `2px solid ${B.primary}55`, paddingLeft: '14px' }}>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'baseline', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: '#ffffff' }}>{item.titolo ?? '—'}</span>
+            <span style={{ fontSize: '14px', fontWeight: 600, color: B.ink }}>{item.titolo ?? '—'}</span>
             {item.priorita && (
-              <span style={pill(PRIORITY_COLORS[item.priorita] ?? '#6b7280')}>
+              <span style={pill(PRIORITY_COLORS[item.priorita] ?? B.muted)}>
                 {t('v4res.priority')}: {item.priorita}
               </span>
             )}
           </div>
-          <div style={{ fontSize: '13px', color: '#a0a0a0', lineHeight: 1.6, marginTop: '4px' }}>
+          <div style={{ fontSize: '13px', color: B.muted, lineHeight: 1.6, marginTop: '4px' }}>
             {item.soluzione_proposta}
           </div>
         </div>
@@ -726,8 +727,8 @@ function EvidenceCard({ row, sites }: { row: DriverRow; sites: SiteMeta[] }) {
                 style={{
                   ...ghostButton,
                   padding: '4px 10px',
-                  borderColor: s.site_ref === active.site_ref ? '#c8e64a' : '#2a2d35',
-                  color: s.site_ref === active.site_ref ? '#c8e64a' : '#a0a0a0',
+                  borderColor: s.site_ref === active.site_ref ? B.primary : B.border,
+                  color: s.site_ref === active.site_ref ? B.primary : B.muted,
                 }}
               >
                 {sites.find((m) => m.site_ref === s.site_ref)?.name ?? s.domain}
@@ -755,8 +756,8 @@ function EvidenceBlock({ evidence, noValueLabel }: { evidence: Record<string, un
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '8px' }}>
           {scalars.map(([k, v]) => (
             <div key={k} style={{ fontSize: '12px' }}>
-              <span style={{ color: '#6b7280' }}>{k}: </span>
-              <span style={{ color: '#e5e5e5' }}>{v === null ? noValueLabel : String(v)}</span>
+              <span style={{ color: B.muted }}>{k}: </span>
+              <span style={{ color: B.ink }}>{v === null ? noValueLabel : String(v)}</span>
             </div>
           ))}
         </div>
@@ -764,8 +765,8 @@ function EvidenceBlock({ evidence, noValueLabel }: { evidence: Record<string, un
 
       {objects.map(([k, v]) => (
         <div key={k} style={{ fontSize: '12px' }}>
-          <span style={{ color: '#6b7280' }}>{k}: </span>
-          <span style={{ color: '#e5e5e5', fontFamily: "'JetBrains Mono', monospace" }}>
+          <span style={{ color: B.muted }}>{k}: </span>
+          <span style={{ color: B.ink, fontFamily: B.fontMono }}>
             {clip(JSON.stringify(v), 300)}
           </span>
         </div>
@@ -785,8 +786,8 @@ function EvidenceArray({ name, list, noValueLabel }: { name: string; list: unkno
   if (first === null || typeof first !== 'object') {
     return (
       <div style={{ fontSize: '12px' }}>
-        <span style={{ color: '#6b7280' }}>{name}: </span>
-        <span style={{ color: '#e5e5e5' }}>{list.slice(0, 12).map(String).join(', ')}{list.length > 12 ? '…' : ''}</span>
+        <span style={{ color: B.muted }}>{name}: </span>
+        <span style={{ color: B.ink }}>{list.slice(0, 12).map(String).join(', ')}{list.length > 12 ? '…' : ''}</span>
       </div>
     )
   }
@@ -807,8 +808,8 @@ function EvidenceArray({ name, list, noValueLabel }: { name: string; list: unkno
                   style={{
                     textAlign: 'left',
                     padding: '6px 10px',
-                    color: '#6b7280',
-                    borderBottom: '1px solid #2a2d35',
+                    color: B.muted,
+                    borderBottom: `1px solid ${B.border}`,
                     fontWeight: 600,
                     whiteSpace: 'nowrap',
                   }}
@@ -826,7 +827,7 @@ function EvidenceArray({ name, list, noValueLabel }: { name: string; list: unkno
                   return (
                     <td
                       key={c}
-                      style={{ padding: '6px 10px', color: '#e5e5e5', borderBottom: '1px solid #1f222a' }}
+                      style={{ padding: '6px 10px', color: B.ink, borderBottom: `1px solid ${B.surface2}` }}
                     >
                       {v === null || v === undefined
                         ? noValueLabel
@@ -842,7 +843,7 @@ function EvidenceArray({ name, list, noValueLabel }: { name: string; list: unkno
         </table>
       </div>
       {list.length > 10 && (
-        <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>+{list.length - 10}</div>
+        <div style={{ fontSize: '11px', color: B.muted, marginTop: '4px' }}>+{list.length - 10}</div>
       )}
     </div>
   )

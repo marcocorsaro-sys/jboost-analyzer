@@ -5,6 +5,7 @@ import Link from 'next/link'
 import ClientCard from '@/components/clients/ClientCard'
 import { useLocale } from '@/lib/i18n'
 import type { ClientLifecycleStage } from '@/lib/types/client'
+import { B } from '@/lib/brand'
 
 export interface ClientData {
   id: string
@@ -54,12 +55,12 @@ export default function ClientsListWrapper({ initialClients }: Props) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <h1 style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '24px', fontWeight: 700, color: '#ffffff',
+            fontFamily: B.fontMono,
+            fontSize: '24px', fontWeight: 700, color: B.ink,
           }}>
             {t('clients.active_clients_title')}
           </h1>
-          <p style={{ fontSize: '14px', color: '#6b7280', marginTop: '4px' }}>
+          <p style={{ fontSize: '14px', color: B.muted, marginTop: '4px' }}>
             {t('clients.active_clients_subtitle')} · {activeCount}
           </p>
         </div>
@@ -69,9 +70,9 @@ export default function ClientsListWrapper({ initialClients }: Props) {
         <Link
           href="/analyzer/v4"
           style={{
-            padding: '10px 20px', background: '#c8e64a', color: '#111318',
+            padding: '10px 20px', background: B.primary, color: B.bg,
             borderRadius: '8px', fontSize: '14px', fontWeight: 700,
-            textDecoration: 'none', fontFamily: "'JetBrains Mono', monospace",
+            textDecoration: 'none', fontFamily: B.fontMono,
           }}
         >
           {t('clients.new_client_button')}
@@ -85,20 +86,20 @@ export default function ClientsListWrapper({ initialClients }: Props) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={{
-            flex: 1, padding: '10px 14px', background: '#1a1c24',
-            border: '1px solid #2a2d35', borderRadius: '8px',
-            color: '#ffffff', fontSize: '14px', outline: 'none',
+            flex: 1, padding: '10px 14px', background: B.surface,
+            border: `1px solid ${B.border}`, borderRadius: '8px',
+            color: B.ink, fontSize: '14px', outline: 'none',
           }}
         />
-        <div style={{ display: 'flex', gap: '4px', background: '#1a1c24', borderRadius: '8px', padding: '3px' }}>
+        <div style={{ display: 'flex', gap: '4px', background: B.surface, borderRadius: '8px', padding: '3px' }}>
           {(['active', 'archived', 'all'] as const).map(f => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               style={{
                 padding: '7px 14px',
-                background: filter === f ? '#2a2d35' : 'transparent',
-                color: filter === f ? '#ffffff' : '#6b7280',
+                background: filter === f ? B.border : 'transparent',
+                color: filter === f ? B.ink : B.muted,
                 border: 'none', borderRadius: '6px',
                 fontSize: '12px', fontWeight: 600,
                 cursor: 'pointer', textTransform: 'capitalize',
@@ -115,7 +116,7 @@ export default function ClientsListWrapper({ initialClients }: Props) {
       </div>
 
       {filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px 0', color: '#6b7280' }}>
+        <div style={{ textAlign: 'center', padding: '60px 0', color: B.muted }}>
           <p style={{ fontSize: '16px', marginBottom: '12px' }}>
             {search ? t('clients.empty_search') : t('clients.empty_active')}
           </p>
@@ -123,7 +124,7 @@ export default function ClientsListWrapper({ initialClients }: Props) {
             /* Empty state → straight into the single onboarding: the wizard. */
             <Link
               href="/analyzer/v4"
-              style={{ color: '#c8e64a', textDecoration: 'underline', fontSize: '14px' }}
+              style={{ color: B.primary, textDecoration: 'underline', fontSize: '14px' }}
             >
               {t('clients.empty_start_audit')}
             </Link>

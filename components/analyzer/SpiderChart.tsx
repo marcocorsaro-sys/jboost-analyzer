@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from 'recharts'
+import { B } from '@/lib/brand'
 
 interface SpiderChartProps {
   driverScores: Record<string, number | null>
@@ -29,6 +30,13 @@ interface SpiderChartProps {
   strictNulls?: boolean
   /** Series name for the main radar (default "Your Score"). */
   primaryName?: string
+  /**
+   * Optional brand overrides (backwards-compatible): stroke/fill of the
+   * client radar and the competitor series palette. Default to the JAKALA
+   * tokens in lib/brand.ts (navy client, navy-declination competitors).
+   */
+  primaryColor?: string
+  competitorColors?: string[]
 }
 
 const DRIVER_LABELS: Record<string, string> = {
@@ -43,7 +51,7 @@ const DRIVER_LABELS: Record<string, string> = {
   awareness: 'Awareness',
 }
 
-const COMPETITOR_COLORS = ['#6366f1', '#f59e0b', '#ec4899', '#06b6d4']
+const COMPETITOR_COLORS = B.chartCompetitors
 
 export default function SpiderChart({
   driverScores,
@@ -52,6 +60,8 @@ export default function SpiderChart({
   title,
   strictNulls = false,
   primaryName,
+  primaryColor = B.chartClient,
+  competitorColors = COMPETITOR_COLORS,
 }: SpiderChartProps) {
   const labelMap = labels ?? DRIVER_LABELS
   const driverKeys = Object.keys(labelMap)
@@ -69,16 +79,16 @@ export default function SpiderChart({
 
   return (
     <div style={{
-      background: '#1a1d24',
+      background: B.surface,
       borderRadius: '12px',
-      border: '1px solid #2a2d35',
+      border: `1px solid ${B.border}`,
       padding: '24px',
     }}>
       <h3 style={{
-        fontFamily: "'JetBrains Mono', monospace",
+        fontFamily: B.fontMono,
         fontSize: '14px',
         fontWeight: 600,
-        color: '#ffffff',
+        color: B.ink,
         marginBottom: '16px',
         textTransform: 'uppercase',
         letterSpacing: '0.5px',
@@ -87,21 +97,21 @@ export default function SpiderChart({
       </h3>
       <ResponsiveContainer width="100%" height={380}>
         <RadarChart data={data}>
-          <PolarGrid stroke="#2a2d35" />
+          <PolarGrid stroke={B.border} />
           <PolarAngleAxis
             dataKey="driver"
-            tick={{ fill: '#a0a0a0', fontSize: 11 }}
+            tick={{ fill: B.muted, fontSize: 11 }}
           />
           <PolarRadiusAxis
             angle={90}
             domain={[0, 100]}
-            tick={{ fill: '#6b7280', fontSize: 10 }}
+            tick={{ fill: B.muted, fontSize: 10 }}
           />
           <Radar
             name={primaryName ?? 'Your Score'}
             dataKey="score"
-            stroke="#c8e64a"
-            fill="#c8e64a"
+            stroke={primaryColor}
+            fill={primaryColor}
             fillOpacity={0.2}
             strokeWidth={2}
           />
@@ -110,8 +120,8 @@ export default function SpiderChart({
               key={comp.domain}
               name={comp.domain}
               dataKey={`comp_${i}`}
-              stroke={COMPETITOR_COLORS[i % COMPETITOR_COLORS.length]}
-              fill={COMPETITOR_COLORS[i % COMPETITOR_COLORS.length]}
+              stroke={competitorColors[i % competitorColors.length]}
+              fill={competitorColors[i % competitorColors.length]}
               fillOpacity={0.05}
               strokeWidth={1.5}
               strokeDasharray="4 4"
@@ -119,16 +129,16 @@ export default function SpiderChart({
           ))}
           <Tooltip
             contentStyle={{
-              background: '#1e2028',
-              border: '1px solid #2a2d35',
+              background: B.surface2,
+              border: `1px solid ${B.border}`,
               borderRadius: '8px',
-              color: '#ffffff',
+              color: B.ink,
               fontSize: '12px',
             }}
           />
           {competitorScores.length > 0 && (
             <Legend
-              wrapperStyle={{ fontSize: '12px', color: '#a0a0a0' }}
+              wrapperStyle={{ fontSize: '12px', color: B.muted }}
             />
           )}
         </RadarChart>

@@ -14,6 +14,7 @@
 
 import type { ReportModel, ReportDriverSection, ReportTable } from './report-model'
 import { fmtScore } from './report-model'
+import { B } from '../../brand'
 
 function esc(text: string): string {
   return text
@@ -222,10 +223,12 @@ export function generateArtifact(model: ReportModel): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(model.cover.title)} — ${esc(model.cover.client)}</title>
 <style>
-  :root { --ink:#1f2328; --muted:#6b7280; --accent:#0f766e; --rule:#d6d9de; --shade:#eff1f4; --alert:#b42318; }
+  :root { --ink:#1f2328; --muted:#6b7280; --accent:${B.primary}; --rule:#d6d9de; --shade:#eff1f4; --alert:#b42318; }
   * { box-sizing: border-box; }
   body { margin:0; font-family: Georgia, 'Times New Roman', serif; color: var(--ink); background:#ffffff; line-height:1.6; }
-  header.cover { padding: 64px 8% 40px; border-bottom: 3px solid var(--accent); }
+  .brandband { background: linear-gradient(120deg, ${B.primary}, ${B.inkPanel}); padding: 12px 8%; display: flex; align-items: center; }
+  .brandband svg { height: 22px; width: auto; opacity: 0.9; }
+  header.cover { padding: 48px 8% 40px; border-bottom: 3px solid var(--accent); }
   header.cover h1 { font-size: 40px; margin: 0 0 6px; }
   header.cover .sub { color: var(--muted); font-size: 15px; margin-bottom: 22px; }
   header.cover .meta { font-size: 14px; }
@@ -261,6 +264,7 @@ export function generateArtifact(model: ReportModel): string {
 </style>
 </head>
 <body>
+<div class="brandband"><svg viewBox="0 0 36 36" aria-hidden="true"><path d="M18 2c7 9.5 11 15.7 11 21a11 11 0 1 1-22 0c0-5.3 4-11.5 11-21Z" fill="#ffffff" fill-opacity="0.9"/></svg></div>
 <header class="cover">
   <h1>${esc(model.cover.title)}</h1>
   <div class="sub">${esc(L.coverSubtitle)}</div>

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { getScoreBand } from '@/lib/constants'
+import { B } from '@/lib/brand'
 
 export interface AnalysisRow {
   id: string
@@ -29,10 +30,10 @@ interface Props {
 
 function statusColor(status: string): string {
   switch (status) {
-    case 'completed': return '#c8e64a'
-    case 'running': return '#f59e0b'
-    case 'failed': return '#ef4444'
-    default: return '#6b7280'
+    case 'completed': return B.primary
+    case 'running': return B.warning
+    case 'failed': return B.error
+    default: return B.muted
   }
 }
 
@@ -61,7 +62,7 @@ export default function ResultsList({ analyses, clients }: Props) {
   return (
     <div style={{ padding: '32px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <h1 style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '24px', fontWeight: 700, color: '#ffffff' }}>
+        <h1 style={{ fontFamily: B.fontMono, fontSize: '24px', fontWeight: 700, color: B.ink }}>
           Risultati
         </h1>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -71,7 +72,7 @@ export default function ResultsList({ analyses, clients }: Props) {
               onChange={e => setClientFilter(e.target.value)}
               style={{
                 padding: '6px 12px', borderRadius: '6px', border: 'none', fontSize: '12px',
-                background: '#1e2028', color: '#a0a0a0', cursor: 'pointer',
+                background: B.surface2, color: B.muted, cursor: 'pointer',
               }}
             >
               <option value="all">Tutti i clienti</option>
@@ -86,8 +87,8 @@ export default function ResultsList({ analyses, clients }: Props) {
               style={{
                 padding: '6px 14px', borderRadius: '6px', border: 'none', fontSize: '13px',
                 fontWeight: 500, cursor: 'pointer',
-                background: filter === f ? '#c8e64a' : '#1e2028',
-                color: filter === f ? '#111318' : '#a0a0a0',
+                background: filter === f ? B.primary : B.surface2,
+                color: filter === f ? B.bg : B.muted,
                 transition: 'all 0.2s',
               }}
             >
@@ -99,14 +100,14 @@ export default function ResultsList({ analyses, clients }: Props) {
 
       {filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 0' }}>
-          <p style={{ color: '#6b7280', fontSize: '16px', marginBottom: '16px' }}>
+          <p style={{ color: B.muted, fontSize: '16px', marginBottom: '16px' }}>
             {filter === 'all' && clientFilter === 'all' ? 'Nessuna analisi.' : 'Nessuna analisi con i filtri attuali.'}
           </p>
           <Link
             href="/analyzer"
             style={{
               display: 'inline-block', padding: '10px 24px',
-              background: '#c8e64a', color: '#111318', borderRadius: '8px',
+              background: B.primary, color: B.bg, borderRadius: '8px',
               fontWeight: 600, textDecoration: 'none', fontSize: '14px',
             }}
           >
@@ -117,36 +118,36 @@ export default function ResultsList({ analyses, clients }: Props) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {filtered.map(analysis => {
             const band = analysis.overall_score !== null ? getScoreBand(analysis.overall_score) : null
-            const bandHex = band?.color === 'green' ? '#22c55e'
-              : band?.color === 'teal' ? '#14b8a6'
-              : band?.color === 'amber' ? '#f59e0b'
-              : '#ef4444'
+            const bandHex = band?.color === 'green' ? B.success
+              : band?.color === 'teal' ? B.teal
+              : band?.color === 'amber' ? B.warning
+              : B.error
             const clientName = analysis.client_id ? clientMap[analysis.client_id] : null
             return (
               <Link key={analysis.id} href={`/results/${analysis.id}`} style={{ textDecoration: 'none' }}>
                 <div
                   style={{
-                    background: '#1a1d24', borderRadius: '12px', padding: '20px 24px',
-                    border: '1px solid #2a2d35', display: 'flex', alignItems: 'center',
+                    background: B.surface, borderRadius: '12px', padding: '20px 24px',
+                    border: `1px solid ${B.border}`, display: 'flex', alignItems: 'center',
                     gap: '20px', cursor: 'pointer', transition: 'border-color 0.2s',
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#c8e64a40')}
-                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = '#2a2d35')}
+                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = `${B.primary}40`)}
+                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = B.border)}
                 >
                   <div style={{
                     width: '60px', height: '60px', borderRadius: '12px',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontFamily: "'JetBrains Mono', monospace", fontSize: '20px', fontWeight: 700, flexShrink: 0,
-                    background: analysis.overall_score !== null ? `${bandHex}15` : '#1e2028',
-                    color: analysis.overall_score !== null ? bandHex : '#6b7280',
+                    fontFamily: B.fontMono, fontSize: '20px', fontWeight: 700, flexShrink: 0,
+                    background: analysis.overall_score !== null ? `${bandHex}15` : B.surface2,
+                    color: analysis.overall_score !== null ? bandHex : B.muted,
                   }}>
                     {analysis.overall_score ?? '—'}
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
                       <span style={{
-                        fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: '16px', fontWeight: 600, color: '#ffffff',
+                        fontFamily: B.fontMono,
+                        fontSize: '16px', fontWeight: 600, color: B.ink,
                       }}>
                         {analysis.domain}
                       </span>
@@ -161,13 +162,13 @@ export default function ResultsList({ analyses, clients }: Props) {
                       {clientName && (
                         <span style={{
                           fontSize: '11px', fontWeight: 600, padding: '2px 8px',
-                          borderRadius: '4px', background: 'rgba(200, 230, 74, 0.08)', color: '#c8e64a',
+                          borderRadius: '4px', background: B.primarySoft, color: B.primary,
                         }}>
                           {clientName}
                         </span>
                       )}
                     </div>
-                    <div style={{ display: 'flex', gap: '16px', fontSize: '13px', color: '#6b7280' }}>
+                    <div style={{ display: 'flex', gap: '16px', fontSize: '13px', color: B.muted }}>
                       <span>{analysis.country?.toUpperCase()}</span>
                       <span>{new Date(analysis.created_at).toLocaleDateString('it-IT', {
                         day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -177,7 +178,7 @@ export default function ResultsList({ analyses, clients }: Props) {
                       )}
                     </div>
                   </div>
-                  <div style={{ color: '#6b7280', fontSize: '20px' }}>→</div>
+                  <div style={{ color: B.muted, fontSize: '20px' }}>→</div>
                 </div>
               </Link>
             )

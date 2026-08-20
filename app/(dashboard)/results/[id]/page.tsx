@@ -12,6 +12,7 @@ import ScoreDisplay from '@/components/analyzer/ScoreDisplay'
 import DriverDetail from '@/components/analyzer/DriverDetail'
 import PriorityMatrix from '@/components/analyzer/PriorityMatrix'
 import Link from 'next/link'
+import { B } from '@/lib/brand'
 
 // recharts is heavy and only powers this radar — load it lazily so it lands
 // in its own chunk instead of bloating the page's initial JS.
@@ -19,7 +20,7 @@ const SpiderChart = dynamic(() => import('@/components/analyzer/SpiderChart'), {
   ssr: false,
   loading: () => (
     <div
-      style={{ height: 444, background: '#1a1d24', borderRadius: '12px', border: '1px solid #2a2d35' }}
+      style={{ height: 444, background: B.surface, borderRadius: '12px', border: `1px solid ${B.border}` }}
       aria-hidden
     />
   ),
@@ -179,9 +180,9 @@ export default function AnalysisDetailPage() {
 
   // Band colors
   const BAND_COLORS: Record<string, string> = {
-    green: '#22c55e', teal: '#14b8a6', amber: '#f59e0b', red: '#ef4444',
+    green: B.success, teal: B.teal, amber: B.warning, red: B.error,
   }
-  const bandColor = band ? BAND_COLORS[band.color] ?? '#6b7280' : '#6b7280'
+  const bandColor = band ? BAND_COLORS[band.color] ?? B.muted : B.muted
 
   return (
     <div className="p-8 max-w-[1200px]">
@@ -243,7 +244,7 @@ export default function AnalysisDetailPage() {
           const dr = driverResults.find(r => r.driver_name === driver.key)
           const s = dr?.score ?? null
           const dBand = s !== null ? getScoreBand(s) : null
-          const dColor = dBand ? BAND_COLORS[dBand.color] ?? '#6b7280' : '#6b7280'
+          const dColor = dBand ? BAND_COLORS[dBand.color] ?? B.muted : B.muted
 
           return (
             <div
@@ -256,7 +257,7 @@ export default function AnalysisDetailPage() {
               >
                 {s ?? '—'}
               </div>
-              <div className="text-[10px] text-[#a0a0a0] font-medium">
+              <div className="text-[10px] text-muted-foreground font-medium">
                 {driver.label}
               </div>
             </div>

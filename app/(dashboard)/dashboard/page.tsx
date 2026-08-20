@@ -3,12 +3,13 @@ import { redirect } from 'next/navigation'
 import { getScoreBand } from '@/lib/constants'
 import Link from 'next/link'
 import T from '@/components/ui/T'
+import { B } from '@/lib/brand'
 
 const BAND_COLORS: Record<string, string> = {
-  green: '#22c55e',
-  teal: '#14b8a6',
-  amber: '#f59e0b',
-  red: '#ef4444',
+  green: B.success,
+  teal: B.teal,
+  amber: B.warning,
+  red: B.error,
 }
 
 export default async function DashboardPage() {
@@ -89,7 +90,7 @@ export default async function DashboardPage() {
     : null
 
   const avgScoreColor = avgScore !== null
-    ? (avgScore >= 80 ? '#22c55e' : avgScore >= 60 ? '#14b8a6' : avgScore >= 40 ? '#f59e0b' : '#ef4444')
+    ? (avgScore >= 80 ? B.success : avgScore >= 60 ? B.teal : avgScore >= 40 ? B.warning : B.error)
     : undefined
 
   return (
@@ -113,7 +114,7 @@ export default async function DashboardPage() {
           <div className="text-[11px] text-gray-500 uppercase tracking-wide mb-2 font-mono">
             <T k="dashboard.completedAnalyses" />
           </div>
-          <div className="text-4xl font-bold text-white font-mono">
+          <div className="text-4xl font-bold text-foreground font-mono">
             {totalAnalyses ?? 0}
           </div>
         </div>
@@ -161,7 +162,7 @@ export default async function DashboardPage() {
             <div className="flex flex-col gap-2">
               {topClients.map((c) => {
                 const band = c.latest_score !== null ? getScoreBand(c.latest_score) : null
-                const color = band ? BAND_COLORS[band.color] ?? '#6b7280' : '#6b7280'
+                const color = band ? BAND_COLORS[band.color] ?? B.muted : B.muted
                 return (
                   <Link key={c.id} href={`/clients/${c.id}`} className="no-underline">
                     <div className="flex items-center gap-3 px-3.5 py-2.5 bg-background rounded-lg transition-colors">
@@ -172,7 +173,7 @@ export default async function DashboardPage() {
                         {c.latest_score ?? '—'}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold text-white whitespace-nowrap overflow-hidden text-ellipsis">
+                        <div className="text-sm font-semibold text-foreground whitespace-nowrap overflow-hidden text-ellipsis">
                           {c.name}
                         </div>
                         <div className="text-[11px] text-gray-500">
@@ -206,13 +207,13 @@ export default async function DashboardPage() {
             </Link>
             <Link
               href="/analyzer"
-              className="block px-4 py-2.5 bg-border text-white rounded-lg text-[13px] font-semibold no-underline text-center"
+              className="block px-4 py-2.5 bg-secondary border border-border text-foreground rounded-lg text-[13px] font-semibold no-underline text-center"
             >
               <T k="dashboard.analyzeDomain" />
             </Link>
             <Link
               href="/ask-j"
-              className="block px-4 py-2.5 bg-border text-white rounded-lg text-[13px] font-semibold no-underline text-center"
+              className="block px-4 py-2.5 bg-secondary border border-border text-foreground rounded-lg text-[13px] font-semibold no-underline text-center"
             >
               <T k="common.askJ" />
             </Link>

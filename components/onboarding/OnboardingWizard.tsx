@@ -20,6 +20,7 @@ import { ONBOARDING_SECTIONS } from '@/lib/onboarding/sections'
 import type { MemoryProfile } from '@/lib/types/client'
 import SectionForm from './SectionForm'
 import OnboardingDiscoveryChat from './OnboardingDiscoveryChat'
+import { B } from '@/lib/brand'
 
 interface OnboardingWizardProps {
   clientId: string
@@ -41,8 +42,8 @@ const containerStyle: React.CSSProperties = {
 }
 
 const sidebarStyle: React.CSSProperties = {
-  background: '#0f1115',
-  border: '1px solid #2a2d35',
+  background: B.surface2,
+  border: `1px solid ${B.border}`,
   borderRadius: '12px',
   padding: '16px',
   position: 'sticky',
@@ -57,12 +58,12 @@ const stepItemStyle = (active: boolean, completed: boolean): React.CSSProperties
   padding: '10px 12px',
   borderRadius: '8px',
   cursor: 'pointer',
-  background: active ? '#c8e64a15' : 'transparent',
-  border: `1px solid ${active ? '#c8e64a80' : 'transparent'}`,
-  color: active ? '#c8e64a' : completed ? '#e6e7eb' : '#8a8e97',
+  background: active ? B.primarySoft : 'transparent',
+  border: `1px solid ${active ? `${B.primary}80` : 'transparent'}`,
+  color: active ? B.primary : completed ? B.ink : B.muted,
   fontSize: '13px',
   fontWeight: active || completed ? 600 : 500,
-  fontFamily: "'JetBrains Mono', monospace",
+  fontFamily: B.fontMono,
   marginBottom: '4px',
 })
 
@@ -75,39 +76,39 @@ const stepBadgeStyle = (active: boolean, completed: boolean): React.CSSPropertie
   justifyContent: 'center',
   fontSize: '11px',
   fontWeight: 700,
-  background: completed ? '#22c55e' : active ? '#c8e64a' : '#1a1d25',
-  color: completed || active ? '#111318' : '#8a8e97',
+  background: completed ? B.success : active ? B.primary : B.surface,
+  color: completed || active ? B.bg : B.muted,
 })
 
 const contentStyle: React.CSSProperties = {
-  background: '#0f1115',
-  border: '1px solid #2a2d35',
+  background: B.surface2,
+  border: `1px solid ${B.border}`,
   borderRadius: '12px',
   padding: '32px',
 }
 
 const buttonPrimary: React.CSSProperties = {
   padding: '10px 24px',
-  background: '#c8e64a',
-  color: '#111318',
+  background: B.primary,
+  color: B.bg,
   border: 'none',
   borderRadius: '8px',
   fontSize: '14px',
   fontWeight: 700,
   cursor: 'pointer',
-  fontFamily: "'JetBrains Mono', monospace",
+  fontFamily: B.fontMono,
 }
 
 const buttonSecondary: React.CSSProperties = {
   padding: '10px 24px',
   background: 'transparent',
-  color: '#e6e7eb',
-  border: '1px solid #2a2d35',
+  color: B.ink,
+  border: `1px solid ${B.border}`,
   borderRadius: '8px',
   fontSize: '14px',
   fontWeight: 600,
   cursor: 'pointer',
-  fontFamily: "'JetBrains Mono', monospace",
+  fontFamily: B.fontMono,
 }
 
 // ─── Helpers ──────────────────────────────────────────────
@@ -358,23 +359,23 @@ export default function OnboardingWizard({
       {/* ── Sidebar ── */}
       <aside style={sidebarStyle}>
         <div style={{ marginBottom: '16px' }}>
-          <div style={{ fontSize: '11px', color: '#8a8e97', fontFamily: "'JetBrains Mono', monospace", textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          <div style={{ fontSize: '11px', color: B.muted, fontFamily: B.fontMono, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             {tr('onboarding.wizard.client')}
           </div>
-          <div style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff', marginTop: '4px' }}>
+          <div style={{ fontSize: '16px', fontWeight: 700, color: B.ink, marginTop: '4px' }}>
             {clientName}
           </div>
         </div>
 
         <div style={{ marginBottom: '16px' }}>
-          <div style={{ fontSize: '11px', color: '#8a8e97', marginBottom: '6px' }}>
+          <div style={{ fontSize: '11px', color: B.muted, marginBottom: '6px' }}>
             {tr('onboarding.wizard.progress')} {progress.done}/{progress.total}
           </div>
-          <div style={{ height: '6px', background: '#1a1d25', borderRadius: '3px', overflow: 'hidden' }}>
+          <div style={{ height: '6px', background: B.surface, borderRadius: '3px', overflow: 'hidden' }}>
             <div style={{
               width: `${progress.pct}%`,
               height: '100%',
-              background: '#c8e64a',
+              background: B.primary,
               transition: 'width 0.3s',
             }} />
           </div>
@@ -408,7 +409,7 @@ export default function OnboardingWizard({
           </div>
         </nav>
 
-        <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #2a2d35' }}>
+        <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: `1px solid ${B.border}` }}>
           <button
             type="button"
             onClick={handleSaveAndExit}
@@ -424,10 +425,10 @@ export default function OnboardingWizard({
         {saveError && (
           <div style={{
             padding: '10px 14px',
-            background: '#ef444420',
-            border: '1px solid #ef4444',
+            background: `${B.error}20`,
+            border: `1px solid ${B.error}`,
             borderRadius: '8px',
-            color: '#ef4444',
+            color: B.error,
             fontSize: '13px',
             marginBottom: '16px',
           }}>
@@ -436,7 +437,7 @@ export default function OnboardingWizard({
         )}
 
         {saving && (
-          <div style={{ fontSize: '11px', color: '#8a8e97', marginBottom: '8px', fontFamily: "'JetBrains Mono', monospace" }}>
+          <div style={{ fontSize: '11px', color: B.muted, marginBottom: '8px', fontFamily: B.fontMono }}>
             {tr('onboarding.wizard.saving')}
           </div>
         )}
@@ -472,13 +473,13 @@ export default function OnboardingWizard({
             <h2 style={{
               fontSize: '20px',
               fontWeight: 700,
-              color: '#ffffff',
+              color: B.ink,
               marginBottom: '8px',
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: B.fontMono,
             }}>
               {tr('onboarding.discovery.title')}
             </h2>
-            <p style={{ fontSize: '14px', color: '#8a8e97', marginBottom: '20px', lineHeight: 1.6 }}>
+            <p style={{ fontSize: '14px', color: B.muted, marginBottom: '20px', lineHeight: 1.6 }}>
               {tr('onboarding.discovery.description')}
             </p>
             <OnboardingDiscoveryChat clientId={clientId} />
@@ -486,10 +487,10 @@ export default function OnboardingWizard({
             {completeError && (
               <div style={{
                 padding: '10px 14px',
-                background: '#ef444420',
-                border: '1px solid #ef4444',
+                background: `${B.error}20`,
+                border: `1px solid ${B.error}`,
                 borderRadius: '8px',
-                color: '#ef4444',
+                color: B.error,
                 fontSize: '13px',
                 marginTop: '16px',
               }}>

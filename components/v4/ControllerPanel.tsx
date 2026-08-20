@@ -16,6 +16,7 @@
 import { useLocale } from '@/lib/i18n'
 import { getV4Driver } from '@/lib/scoring/registry'
 import { card, ghostButton, pill } from './results-shared'
+import { B } from '@/lib/brand'
 
 export interface ControllerFindingDto {
   severity: 'error' | 'warning' | 'info'
@@ -32,15 +33,15 @@ export interface ControllerResponse {
 }
 
 const SEVERITY_COLOR: Record<ControllerFindingDto['severity'], string> = {
-  error: '#ef4444',
-  warning: '#f59e0b',
-  info: '#6b7280',
+  error: B.error,
+  warning: B.warning,
+  info: B.muted,
 }
 
 export function controllerChipColor(counts: ControllerResponse['counts']): string {
-  if (counts.error > 0) return '#ef4444'
-  if (counts.warning > 0) return '#f59e0b'
-  return '#22c55e'
+  if (counts.error > 0) return B.error
+  if (counts.warning > 0) return B.warning
+  return B.success
 }
 
 export function ControllerChip({
@@ -90,29 +91,29 @@ export function ControllerPanel({
     <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: '12px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
         <div>
-          <div style={{ fontSize: '14px', fontWeight: 700, color: '#ffffff' }}>{t('v4ctrl.title')}</div>
-          <div style={{ fontSize: '12px', color: '#6b7280' }}>{t('v4ctrl.subtitle')}</div>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: B.ink }}>{t('v4ctrl.title')}</div>
+          <div style={{ fontSize: '12px', color: B.muted }}>{t('v4ctrl.subtitle')}</div>
         </div>
         <button
           type="button"
           onClick={onRecheck}
           disabled={loading}
-          style={{ ...ghostButton, marginLeft: 'auto', color: loading ? '#6b7280' : '#a0a0a0' }}
+          style={{ ...ghostButton, marginLeft: 'auto', color: loading ? B.muted : B.muted }}
         >
           {loading ? t('v4ctrl.rechecking') : t('v4ctrl.recheck')}
         </button>
       </div>
 
       {error && (
-        <div style={{ fontSize: '12px', color: '#ef4444' }}>
+        <div style={{ fontSize: '12px', color: B.error }}>
           {t('v4ctrl.load_error')}: {error}
         </div>
       )}
 
-      {!error && !data && <div style={{ fontSize: '13px', color: '#6b7280' }}>{t('v4ctrl.loading')}</div>}
+      {!error && !data && <div style={{ fontSize: '13px', color: B.muted }}>{t('v4ctrl.loading')}</div>}
 
       {data && data.findings.length === 0 && (
-        <div style={{ fontSize: '13px', color: '#22c55e' }}>{t('v4ctrl.clean')}</div>
+        <div style={{ fontSize: '13px', color: B.success }}>{t('v4ctrl.clean')}</div>
       )}
 
       {data && data.findings.length > 0 && (
@@ -141,17 +142,17 @@ export function ControllerPanel({
                   )}
                 </span>
                 {f.driver_key && (
-                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#ffffff' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: B.ink }}>
                     {getV4Driver(f.driver_key)?.label ?? f.driver_key}
                   </span>
                 )}
-                <span style={{ fontSize: '11px', color: '#6b7280', fontFamily: "'JetBrains Mono', monospace" }}>
+                <span style={{ fontSize: '11px', color: B.muted, fontFamily: B.fontMono }}>
                   {f.check}
                 </span>
               </div>
-              <div style={{ fontSize: '13px', color: '#d0d0d0', lineHeight: 1.5 }}>{f.message}</div>
+              <div style={{ fontSize: '13px', color: B.ink, lineHeight: 1.5 }}>{f.message}</div>
               {f.suggestion && (
-                <div style={{ fontSize: '12px', color: '#c8e64a' }}>
+                <div style={{ fontSize: '12px', color: B.primary }}>
                   {t('v4ctrl.suggestion')}: {f.suggestion}
                 </div>
               )}
@@ -161,7 +162,7 @@ export function ControllerPanel({
       )}
 
       {data && (
-        <div style={{ fontSize: '11px', color: '#6b7280' }}>
+        <div style={{ fontSize: '11px', color: B.muted }}>
           {t('v4ctrl.checked_at')} {new Date(data.checked_at).toLocaleTimeString()}
         </div>
       )}

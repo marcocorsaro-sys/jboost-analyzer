@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { ClientMemoryStatus } from '@/lib/types/client'
 import { useLocale, formatLocalDate } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
+import { B } from '@/lib/brand'
 
 interface MemoryStatusCardProps {
   status: ClientMemoryStatus
@@ -39,12 +40,12 @@ export default function MemoryStatusCard({
   }
 
   const statusColors: Record<ClientMemoryStatus, string> = {
-    empty: '#6b7280',
-    building: '#f59e0b',
-    ready: '#c8e64a',
-    refreshing: '#f59e0b',
-    stale: '#f59e0b',
-    failed: '#ef4444',
+    empty: B.muted,
+    building: B.warning,
+    ready: B.primary,
+    refreshing: B.warning,
+    stale: B.warning,
+    failed: B.error,
   }
 
   const handleRefresh = async () => {

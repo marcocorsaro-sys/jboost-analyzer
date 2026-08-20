@@ -18,6 +18,7 @@ import { getV4Driver } from '@/lib/scoring/registry'
 import { selectRerunDrivers } from '@/lib/v4/publish'
 import type { EditsResponse } from './results-shared'
 import { card, sectionTitle, mutedLabel, pill, primaryButton, ghostButton } from './results-shared'
+import { B } from '@/lib/brand'
 
 interface PublishDialogProps {
   analysisId: string
@@ -78,7 +79,7 @@ export default function PublishDialog({ analysisId, editsInfo, onClose, onPublis
       style={{
         position: 'fixed',
         inset: 0,
-        background: '#000000a0',
+        background: B.overlay,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -92,12 +93,12 @@ export default function PublishDialog({ analysisId, editsInfo, onClose, onPublis
         onClick={(e) => e.stopPropagation()}
       >
         <h3 style={sectionTitle}>{t('v4res.pub_title')}</h3>
-        <div style={{ fontSize: '13px', color: '#a0a0a0', lineHeight: 1.6, marginBottom: '16px' }}>
+        <div style={{ fontSize: '13px', color: B.muted, lineHeight: 1.6, marginBottom: '16px' }}>
           {t('v4res.pub_intro')}
         </div>
 
         {drafts.length === 0 ? (
-          <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '16px' }}>{t('v4res.pub_nothing')}</div>
+          <div style={{ fontSize: '13px', color: B.muted, marginBottom: '16px' }}>{t('v4res.pub_nothing')}</div>
         ) : (
           <>
             {/* Drivers that will re-run. */}
@@ -106,16 +107,16 @@ export default function PublishDialog({ analysisId, editsInfo, onClose, onPublis
               {rerun && selection.rerun.length > 0 ? (
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   {selection.rerun.map((r) => (
-                    <span key={r.driver_key} style={pill('#14b8a6')}>
+                    <span key={r.driver_key} style={pill(B.teal)}>
                       {label(r.driver_key)}
                     </span>
                   ))}
                 </div>
               ) : (
-                <div style={{ fontSize: '13px', color: '#6b7280' }}>{t('v4res.pub_no_rerun')}</div>
+                <div style={{ fontSize: '13px', color: B.muted }}>{t('v4res.pub_no_rerun')}</div>
               )}
               {rerun && selection.ineligible.length > 0 && (
-                <div style={{ marginTop: '8px', fontSize: '12px', color: '#f59e0b' }}>
+                <div style={{ marginTop: '8px', fontSize: '12px', color: B.warning }}>
                   {t('v4res.pub_ineligible')}:{' '}
                   {selection.ineligible.map((i) => `${label(i.driver_key)} (${i.reason})`).join('; ')}
                 </div>
@@ -127,14 +128,14 @@ export default function PublishDialog({ analysisId, editsInfo, onClose, onPublis
               <div style={{ ...mutedLabel, marginBottom: '8px' }}>{t('v4res.pub_kept_edits')}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {drafts.map((e) => (
-                  <div key={e.id} style={{ fontSize: '12px', color: '#a0a0a0', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    <span style={{ color: '#ffffff', fontWeight: 600 }}>
+                  <div key={e.id} style={{ fontSize: '12px', color: B.muted, display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ color: B.ink, fontWeight: 600 }}>
                       {e.driver_key ? label(e.driver_key) : '—'}
                     </span>
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{e.field}</span>
-                    <span style={{ color: '#6b7280' }}>{formatValue(e.old_value)}</span>
-                    <span style={{ color: '#6b7280' }}>→</span>
-                    <span style={{ color: '#c8e64a' }}>{formatValue(e.new_value)}</span>
+                    <span style={{ fontFamily: B.fontMono }}>{e.field}</span>
+                    <span style={{ color: B.muted }}>{formatValue(e.old_value)}</span>
+                    <span style={{ color: B.muted }}>→</span>
+                    <span style={{ color: B.primary }}>{formatValue(e.new_value)}</span>
                   </div>
                 ))}
               </div>
@@ -142,13 +143,13 @@ export default function PublishDialog({ analysisId, editsInfo, onClose, onPublis
 
             <label style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '16px', cursor: 'pointer' }}>
               <input type="checkbox" checked={rerun} onChange={(e) => setRerun(e.target.checked)} />
-              <span style={{ fontSize: '13px', color: '#e5e5e5' }}>{t('v4res.pub_rerun_toggle')}</span>
+              <span style={{ fontSize: '13px', color: B.ink }}>{t('v4res.pub_rerun_toggle')}</span>
             </label>
           </>
         )}
 
-        {error && <div style={{ fontSize: '12px', color: '#ef4444', marginBottom: '12px' }}>{error}</div>}
-        {result && <div style={{ fontSize: '12px', color: '#c8e64a', marginBottom: '12px' }}>{result}</div>}
+        {error && <div style={{ fontSize: '12px', color: B.error, marginBottom: '12px' }}>{error}</div>}
+        {result && <div style={{ fontSize: '12px', color: B.primary, marginBottom: '12px' }}>{result}</div>}
 
         <div style={{ display: 'flex', gap: '12px' }}>
           {!result && (

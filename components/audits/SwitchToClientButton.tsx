@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 
 import { useLocale } from '@/lib/i18n'
+import { B } from '@/lib/brand'
 
 /**
  * 'Switch to client' — the real promotion (UX-UI Bibbia 04: "open the
@@ -68,7 +69,7 @@ export default function SwitchToClientButton({
     return (
       <span className="inline-flex items-center gap-1.5">
         {justCreated && (
-          <span className="text-[11px]" style={{ color: '#22c55e' }}>
+          <span className="text-[11px]" style={{ color: B.success }}>
             {t('audits.switch_done')}
           </span>
         )}
@@ -76,7 +77,7 @@ export default function SwitchToClientButton({
           href={`/clients/${linkedId}`}
           title={t('audits.client_badge_tooltip')}
           className="inline-block rounded-full px-2.5 py-1 text-[11px] font-semibold no-underline"
-          style={{ background: '#c8e64a18', color: '#c8e64a' }}
+          style={{ background: B.primarySoft, color: B.primary }}
         >
           {t('audits.client_badge')}
         </Link>
@@ -95,7 +96,7 @@ export default function SwitchToClientButton({
           onClick={promote}
           disabled={promoting}
           className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-          style={{ background: '#2563eb' }}
+          style={{ background: B.primary }}
         >
           {promoting ? t('audits.switch_working') : t('audits.switch_confirm_yes')}
         </button>
@@ -111,7 +112,7 @@ export default function SwitchToClientButton({
           {t('audits.switch_cancel')}
         </button>
         {error && (
-          <span className="text-[11px]" style={{ color: '#ef4444' }}>
+          <span className="text-[11px]" style={{ color: B.error }}>
             {error}
           </span>
         )}

@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { B } from '@/lib/brand'
 
 interface SpendStatus {
   spentTodayEur: number
@@ -51,8 +52,8 @@ export default function SpendLimitBanner() {
   if (!status || (!status.nearLimit && !status.blocked)) return null
 
   const palette = status.blocked
-    ? { bg: 'rgba(239, 68, 68, 0.10)', border: '#ef4444', dot: '#ef4444', text: '#fecaca' }
-    : { bg: 'rgba(245, 158, 11, 0.10)', border: '#f59e0b', dot: '#f59e0b', text: '#fcd34d' }
+    ? { bg: 'rgba(239, 68, 68, 0.10)', border: B.error, dot: B.error, text: B.error }
+    : { bg: 'rgba(245, 158, 11, 0.10)', border: B.warning, dot: B.warning, text: B.warning }
   const pct = Math.min(100, Math.round(status.ratio * 100))
 
   return (
@@ -63,7 +64,7 @@ export default function SpendLimitBanner() {
       padding: '12px 18px',
       background: palette.bg,
       borderBottom: `1px solid ${palette.border}40`,
-      fontFamily: "'JetBrains Mono', monospace",
+      fontFamily: B.fontMono,
       fontSize: '12px',
       flexWrap: 'wrap',
     }}>
@@ -86,7 +87,7 @@ export default function SpendLimitBanner() {
         style={{
           padding: '6px 14px',
           background: palette.border,
-          color: '#111318',
+          color: B.bg,
           borderRadius: '6px',
           textDecoration: 'none',
           fontWeight: 700,

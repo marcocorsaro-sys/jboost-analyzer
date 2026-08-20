@@ -17,6 +17,7 @@
 
 import { useEffect, useState } from 'react'
 import { useLocale } from '@/lib/i18n'
+import { B } from '@/lib/brand'
 
 interface SweepEntry {
   analysis_id: string
@@ -67,7 +68,7 @@ export default function ControllerBadge({ analysisId }: { analysisId: string }) 
   if (!counts) return <span className="text-[11px] text-muted-foreground">…</span>
 
   const total = counts.error + counts.warning + counts.info
-  const color = counts.error > 0 ? '#ef4444' : counts.warning > 0 ? '#f59e0b' : '#22c55e'
+  const color = counts.error > 0 ? B.error : counts.warning > 0 ? B.warning : B.success
   const label = total === 0 ? t('audits.controller_clean') : String(total)
 
   return (

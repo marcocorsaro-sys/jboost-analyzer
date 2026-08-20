@@ -1,6 +1,7 @@
 'use client'
 
 import { getScoreBand } from '@/lib/constants'
+import { B } from '@/lib/brand'
 
 interface ScoreDisplayProps {
   score: number | null
@@ -9,15 +10,15 @@ interface ScoreDisplayProps {
 }
 
 const BAND_COLORS: Record<string, string> = {
-  green: '#22c55e',
-  teal: '#14b8a6',
-  amber: '#f59e0b',
-  red: '#ef4444',
+  green: B.success,
+  teal: B.teal,
+  amber: B.warning,
+  red: B.error,
 }
 
 export default function ScoreDisplay({ score, size = 'md', showLabel = true }: ScoreDisplayProps) {
   const band = score !== null ? getScoreBand(score) : null
-  const color = band ? BAND_COLORS[band.color] ?? '#6b7280' : '#6b7280'
+  const color = band ? BAND_COLORS[band.color] ?? B.muted : B.muted
 
   const sizes = {
     sm: { box: 40, font: 14, labelFont: 10 },
@@ -37,7 +38,7 @@ export default function ScoreDisplay({ score, size = 'md', showLabel = true }: S
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontFamily: "'JetBrains Mono', monospace",
+          fontFamily: B.fontMono,
           fontSize: s.font,
           fontWeight: 700,
           background: `${color}15`,

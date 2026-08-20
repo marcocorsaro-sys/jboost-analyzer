@@ -2,47 +2,46 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
-
 @layer base {
   /*
-   * Single dark+lime theme.
-   * Both :root and .dark share the same values so the app stays on the
-   * legacy "JBoost dark" look regardless of next-themes' resolved theme.
-   * Each shadcn HSL token below maps 1:1 to the equivalent legacy hex
-   * (--bg, --card, --card2, --border, --lime, --white, --gray) so that
-   * components using `hsl(var(--card))` and components that still read
-   * raw `var(--bg)` etc. render against the same palette.
+   * JAKALA light theme — single theme, both :root and .dark share the same
+   * values so the app stays on the white JAKALA-branded look regardless of
+   * next-themes' resolved theme.
+   *
+   * Source of truth: lib/brand.ts. Each shadcn HSL token below maps 1:1 to a
+   * brand.ts hex (--background ↔ B.bg #ffffff, --primary ↔ B.primary #040066,
+   * --muted-foreground ↔ B.muted #5c6270, --border ↔ B.border #e2e5ea, …).
+   * Change lib/brand.ts and mirror the value here to rebrand.
    */
   :root,
   .dark {
-    --background: 223 17% 8%;        /* #111318 (--bg) */
-    --foreground: 0 0% 94%;          /* #f0f0f0 (--white) */
+    --background: 0 0% 100%;         /* #ffffff (B.bg) */
+    --foreground: 240 29% 6%;        /* #0b0b14 (B.ink) */
 
-    --card: 224 16% 12%;             /* #1a1c24 (--card) */
-    --card-foreground: 0 0% 94%;
+    --card: 0 0% 100%;               /* #ffffff — white cards on white, border-separated */
+    --card-foreground: 240 29% 6%;
 
-    --popover: 225 15% 16%;          /* #22252e (--card2) */
-    --popover-foreground: 0 0% 94%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 29% 6%;
 
-    --primary: 71 74% 60%;           /* #c8e64a (--lime) */
-    --primary-foreground: 223 17% 8%;
+    --primary: 242 100% 20%;         /* #040066 (B.primary — JAKALA navy) */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 225 15% 16%;        /* #22252e (--card2) */
-    --secondary-foreground: 0 0% 94%;
+    --secondary: 220 18% 97%;        /* #f5f6f8 (B.surface) */
+    --secondary-foreground: 240 29% 6%;
 
-    --muted: 225 15% 16%;            /* #22252e (--card2) */
-    --muted-foreground: 224 8% 52%;  /* #7a7f8d (--gray) */
+    --muted: 220 19% 94%;            /* #eceef2 (B.surface2) */
+    --muted-foreground: 222 10% 40%; /* #5c6270 (B.muted, AA on white) */
 
-    --accent: 225 15% 16%;           /* #22252e (--card2) */
-    --accent-foreground: 0 0% 94%;
+    --accent: 233 100% 97%;          /* #eef0ff (B.primarySoft — chips/selection) */
+    --accent-foreground: 242 100% 20%;
 
-    --destructive: 0 84% 60%;        /* #ef4444 (--red) */
-    --destructive-foreground: 0 0% 94%;
+    --destructive: 0 93% 44%;        /* #d90808 (B.error) */
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 227 14% 19%;           /* #2a2d38 (--border legacy) */
-    --input: 227 14% 19%;
-    --ring: 71 74% 60%;              /* lime focus ring */
+    --border: 218 16% 90%;           /* #e2e5ea (B.border) */
+    --input: 218 16% 90%;
+    --ring: 242 100% 20%;            /* navy focus ring */
 
     --radius: 0.5rem;
   }
@@ -54,34 +53,39 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter', system-ui, sans-serif;
+    /* Source Sans 3 via next/font (app/layout.tsx) → --font-sans */
+    font-family: var(--font-sans, 'Source Sans 3', system-ui), system-ui, sans-serif;
     line-height: 1.55;
+  }
+  h1, h2, h3 {
+    letter-spacing: -0.01em;
   }
 }
 
 /* ──────────────────────────────────────────────────────────────────────── */
-/* Legacy tokens — kept as raw CSS variables so pre-existing components     */
-/* that reference var(--bg), var(--card) (used as a raw color), etc.,       */
-/* continue to render until they get refactored to the shadcn tokens.       */
-/* These do NOT affect the new shell / shadcn UI, which uses HSL tokens.    */
+/* Legacy tokens — raw CSS variables still read by pre-existing components  */
+/* (var(--bg), var(--lime), …). Remapped onto the JAKALA palette so every   */
+/* legacy page inherits the light brand without a per-page redesign:        */
+/*   --lime (old accent) → JAKALA navy · --white (old text) → ink · etc.    */
+/* Values mirror lib/brand.ts.                                              */
 /* ──────────────────────────────────────────────────────────────────────── */
 :root {
-  --bg: #111318;
-  --card2: #22252e;
-  --lime: #c8e64a;
-  --lime-dim: #8ba832;
-  --white: #f0f0f0;
-  --gray: #7a7f8d;
-  --gray-l: #b0b5c0;
-  --green: #10b981;
-  --red: #ef4444;
-  --amber: #f59e0b;
-  --teal: #2dd4bf;
+  --bg: #ffffff;         /* B.bg */
+  --card2: #eceef2;      /* B.surface2 */
+  --lime: #040066;       /* B.primary — old accent becomes navy */
+  --lime-dim: #5c6270;   /* B.muted — old dim-accent micro-labels */
+  --white: #0b0b14;      /* B.ink — old "text on dark" is now ink */
+  --gray: #5c6270;       /* B.muted */
+  --gray-l: #3f4450;     /* stronger secondary text */
+  --green: #0f8a5f;      /* B.success */
+  --red: #d90808;        /* B.error */
+  --amber: #a16207;      /* B.warning */
+  --teal: #0f766e;       /* B.teal */
 }
 
-/* Legacy dashboard component classes (preserved as-is). */
+/* Legacy dashboard component classes (retinted, structure preserved). */
 .mono {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
   text-transform: uppercase;
   letter-spacing: 2px;
   font-size: 0.72em;
@@ -95,17 +99,18 @@
   background: hsl(var(--border));
   border-radius: 12px;
   overflow: hidden;
+  border: 1px solid hsl(var(--border));
 }
 
 .kpi {
-  background: var(--card2);
+  background: hsl(var(--card));
   padding: 28px 24px;
   text-align: left;
 }
 
 .kpi .val {
   font-size: 2.2em;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--lime);
   line-height: 1.1;
 }
@@ -119,8 +124,8 @@
 }
 
 .status-bar {
-  background: rgba(16, 185, 129, 0.08);
-  border: 1px solid rgba(16, 185, 129, 0.2);
+  background: rgba(15, 138, 95, 0.08);
+  border: 1px solid rgba(15, 138, 95, 0.25);
   border-radius: 8px;
   padding: 10px 20px;
   display: inline-flex;
@@ -147,7 +152,7 @@
 
 /* Utility classes */
 .mono-label {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;

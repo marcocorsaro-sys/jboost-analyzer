@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useLocale } from '@/lib/i18n'
 import type { TranslationKey } from '@/lib/i18n'
+import { B } from '@/lib/brand'
 
 /* ── Navigation sections ── */
 const NAV_MAIN: { href: string; labelKey: TranslationKey; icon: string }[] = [
@@ -67,7 +68,7 @@ export default function Sidebar({
             ? 'text-[var(--lime)]'
             : 'text-[var(--gray)] hover:text-[var(--white)] hover:bg-[var(--card2)]'
         )}
-        style={active ? { background: 'rgba(200, 230, 74, 0.08)' } : undefined}
+        style={active ? { background: B.primarySoft } : undefined}
       >
         <span className="text-base w-5 text-center">{item.icon}</span>
         <span className="flex-1">{t(item.labelKey)}</span>
@@ -138,7 +139,7 @@ export default function Sidebar({
               <div className="text-[10px] uppercase tracking-wider font-mono" style={{ color: 'var(--gray)' }}>
                 {t('sidebar.prospects')}
               </div>
-              <div className="text-xl font-bold" style={{ color: '#f59e0b' }}>
+              <div className="text-xl font-bold" style={{ color: B.warning }}>
                 {prospectsCount}
               </div>
             </div>

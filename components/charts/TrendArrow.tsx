@@ -1,6 +1,7 @@
 'use client'
 
 import { getTrendArrow, getTrendColor, type TrendDelta } from '@/lib/trends/calculate'
+import { B } from '@/lib/brand'
 
 interface TrendArrowProps {
   delta: TrendDelta
@@ -22,7 +23,7 @@ export default function TrendArrow({ delta, showValue = true, size = 'sm' }: Tre
       gap: '3px',
       fontSize,
       fontWeight: 600,
-      fontFamily: "'JetBrains Mono', monospace",
+      fontFamily: B.fontMono,
       color,
     }}>
       <span>{arrow}</span>

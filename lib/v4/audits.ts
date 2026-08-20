@@ -22,6 +22,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 
+import { B } from '@/lib/brand'
 import { linkedClientId } from '@/lib/v4/promote'
 
 export type AuditState = 'running' | 'needs_decision' | 'draft' | 'published'
@@ -31,10 +32,10 @@ export const AUDIT_STATE_META: Record<
   AuditState,
   { labelKey: 'v4res.state_running' | 'v4res.state_needs_decision' | 'v4res.state_draft' | 'v4res.state_published'; color: string }
 > = {
-  running: { labelKey: 'v4res.state_running', color: '#14b8a6' },
-  needs_decision: { labelKey: 'v4res.state_needs_decision', color: '#f59e0b' },
-  draft: { labelKey: 'v4res.state_draft', color: '#6b7280' },
-  published: { labelKey: 'v4res.state_published', color: '#c8e64a' },
+  running: { labelKey: 'v4res.state_running', color: B.teal },
+  needs_decision: { labelKey: 'v4res.state_needs_decision', color: B.warning },
+  draft: { labelKey: 'v4res.state_draft', color: B.muted },
+  published: { labelKey: 'v4res.state_published', color: B.success },
 }
 
 export interface AuditRunSlice {

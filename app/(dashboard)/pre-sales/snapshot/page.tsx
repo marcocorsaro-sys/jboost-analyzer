@@ -50,7 +50,7 @@ export default function SnapshotLandingPage() {
         />
         <button
           type="submit"
-          className="px-4 py-2 rounded bg-lime-400 text-black font-medium hover:bg-lime-300"
+          className="px-4 py-2 rounded bg-primary text-primary-foreground font-medium hover:opacity-90"
         >
           Build snapshot
         </button>

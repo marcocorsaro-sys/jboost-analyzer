@@ -29,12 +29,13 @@ import SwitchToClientButton from '@/components/audits/SwitchToClientButton'
 import { ControllerChip, ControllerPanel, type ControllerResponse } from './ControllerPanel'
 import type { EditsResponse, InsightsResponse, SiteMeta } from './results-shared'
 import { card, mutedLabel, pill, primaryButton, ghostButton, scoreColor, fill, MEASURE_LABEL_KEY } from './results-shared'
+import { B } from '@/lib/brand'
 
 // recharts radar reused from V1, in its own lazy chunk (V1 pattern).
 const SpiderChart = nextDynamic(() => import('@/components/analyzer/SpiderChart'), {
   ssr: false,
   loading: () => (
-    <div style={{ height: 444, background: '#1a1c24', borderRadius: '12px', border: '1px solid #2a2d35' }} aria-hidden />
+    <div style={{ height: 444, background: B.surface, borderRadius: '12px', border: `1px solid ${B.border}` }} aria-hidden />
   ),
 })
 
@@ -225,12 +226,12 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
 
   // Audit state pill: running > needs_decision > draft > published.
   const auditState: { key: string; color: string } = useMemo(() => {
-    if (!status) return { key: 'v4res.state_draft', color: '#6b7280' }
-    if (status.progress.pending > 0) return { key: 'v4res.state_running', color: '#14b8a6' }
-    if (status.progress.needs_decision > 0) return { key: 'v4res.state_needs_decision', color: '#f59e0b' }
-    if (drafts > 0) return { key: 'v4res.state_draft', color: '#f59e0b' }
-    if (editsInfo?.lastPublishedAt) return { key: 'v4res.state_published', color: '#c8e64a' }
-    return { key: 'v4res.state_draft', color: '#6b7280' }
+    if (!status) return { key: 'v4res.state_draft', color: B.muted }
+    if (status.progress.pending > 0) return { key: 'v4res.state_running', color: B.teal }
+    if (status.progress.needs_decision > 0) return { key: 'v4res.state_needs_decision', color: B.warning }
+    if (drafts > 0) return { key: 'v4res.state_draft', color: B.warning }
+    if (editsInfo?.lastPublishedAt) return { key: 'v4res.state_published', color: B.primary }
+    return { key: 'v4res.state_draft', color: B.muted }
   }, [status, drafts, editsInfo])
 
   // ------------------------------------------------------------- renders --
@@ -239,10 +240,10 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
       <div
         style={{
           padding: '12px 16px',
-          background: '#ef444420',
-          border: '1px solid #ef4444',
+          background: `${B.error}20`,
+          border: `1px solid ${B.error}`,
           borderRadius: '8px',
-          color: '#ef4444',
+          color: B.error,
           fontSize: '13px',
         }}
       >
@@ -252,7 +253,7 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
   }
 
   if (!status) {
-    return <div style={{ color: '#6b7280', fontSize: '14px' }}>{t('v4res.loading')}</div>
+    return <div style={{ color: B.muted, fontSize: '14px' }}>{t('v4res.loading')}</div>
   }
 
   const { progress } = status
@@ -272,7 +273,7 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
       <div style={{ ...card, display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
         <div>
           <div style={mutedLabel}>{t('v4res.title')}</div>
-          <div style={{ fontSize: '17px', fontWeight: 700, color: '#ffffff' }}>{status.domain ?? analysisId}</div>
+          <div style={{ fontSize: '17px', fontWeight: 700, color: B.ink }}>{status.domain ?? analysisId}</div>
         </div>
         <span style={pill(auditState.color)}>
           {t(auditState.key as Parameters<typeof t>[0])}
@@ -290,7 +291,7 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
           onToggle={() => setControllerOpen((v) => !v)}
         />
         {progress.error > 0 && (
-          <span style={pill('#ef4444')}>
+          <span style={pill(B.error)}>
             {progress.error} {t('v4res.state_error')}
           </span>
         )}
@@ -299,13 +300,13 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
             type="button"
             onClick={retryFailed}
             disabled={retrying}
-            style={{ ...ghostButton, borderColor: '#ef4444', color: retrying ? '#6b7280' : '#ef4444' }}
+            style={{ ...ghostButton, borderColor: B.error, color: retrying ? B.muted : B.error }}
             title={t('v4res.retry_hint')}
           >
             {retrying ? t('v4res.retrying') : t('v4res.retry')}
           </button>
         )}
-        {retryNote && <span style={{ fontSize: '12px', color: '#f59e0b' }}>{retryNote}</span>}
+        {retryNote && <span style={{ fontSize: '12px', color: B.warning }}>{retryNote}</span>}
 
         {/* Absolute / Relative toggle (default Relative — sheet 6 v5). */}
         <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
@@ -316,8 +317,8 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
               onClick={() => setView(v)}
               style={{
                 ...ghostButton,
-                borderColor: view === v ? '#c8e64a' : '#2a2d35',
-                color: view === v ? '#c8e64a' : '#a0a0a0',
+                borderColor: view === v ? B.primary : B.border,
+                color: view === v ? B.primary : B.muted,
               }}
             >
               {t(v === 'relative' ? 'v4res.view_relative' : 'v4res.view_absolute')}
@@ -334,10 +335,10 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
         >
           {t('v4res.save_publish')}
         </button>
-        <span style={{ fontSize: '12px', color: drafts > 0 ? '#f59e0b' : '#6b7280' }}>
+        <span style={{ fontSize: '12px', color: drafts > 0 ? B.warning : B.muted }}>
           {drafts > 0 ? `${drafts} ${t('v4res.drafts_pending')}` : t('v4res.no_drafts')}
         </span>
-        <span style={{ fontSize: '11px', color: '#6b7280' }}>
+        <span style={{ fontSize: '11px', color: B.muted }}>
           {t('v4res.refdate')} {status.refDate ?? '—'}
         </span>
       </div>
@@ -366,9 +367,9 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
               style={{
                 ...ghostButton,
                 padding: '8px 16px',
-                fontFamily: "'JetBrains Mono', monospace",
-                borderColor: active ? '#c8e64a' : '#2a2d35',
-                color: active ? '#c8e64a' : '#a0a0a0',
+                fontFamily: B.fontMono,
+                borderColor: active ? B.primary : B.border,
+                color: active ? B.primary : B.muted,
                 display: 'flex',
                 gap: '8px',
                 alignItems: 'center',
@@ -376,21 +377,21 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
             >
               {tab.label}
               {row && row.status !== 'done' && (
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: statusColor ?? '#6b7280' }} />
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: statusColor ?? B.muted }} />
               )}
-              {row?.edited && <span style={{ color: '#f59e0b' }}>✎</span>}
+              {row?.edited && <span style={{ color: B.warning }}>✎</span>}
             </button>
           )
         })}
       </div>
 
       {genError && (
-        <div style={{ fontSize: '12px', color: '#ef4444' }}>
+        <div style={{ fontSize: '12px', color: B.error }}>
           {t('v4res.insights_error')}: {genError}
         </div>
       )}
       {insights?.insightsError && !insightsRunning && (
-        <div style={{ fontSize: '12px', color: '#f59e0b' }}>{insights.insightsError}</div>
+        <div style={{ fontSize: '12px', color: B.warning }}>{insights.insightsError}</div>
       )}
 
       {/* ------------------------------------------------------- content -- */}
@@ -514,7 +515,7 @@ function OverviewTab({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
       {progress.total === 0 && (
-        <div style={{ ...card, color: '#a0a0a0', fontSize: '14px' }}>{t('v4res.no_jobs')}</div>
+        <div style={{ ...card, color: B.muted, fontSize: '14px' }}>{t('v4res.no_jobs')}</div>
       )}
 
       {progress.total > 0 && progress.pending === 0 && !progress.complete && (
@@ -529,7 +530,7 @@ function OverviewTab({
       )}
 
       {progress.pending > 0 && (
-        <div style={{ fontSize: '12px', color: '#6b7280' }}>{t('v4res.autorefresh')}</div>
+        <div style={{ fontSize: '12px', color: B.muted }}>{t('v4res.autorefresh')}</div>
       )}
 
       {/* Panoramic radar. */}
@@ -544,12 +545,12 @@ function OverviewTab({
             primaryName={sites.find((s) => s.is_client)?.name ?? t('v4res.radar_client')}
           />
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <label style={{ display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer', fontSize: '12px', color: '#a0a0a0' }}>
+            <label style={{ display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer', fontSize: '12px', color: B.muted }}>
               <input type="checkbox" checked={overlay} onChange={(e) => onOverlay(e.target.checked)} />
               {t('v4res.overlay_competitors')}
             </label>
             {excluded.length > 0 && (
-              <span style={{ fontSize: '12px', color: '#6b7280' }}>
+              <span style={{ fontSize: '12px', color: B.muted }}>
                 {t('v4res.radar_absolute_note')}{' '}
                 {excluded.map((r) => getV4Driver(r.driver_key)?.label ?? r.driver_key).join(', ')}
               </span>
@@ -557,7 +558,7 @@ function OverviewTab({
           </div>
         </div>
       ) : (
-        <div style={{ ...card, color: '#6b7280', fontSize: '13px' }}>{t('v4res.no_radar_data')}</div>
+        <div style={{ ...card, color: B.muted, fontSize: '13px' }}>{t('v4res.no_radar_data')}</div>
       )}
 
       {/* Score cards / quick anchors, one per driver. */}
@@ -634,16 +635,16 @@ function OverviewCard({
       style={{
         ...card,
         padding: '16px 18px',
-        borderColor: row.status === 'error' ? '#ef444440' : row.status === 'needs_decision' ? '#f59e0b60' : '#2a2d35',
+        borderColor: row.status === 'error' ? `${B.error}40` : row.status === 'needs_decision' ? `${B.warning}60` : B.border,
         display: 'flex',
         flexDirection: 'column',
         gap: '8px',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '14px', fontWeight: 600, color: '#ffffff' }}>{def?.label ?? row.driver_key}</span>
+        <span style={{ fontSize: '14px', fontWeight: 600, color: B.ink }}>{def?.label ?? row.driver_key}</span>
         <span style={pill(s.color)}>{s.label}</span>
-        {row.edited && <span style={pill('#f59e0b')}>{t('v4res.edited_badge')}</span>}
+        {row.edited && <span style={pill(B.warning)}>{t('v4res.edited_badge')}</span>}
       </div>
 
       <div style={{ display: 'flex', gap: '14px', alignItems: 'baseline', flexWrap: 'wrap' }}>
@@ -653,21 +654,21 @@ function OverviewCard({
         >
           {fmt(score)}
         </span>
-        <span style={pill('#6b7280')}>
+        <span style={pill(B.muted)}>
           {t(def?.family === 'business' ? 'v4res.family_business' : 'v4res.family_development')}
         </span>
       </div>
       {/* One explicit line under the number: what it is, and the real measure. */}
-      <div style={{ fontSize: '11px', color: '#a0a0a0' }} title={t('v4res.formula_note')}>
+      <div style={{ fontSize: '11px', color: B.muted }} title={t('v4res.formula_note')}>
         {scoreLine}
       </div>
 
       {row.status === 'error' && row.error && (
-        <div style={{ fontSize: '12px', color: '#ef4444', lineHeight: 1.5 }}>{clipText(row.error, 160)}</div>
+        <div style={{ fontSize: '12px', color: B.error, lineHeight: 1.5 }}>{clipText(row.error, 160)}</div>
       )}
 
       {summarySnippet && row.status === 'done' && (
-        <div style={{ fontSize: '12px', color: '#a0a0a0', lineHeight: 1.5 }}>{summarySnippet}</div>
+        <div style={{ fontSize: '12px', color: B.muted, lineHeight: 1.5 }}>{summarySnippet}</div>
       )}
 
       <button type="button" onClick={onOpen} style={{ ...ghostButton, alignSelf: 'flex-start' }}>

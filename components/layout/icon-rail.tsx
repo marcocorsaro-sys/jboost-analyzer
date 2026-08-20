@@ -76,13 +76,29 @@ export function IconRail({
         className="sticky top-0 z-30 hidden h-screen w-14 shrink-0 flex-col items-center border-r bg-background py-3 md:flex"
         aria-label="Primary navigation"
       >
-        {/* Logo */}
+        {/* Logo — J·Boost mark: the JAKALA navy "goccia" with a white J. */}
         <Link
           href="/home"
-          className="mb-2 flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground"
-          aria-label="JBoost"
+          className="mb-2 flex h-9 w-9 items-center justify-center"
+          aria-label="J·Boost"
         >
-          <span className="font-mono text-sm font-bold">J</span>
+          <svg viewBox="0 0 36 36" className="h-9 w-9" aria-hidden>
+            {/* drop */}
+            <path
+              d="M18 2c7 9.5 11 15.7 11 21a11 11 0 1 1-22 0c0-5.3 4-11.5 11-21Z"
+              className="fill-primary"
+            />
+            <text
+              x="18"
+              y="27.5"
+              textAnchor="middle"
+              fontSize="13"
+              fontWeight="700"
+              fill="#ffffff"
+            >
+              J
+            </text>
+          </svg>
         </Link>
 
         <Separator className="my-2 w-8" />

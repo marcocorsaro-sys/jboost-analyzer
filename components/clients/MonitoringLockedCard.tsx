@@ -1,6 +1,7 @@
 'use client'
 
 import { useLocale } from '@/lib/i18n'
+import { B } from '@/lib/brand'
 
 /**
  * Compact informative card shown in place of MonitoringPanel when the
@@ -22,9 +23,9 @@ export default function MonitoringLockedCard() {
   return (
     <div
       style={{
-        background: '#1a1c24',
+        background: B.surface,
         borderRadius: '12px',
-        border: '1px solid #2a2d35',
+        border: `1px solid ${B.border}`,
         padding: '20px',
         marginBottom: '24px',
       }}
@@ -32,10 +33,10 @@ export default function MonitoringLockedCard() {
       <div style={{ marginBottom: '12px' }}>
         <h3
           style={{
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
             fontSize: '13px',
             fontWeight: 600,
-            color: '#c8e64a',
+            color: B.primary,
             textTransform: 'uppercase',
             letterSpacing: '0.5px',
             margin: 0,
@@ -43,7 +44,7 @@ export default function MonitoringLockedCard() {
         >
           {t('clients.monitoring_title')}
         </h3>
-        <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+        <div style={{ fontSize: '12px', color: B.muted, marginTop: '4px' }}>
           {t('clients.monitoring_subtitle')}
         </div>
       </div>
@@ -51,10 +52,10 @@ export default function MonitoringLockedCard() {
       <div
         style={{
           padding: '12px 16px',
-          background: '#f59e0b10',
-          border: '1px solid #f59e0b33',
+          background: `${B.warning}10`,
+          border: `1px solid ${B.warning}33`,
           borderRadius: '8px',
-          color: '#f59e0b',
+          color: B.warning,
           fontSize: '12px',
           lineHeight: 1.5,
         }}

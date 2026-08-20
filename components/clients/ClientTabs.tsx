@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { B } from '@/lib/brand'
 
 interface ClientTabsProps {
   clientId: string
@@ -25,7 +26,7 @@ export default function ClientTabs({ clientId }: ClientTabsProps) {
     <div style={{
       display: 'flex',
       gap: '2px',
-      borderBottom: '1px solid #2a2d35',
+      borderBottom: `1px solid ${B.border}`,
       marginBottom: '24px',
       overflowX: 'auto',
     }}>
@@ -43,9 +44,9 @@ export default function ClientTabs({ clientId }: ClientTabsProps) {
               padding: '10px 16px',
               fontSize: '13px',
               fontWeight: 600,
-              fontFamily: "'JetBrains Mono', monospace",
-              color: isActive ? '#c8e64a' : '#6b7280',
-              borderBottom: isActive ? '2px solid #c8e64a' : '2px solid transparent',
+              fontFamily: B.fontMono,
+              color: isActive ? B.primary : B.muted,
+              borderBottom: isActive ? `2px solid ${B.primary}` : '2px solid transparent',
               textDecoration: 'none',
               whiteSpace: 'nowrap',
               transition: 'color 0.2s, border-color 0.2s',

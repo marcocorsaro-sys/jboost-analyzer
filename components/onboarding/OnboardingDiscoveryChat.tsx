@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useChat } from 'ai/react'
 import { useLocale } from '@/lib/i18n'
 import type { TranslationKey } from '@/lib/i18n'
+import { B } from '@/lib/brand'
 
 interface OnboardingDiscoveryChatProps {
   clientId: string
@@ -30,39 +31,39 @@ const bubbleBase: React.CSSProperties = {
 const userBubble: React.CSSProperties = {
   ...bubbleBase,
   alignSelf: 'flex-end',
-  background: '#c8e64a',
-  color: '#111318',
+  background: B.primary,
+  color: B.bg,
 }
 
 const assistantBubble: React.CSSProperties = {
   ...bubbleBase,
   alignSelf: 'flex-start',
-  background: '#1a1d25',
-  color: '#e6e7eb',
-  border: '1px solid #2a2d35',
+  background: B.surface,
+  color: B.ink,
+  border: `1px solid ${B.border}`,
 }
 
 const inputStyle: React.CSSProperties = {
   flex: 1,
   padding: '10px 14px',
-  background: '#111318',
-  border: '1px solid #2a2d35',
+  background: B.bg,
+  border: `1px solid ${B.border}`,
   borderRadius: '8px',
-  color: '#ffffff',
+  color: B.ink,
   fontSize: '14px',
   outline: 'none',
 }
 
 const sendButtonStyle: React.CSSProperties = {
   padding: '10px 20px',
-  background: '#c8e64a',
-  color: '#111318',
+  background: B.primary,
+  color: B.bg,
   border: 'none',
   borderRadius: '8px',
   fontSize: '14px',
   fontWeight: 700,
   cursor: 'pointer',
-  fontFamily: "'JetBrains Mono', monospace",
+  fontFamily: B.fontMono,
 }
 
 export default function OnboardingDiscoveryChat({ clientId }: OnboardingDiscoveryChatProps) {
@@ -111,8 +112,8 @@ export default function OnboardingDiscoveryChat({ clientId }: OnboardingDiscover
           height: '400px',
           overflowY: 'auto',
           padding: '16px',
-          background: '#0a0c10',
-          border: '1px solid #2a2d35',
+          background: B.surface2,
+          border: `1px solid ${B.border}`,
           borderRadius: '10px',
           display: 'flex',
           flexDirection: 'column',
@@ -136,10 +137,10 @@ export default function OnboardingDiscoveryChat({ clientId }: OnboardingDiscover
         <div style={{
           marginTop: '12px',
           padding: '10px 14px',
-          background: '#ef444420',
-          border: '1px solid #ef4444',
+          background: `${B.error}20`,
+          border: `1px solid ${B.error}`,
           borderRadius: '8px',
-          color: '#ef4444',
+          color: B.error,
           fontSize: '13px',
         }}>
           {error.message}
@@ -159,7 +160,7 @@ export default function OnboardingDiscoveryChat({ clientId }: OnboardingDiscover
         </button>
       </form>
 
-      <div style={{ marginTop: '10px', fontSize: '12px', color: '#8a8e97' }}>
+      <div style={{ marginTop: '10px', fontSize: '12px', color: B.muted }}>
         <button
           type="button"
           onClick={handleEndDiscovery}
@@ -167,7 +168,7 @@ export default function OnboardingDiscoveryChat({ clientId }: OnboardingDiscover
           style={{
             background: 'transparent',
             border: 'none',
-            color: '#8a8e97',
+            color: B.muted,
             cursor: 'pointer',
             fontSize: '12px',
             textDecoration: 'underline',

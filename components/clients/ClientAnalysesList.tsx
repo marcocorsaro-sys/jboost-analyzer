@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { getScoreBand } from '@/lib/constants'
+import { B } from '@/lib/brand'
 
 interface Analysis {
   id: string
@@ -24,18 +25,18 @@ interface Props {
 }
 
 const BAND_COLORS: Record<string, string> = {
-  green: '#22c55e',
-  teal: '#14b8a6',
-  amber: '#f59e0b',
-  red: '#ef4444',
+  green: B.success,
+  teal: B.teal,
+  amber: B.warning,
+  red: B.error,
 }
 
 function statusColor(status: string): string {
   switch (status) {
-    case 'completed': return '#c8e64a'
-    case 'running': return '#f59e0b'
-    case 'failed': return '#ef4444'
-    default: return '#6b7280'
+    case 'completed': return B.primary
+    case 'running': return B.warning
+    case 'failed': return B.error
+    default: return B.muted
   }
 }
 
@@ -53,12 +54,12 @@ export default function ClientAnalysesList({ analyses, clientId }: Props) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
           <h3 style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '16px', fontWeight: 700, color: '#ffffff', marginBottom: '4px',
+            fontFamily: B.fontMono,
+            fontSize: '16px', fontWeight: 700, color: B.ink, marginBottom: '4px',
           }}>
             Storico Analisi
           </h3>
-          <p style={{ fontSize: '13px', color: '#6b7280' }}>
+          <p style={{ fontSize: '13px', color: B.muted }}>
             {analyses.length} {analyses.length === 1 ? 'analisi' : 'analisi'} per questo cliente
           </p>
         </div>
@@ -71,8 +72,8 @@ export default function ClientAnalysesList({ analyses, clientId }: Props) {
                 style={{
                   padding: '5px 12px', borderRadius: '6px', border: 'none',
                   fontSize: '12px', fontWeight: 500, cursor: 'pointer',
-                  background: filter === f ? '#c8e64a' : '#1e2028',
-                  color: filter === f ? '#111318' : '#a0a0a0',
+                  background: filter === f ? B.primary : B.surface2,
+                  color: filter === f ? B.bg : B.muted,
                   transition: 'all 0.2s',
                 }}
               >
@@ -83,9 +84,9 @@ export default function ClientAnalysesList({ analyses, clientId }: Props) {
           <Link
             href={`/analyzer/v4?client=${clientId}`}
             style={{
-              padding: '8px 16px', background: '#c8e64a', color: '#111318',
+              padding: '8px 16px', background: B.primary, color: B.bg,
               borderRadius: '8px', fontSize: '13px', fontWeight: 700,
-              textDecoration: 'none', fontFamily: "'JetBrains Mono', monospace",
+              textDecoration: 'none', fontFamily: B.fontMono,
             }}
           >
             + Nuova Analisi
@@ -95,11 +96,11 @@ export default function ClientAnalysesList({ analyses, clientId }: Props) {
 
       {filtered.length === 0 ? (
         <div style={{
-          background: '#1a1c24', borderRadius: '12px', border: '1px solid #2a2d35',
+          background: B.surface, borderRadius: '12px', border: `1px solid ${B.border}`,
           padding: '40px', textAlign: 'center',
         }}>
           <div style={{ fontSize: '48px', marginBottom: '16px' }}>◎</div>
-          <p style={{ color: '#6b7280', fontSize: '14px', marginBottom: '16px' }}>
+          <p style={{ color: B.muted, fontSize: '14px', marginBottom: '16px' }}>
             {filter === 'all'
               ? 'Nessuna analisi per questo cliente.'
               : `Nessuna analisi ${filter === 'completed' ? 'completata' : filter === 'running' ? 'in corso' : 'fallita'}.`}
@@ -107,10 +108,10 @@ export default function ClientAnalysesList({ analyses, clientId }: Props) {
           <Link
             href={`/analyzer/v4?client=${clientId}`}
             style={{
-              display: 'inline-block', padding: '10px 24px', background: '#c8e64a',
-              color: '#111318', borderRadius: '8px', fontWeight: 700,
+              display: 'inline-block', padding: '10px 24px', background: B.primary,
+              color: B.bg, borderRadius: '8px', fontWeight: 700,
               textDecoration: 'none', fontSize: '13px',
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: B.fontMono,
             }}
           >
             Lancia Prima Analisi
@@ -120,22 +121,22 @@ export default function ClientAnalysesList({ analyses, clientId }: Props) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {filtered.map(analysis => {
             const band = analysis.overall_score !== null ? getScoreBand(analysis.overall_score) : null
-            const color = band ? BAND_COLORS[band.color] ?? '#6b7280' : '#6b7280'
+            const color = band ? BAND_COLORS[band.color] ?? B.muted : B.muted
             return (
               <Link key={analysis.id} href={`/results/${analysis.id}`} style={{ textDecoration: 'none' }}>
                 <div
                   style={{
-                    background: '#1a1c24', borderRadius: '12px', padding: '16px 20px',
-                    border: '1px solid #2a2d35', display: 'flex', alignItems: 'center',
+                    background: B.surface, borderRadius: '12px', padding: '16px 20px',
+                    border: `1px solid ${B.border}`, display: 'flex', alignItems: 'center',
                     gap: '16px', cursor: 'pointer', transition: 'border-color 0.2s',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.borderColor = '#c8e64a40')}
-                  onMouseLeave={e => (e.currentTarget.style.borderColor = '#2a2d35')}
+                  onMouseEnter={e => (e.currentTarget.style.borderColor = `${B.primary}40`)}
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = B.border)}
                 >
                   <div style={{
                     width: 50, height: 50, borderRadius: '10px',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontFamily: "'JetBrains Mono', monospace",
+                    fontFamily: B.fontMono,
                     fontSize: '18px', fontWeight: 700, flexShrink: 0,
                     background: `${color}15`, color,
                   }}>
@@ -144,8 +145,8 @@ export default function ClientAnalysesList({ analyses, clientId }: Props) {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
                       <span style={{
-                        fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: '14px', fontWeight: 600, color: '#ffffff',
+                        fontFamily: B.fontMono,
+                        fontSize: '14px', fontWeight: 600, color: B.ink,
                       }}>
                         {analysis.domain}
                       </span>
@@ -159,7 +160,7 @@ export default function ClientAnalysesList({ analyses, clientId }: Props) {
                       </span>
                       {band && (<span style={{ fontSize: '11px', color }}>{band.label}</span>)}
                     </div>
-                    <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: '#6b7280' }}>
+                    <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: B.muted }}>
                       <span>{analysis.country?.toUpperCase()}</span>
                       <span>
                         {new Date(analysis.created_at).toLocaleDateString('it-IT', {
@@ -172,7 +173,7 @@ export default function ClientAnalysesList({ analyses, clientId }: Props) {
                       {analysis.target_topic && (<span>Topic: {analysis.target_topic}</span>)}
                     </div>
                   </div>
-                  <div style={{ color: '#6b7280', fontSize: '18px', flexShrink: 0 }}>→</div>
+                  <div style={{ color: B.muted, fontSize: '18px', flexShrink: 0 }}>→</div>
                 </div>
               </Link>
             )

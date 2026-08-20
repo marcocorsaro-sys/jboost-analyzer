@@ -23,8 +23,18 @@ export default function TopBar({ userEmail }: TopBarProps) {
   return (
     <header className="h-14 flex items-center justify-between px-6 border-b"
       style={{ background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
-      <div className="font-mono text-xs tracking-widest uppercase" style={{ color: 'var(--lime-dim)' }}>
-        // JBoost Analyzer · v2.0 · {new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+      <div className="flex items-center gap-2">
+        {/* J·Boost wordmark — ink text + navy goccia */}
+        <svg viewBox="0 0 36 36" className="h-5 w-5" aria-hidden>
+          <path
+            d="M18 2c7 9.5 11 15.7 11 21a11 11 0 1 1-22 0c0-5.3 4-11.5 11-21Z"
+            fill="hsl(var(--primary))"
+          />
+        </svg>
+        <span className="text-sm font-bold tracking-tight text-foreground">J·Boost</span>
+        <span className="text-xs" style={{ color: 'var(--gray)' }}>
+          Analyzer · v2.0 · {new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+        </span>
       </div>
       <div className="flex items-center gap-4">
         <span className="text-sm" style={{ color: 'var(--gray)' }}>

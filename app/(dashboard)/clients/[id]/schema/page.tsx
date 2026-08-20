@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import SchemaRadiography, { type SchemaReport } from '@/components/clients/SchemaRadiography'
+import { B } from '@/lib/brand'
 
 export default function ClientStructuredDataPage() {
   const params = useParams()
@@ -60,20 +61,20 @@ export default function ClientStructuredDataPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
         <div>
           <h3 style={{
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
             fontSize: '16px',
             fontWeight: 700,
-            color: '#ffffff',
+            color: B.ink,
             marginBottom: '4px',
           }}>
             Structured Data — Schema Radiography
           </h3>
-          <p style={{ fontSize: '13px', color: '#6b7280' }}>
+          <p style={{ fontSize: '13px', color: B.muted }}>
             {domain
-              ? <>Analisi JSON-LD + OpenGraph su <span style={{ color: '#c8e64a' }}>{domain}</span> · score per template + proposta di arricchimento con score proiettato.</>
+              ? <>Analisi JSON-LD + OpenGraph su <span style={{ color: B.primary }}>{domain}</span> · score per template + proposta di arricchimento con score proiettato.</>
               : <>Configura il dominio del cliente per lanciare la radiografia.</>}
             {updatedAt && (
-              <span style={{ display: 'block', marginTop: '2px', fontSize: '11px', color: '#4b5563' }}>
+              <span style={{ display: 'block', marginTop: '2px', fontSize: '11px', color: B.muted }}>
                 Ultima radiografia: {new Date(updatedAt).toLocaleString('it-IT', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
               </span>
             )}
@@ -84,13 +85,13 @@ export default function ClientStructuredDataPage() {
           disabled={running || !domain}
           style={{
             padding: '8px 16px',
-            background: running || !domain ? '#2a2d35' : '#c8e64a',
-            color: running || !domain ? '#6b7280' : '#111318',
+            background: running || !domain ? B.border : B.primary,
+            color: running || !domain ? B.muted : B.bg,
             borderRadius: '8px',
             border: 'none',
             fontSize: '13px',
             fontWeight: 700,
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
             cursor: running || !domain ? 'not-allowed' : 'pointer',
             whiteSpace: 'nowrap',
           }}
@@ -106,8 +107,8 @@ export default function ClientStructuredDataPage() {
           alignItems: 'center',
           gap: '12px',
           flexWrap: 'wrap',
-          background: '#1a1c24',
-          border: '1px solid #c8e64a40',
+          background: B.surface,
+          border: `1px solid ${B.primary}40`,
           borderRadius: '10px',
           padding: '12px 16px',
           marginBottom: '20px',
@@ -116,14 +117,14 @@ export default function ClientStructuredDataPage() {
             className="animate-spin"
             style={{
               width: 16, height: 16, borderRadius: '50%',
-              border: '2px solid #2a2d35', borderTopColor: '#c8e64a',
+              border: `2px solid ${B.border}`, borderTopColor: B.primary,
               display: 'inline-block', flexShrink: 0,
             }}
           />
-          <span style={{ fontSize: '13px', fontWeight: 600, color: '#c8e64a', fontFamily: "'JetBrains Mono', monospace" }}>
+          <span style={{ fontSize: '13px', fontWeight: 600, color: B.primary, fontFamily: B.fontMono }}>
             Crawling ~30 pagine
           </span>
-          <span style={{ fontSize: '12px', color: '#6b7280' }}>
+          <span style={{ fontSize: '12px', color: B.muted }}>
             sitemap → scrape Firecrawl → estrazione JSON-LD/OG → scoring → enrichment LLM
           </span>
         </div>
@@ -135,7 +136,7 @@ export default function ClientStructuredDataPage() {
           background: 'rgba(239, 68, 68, 0.08)',
           border: '1px solid rgba(239, 68, 68, 0.2)',
           borderRadius: '8px',
-          color: '#ef4444',
+          color: B.error,
           fontSize: '13px',
           marginBottom: '20px',
         }}>{error}</div>
@@ -143,20 +144,20 @@ export default function ClientStructuredDataPage() {
 
       {/* Body */}
       {loading ? (
-        <div style={{ color: '#6b7280', textAlign: 'center', padding: '60px 0' }}>Caricamento…</div>
+        <div style={{ color: B.muted, textAlign: 'center', padding: '60px 0' }}>Caricamento…</div>
       ) : !report ? (
         <div style={{
-          background: '#1a1c24',
-          border: '1px solid #2a2d35',
+          background: B.surface,
+          border: `1px solid ${B.border}`,
           borderRadius: '12px',
           padding: '48px 32px',
           textAlign: 'center',
         }}>
           <div style={{ fontSize: '40px', marginBottom: '12px' }}>◇</div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '16px', color: '#c8e64a', fontWeight: 600, marginBottom: '8px' }}>
+          <div style={{ fontFamily: B.fontMono, fontSize: '16px', color: B.primary, fontWeight: 600, marginBottom: '8px' }}>
             Nessuna radiografia ancora eseguita
           </div>
-          <p style={{ fontSize: '13px', color: '#6b7280', maxWidth: '480px', margin: '0 auto' }}>
+          <p style={{ fontSize: '13px', color: B.muted, maxWidth: '480px', margin: '0 auto' }}>
             {domain
               ? <>Premi &laquo;Lancia radiografia&raquo; per crawlare ~30 pagine e generare lo score per ogni template JSON-LD con proposta di arricchimento.</>
               : <>Manca il dominio del cliente. Aggiungilo dalla pagina Overview prima di lanciare la radiografia.</>}

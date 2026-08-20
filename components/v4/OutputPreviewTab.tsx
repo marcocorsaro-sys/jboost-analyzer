@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useLocale } from '@/lib/i18n'
 import type { TranslationKey } from '@/lib/i18n'
 import { card, sectionTitle, mutedLabel, pill, primaryButton, ghostButton } from './results-shared'
+import { B } from '@/lib/brand'
 
 type ExportFormat = 'pptx' | 'docx' | 'artifact'
 
@@ -113,7 +114,7 @@ export default function OutputPreviewTab({
       <div style={card}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <h3 style={{ ...sectionTitle, margin: 0 }}>{t('v4export.title')}</h3>
-          <span style={{ fontSize: '12px', color: '#6b7280' }}>{t('v4export.no_pdf_note')}</span>
+          <span style={{ fontSize: '12px', color: B.muted }}>{t('v4export.no_pdf_note')}</span>
         </div>
 
         <div
@@ -133,8 +134,8 @@ export default function OutputPreviewTab({
                 onClick={() => setFormat(f.key)}
                 style={{
                   textAlign: 'left',
-                  background: active ? '#c8e64a10' : 'transparent',
-                  border: `1px solid ${active ? '#c8e64a' : '#2a2d35'}`,
+                  background: active ? B.primarySoft : 'transparent',
+                  border: `1px solid ${active ? B.primary : B.border}`,
                   borderRadius: '10px',
                   padding: '14px 16px',
                   cursor: 'pointer',
@@ -142,15 +143,15 @@ export default function OutputPreviewTab({
               >
                 <div
                   style={{
-                    fontFamily: "'JetBrains Mono', monospace",
+                    fontFamily: B.fontMono,
                     fontSize: '14px',
                     fontWeight: 700,
-                    color: active ? '#c8e64a' : '#ffffff',
+                    color: active ? B.primary : B.ink,
                   }}
                 >
                   {f.name}
                 </div>
-                <div style={{ fontSize: '12px', color: '#a0a0a0', lineHeight: 1.5, marginTop: '6px' }}>
+                <div style={{ fontSize: '12px', color: B.muted, lineHeight: 1.5, marginTop: '6px' }}>
                   {t(f.descKey)}
                 </div>
               </button>
@@ -169,7 +170,7 @@ export default function OutputPreviewTab({
             {generating ? t('v4export.generating') : t('v4export.generate')}
           </button>
           {!anyDriverDone && (
-            <span style={{ fontSize: '12px', color: '#f59e0b' }}>{t('v4export.need_driver')}</span>
+            <span style={{ fontSize: '12px', color: B.warning }}>{t('v4export.need_driver')}</span>
           )}
           {/* Switch to client — spec: promotion hook only, ongoing phase not built. */}
           <button
@@ -183,7 +184,7 @@ export default function OutputPreviewTab({
         </div>
 
         {error && (
-          <div style={{ marginTop: '12px', fontSize: '12px', color: '#ef4444' }}>
+          <div style={{ marginTop: '12px', fontSize: '12px', color: B.error }}>
             {t('v4export.error')}: {error}
           </div>
         )}
@@ -193,15 +194,15 @@ export default function OutputPreviewTab({
       <div style={card}>
         <h3 style={sectionTitle}>{t('v4export.history')}</h3>
         {history === null ? (
-          <div style={{ fontSize: '13px', color: '#6b7280' }}>…</div>
+          <div style={{ fontSize: '13px', color: B.muted }}>…</div>
         ) : history.length === 0 ? (
-          <div style={{ fontSize: '13px', color: '#6b7280' }}>{t('v4export.history_empty')}</div>
+          <div style={{ fontSize: '13px', color: B.muted }}>{t('v4export.history_empty')}</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {history.map((h) => (
               <div key={h.id} style={{ display: 'flex', gap: '12px', alignItems: 'baseline', flexWrap: 'wrap' }}>
-                <span style={pill('#14b8a6')}>{h.format}</span>
-                <span style={{ fontSize: '13px', color: '#e5e5e5' }}>{h.file_ref ?? '—'}</span>
+                <span style={pill(B.teal)}>{h.format}</span>
+                <span style={{ fontSize: '13px', color: B.ink }}>{h.file_ref ?? '—'}</span>
                 <span style={{ ...mutedLabel, textTransform: 'none' }}>{formatDate(h.generated_at)}</span>
               </div>
             ))}

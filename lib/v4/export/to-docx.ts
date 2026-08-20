@@ -27,11 +27,14 @@ import {
   WidthType,
 } from 'docx'
 import type { ReportModel, ReportDriverSection, ReportTable } from './report-model'
+import { B } from '../../brand'
 import { fmtScore } from './report-model'
 
 // Sober consultancy palette (hex without #, as docx wants them).
+// Accent = JAKALA navy from lib/brand.ts.
 const INK = '1F2328' // body text
 const MUTED = '6B7280' // captions
+const ACCENT = B.primary.slice(1).toUpperCase() // JAKALA navy cover band
 const HEADER_SHADE = 'EFF1F4' // table header shading
 const RULE = 'D6D9DE' // table borders
 
@@ -206,7 +209,13 @@ export async function generateDocx(model: ReportModel): Promise<Buffer> {
 
   // Cover.
   const cover: Paragraph[] = [
-    new Paragraph({ spacing: { before: 2400 }, children: [] }),
+    // JAKALA navy band with the "goccia" mark (kept typographic: ▼ glyph).
+    new Paragraph({
+      shading: { type: ShadingType.CLEAR, fill: ACCENT },
+      spacing: { after: 120 },
+      children: [new TextRun({ text: ' ', size: 40 })],
+    }),
+    new Paragraph({ spacing: { before: 2200 }, children: [] }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
       children: [new TextRun({ text: model.cover.title, bold: true, size: 56, color: INK })],

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { getScoreBand } from '@/lib/constants'
 import { DRIVER_METADATA } from '@/lib/drivers/metadata'
 import type { DriverKey } from '@/lib/constants'
+import { B } from '@/lib/brand'
 
 interface Solution {
   title: string
@@ -58,10 +59,10 @@ interface DriverDetailProps {
 }
 
 const BAND_COLORS: Record<string, string> = {
-  green: '#22c55e',
-  teal: '#14b8a6',
-  amber: '#f59e0b',
-  red: '#ef4444',
+  green: B.success,
+  teal: B.teal,
+  amber: B.warning,
+  red: B.error,
 }
 
 export default function DriverDetail({
@@ -83,7 +84,7 @@ export default function DriverDetail({
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const band = score !== null ? getScoreBand(score) : null
-  const color = band ? BAND_COLORS[band.color] ?? '#6b7280' : '#6b7280'
+  const color = band ? BAND_COLORS[band.color] ?? B.muted : B.muted
 
   const observations = agentVerdict?.observations ?? []
   const agentQuestions = agentVerdict?.questions ?? []
@@ -158,9 +159,9 @@ export default function DriverDetail({
   return (
     <div
       style={{
-        background: '#1a1d24',
+        background: B.surface,
         borderRadius: '12px',
-        border: '1px solid #2a2d35',
+        border: `1px solid ${B.border}`,
         overflow: 'hidden',
       }}
     >
@@ -175,7 +176,7 @@ export default function DriverDetail({
           cursor: 'pointer',
           transition: 'background 0.2s',
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.background = '#1e2028')}
+        onMouseEnter={(e) => (e.currentTarget.style.background = B.surface2)}
         onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
       >
         {/* Score */}
@@ -187,7 +188,7 @@ export default function DriverDetail({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
             fontSize: '16px',
             fontWeight: 700,
             background: `${color}15`,
@@ -201,14 +202,14 @@ export default function DriverDetail({
         {/* Name + status */}
         <div style={{ flex: 1 }}>
           <div style={{
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
             fontSize: '14px',
             fontWeight: 600,
-            color: '#ffffff',
+            color: B.ink,
           }}>
             {driverLabel}
           </div>
-          <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
+          <div style={{ fontSize: '12px', color: B.muted, marginTop: '2px' }}>
             {band?.label ?? status}
           </div>
         </div>
@@ -220,8 +221,8 @@ export default function DriverDetail({
               fontSize: '10px',
               padding: '2px 6px',
               borderRadius: '10px',
-              background: '#14b8a615',
-              color: '#14b8a6',
+              background: `${B.teal}15`,
+              color: B.teal,
               fontWeight: 600,
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
@@ -237,7 +238,7 @@ export default function DriverDetail({
           <div style={{
             height: '6px',
             borderRadius: '3px',
-            background: '#2a2d35',
+            background: B.border,
             overflow: 'hidden',
           }}>
             <div
@@ -254,7 +255,7 @@ export default function DriverDetail({
 
         {/* Expand icon */}
         <span style={{
-          color: '#6b7280',
+          color: B.muted,
           fontSize: '16px',
           transition: 'transform 0.2s',
           transform: expanded ? 'rotate(90deg)' : 'rotate(0)',
@@ -265,7 +266,7 @@ export default function DriverDetail({
 
       {/* Expanded content */}
       {expanded && (
-        <div style={{ padding: '0 20px 20px', borderTop: '1px solid #2a2d35' }}>
+        <div style={{ padding: '0 20px 20px', borderTop: `1px solid ${B.border}` }}>
           {/* Rerun bar — independent re-execution of this driver agent. */}
           {analysisId && (
             <div style={{
@@ -275,7 +276,7 @@ export default function DriverDetail({
               justifyContent: 'space-between',
               gap: '12px',
             }}>
-              <div style={{ fontSize: '11px', color: '#6b7280', fontFamily: "'JetBrains Mono', monospace", textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              <div style={{ fontSize: '11px', color: B.muted, fontFamily: B.fontMono, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Driver indipendente
               </div>
               <button
@@ -284,13 +285,13 @@ export default function DriverDetail({
                 disabled={rerunning}
                 style={{
                   padding: '6px 14px',
-                  background: rerunning ? '#2a2d35' : '#1e2028',
-                  color: rerunning ? '#6b7280' : '#c8e64a',
-                  border: '1px solid #c8e64a40',
+                  background: rerunning ? B.border : B.surface2,
+                  color: rerunning ? B.muted : B.primary,
+                  border: `1px solid ${B.primary}40`,
                   borderRadius: '6px',
                   fontSize: '11px',
                   fontWeight: 700,
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: B.fontMono,
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
                   cursor: rerunning ? 'default' : 'pointer',
@@ -302,7 +303,7 @@ export default function DriverDetail({
             </div>
           )}
           {rerunError && (
-            <div style={{ marginTop: '6px', fontSize: '11px', color: '#ef4444' }}>
+            <div style={{ marginTop: '6px', fontSize: '11px', color: B.error }}>
               {rerunError}
             </div>
           )}
@@ -323,14 +324,14 @@ export default function DriverDetail({
                 }
               | undefined
             if (!aq) return null
-            const verdictColor = aq.passed ? '#22c55e' : aq.final_verdict === 'fail' ? '#ef4444' : '#f59e0b'
+            const verdictColor = aq.passed ? B.success : aq.final_verdict === 'fail' ? B.error : B.warning
             return (
               <div style={{ marginTop: '14px' }}>
                 <div style={{
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: B.fontMono,
                   fontSize: '11px',
                   fontWeight: 700,
-                  color: '#c8e64a',
+                  color: B.primary,
                   textTransform: 'uppercase',
                   letterSpacing: '1px',
                   marginBottom: '6px',
@@ -339,36 +340,36 @@ export default function DriverDetail({
                 </div>
                 <div style={{
                   padding: '10px 12px',
-                  background: '#1e2028',
+                  background: B.surface2,
                   borderRadius: '8px',
-                  border: '1px solid #2a2d35',
+                  border: `1px solid ${B.border}`,
                   fontSize: '12px',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '6px',
                 }}>
                   <div>
-                    <span style={{ color: verdictColor, fontWeight: 700, textTransform: 'uppercase', fontFamily: "'JetBrains Mono', monospace" }}>
+                    <span style={{ color: verdictColor, fontWeight: 700, textTransform: 'uppercase', fontFamily: B.fontMono }}>
                       {aq.final_verdict ?? '—'}
                     </span>
-                    <span style={{ color: '#6b7280', marginLeft: '8px' }}>
+                    <span style={{ color: B.muted, marginLeft: '8px' }}>
                       tentativi: {aq.attempts ?? '—'} · quality score: {aq.final_score ?? '—'}/100
                     </span>
                   </div>
                   {aq.interpretation && (
-                    <div style={{ color: '#cfcfcf', lineHeight: 1.5 }}>{aq.interpretation}</div>
+                    <div style={{ color: B.ink, lineHeight: 1.5 }}>{aq.interpretation}</div>
                   )}
                   {aq.history && aq.history.length > 1 && (
                     <details>
-                      <summary style={{ cursor: 'pointer', color: '#6b7280', fontSize: '11px', fontFamily: "'JetBrains Mono', monospace" }}>
+                      <summary style={{ cursor: 'pointer', color: B.muted, fontSize: '11px', fontFamily: B.fontMono }}>
                         Storia tentativi
                       </summary>
                       <div style={{ marginTop: '4px' }}>
                         {aq.history.map((h, i) => (
-                          <div key={i} style={{ color: '#9ca3af', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
+                          <div key={i} style={{ color: B.muted, fontFamily: B.fontMono, fontSize: '11px' }}>
                             attempt {h.attempt}: {h.verdict.verdict} ({h.verdict.score}/100)
                             {h.verdict.guidance && i < aq.history!.length - 1 && (
-                              <div style={{ paddingLeft: '14px', color: '#9ca3af' }}>
+                              <div style={{ paddingLeft: '14px', color: B.muted }}>
                                 → guidance: {h.verdict.guidance.slice(0, 200)}
                               </div>
                             )}
@@ -391,9 +392,9 @@ export default function DriverDetail({
                   background: 'transparent',
                   border: 'none',
                   cursor: 'pointer',
-                  color: '#6b7280',
+                  color: B.muted,
                   fontSize: '11px',
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: B.fontMono,
                   fontWeight: 600,
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
@@ -410,36 +411,36 @@ export default function DriverDetail({
                 <div style={{
                   marginTop: '10px',
                   padding: '14px',
-                  background: '#111318',
+                  background: B.bg,
                   borderRadius: '8px',
-                  border: '1px solid #2a2d35',
+                  border: `1px solid ${B.border}`,
                   fontSize: '12px',
-                  color: '#a0a0a0',
+                  color: B.muted,
                   lineHeight: '1.6',
                 }}>
                   <div style={{ marginBottom: '14px' }}>
-                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>1. Cosa misura</div>
+                    <div style={{ color: B.ink, fontWeight: 600, marginBottom: '4px' }}>1. Cosa misura</div>
                     {meta.whatItMeasures}
                   </div>
 
                   <div style={{ marginBottom: '14px' }}>
-                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>2. Quale dato è studiato</div>
+                    <div style={{ color: B.ink, fontWeight: 600, marginBottom: '4px' }}>2. Quale dato è studiato</div>
                     {meta.dataSpecifics}
                   </div>
 
                   <div style={{ marginBottom: '14px' }}>
-                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>3. Con che tecnologia</div>
+                    <div style={{ color: B.ink, fontWeight: 600, marginBottom: '4px' }}>3. Con che tecnologia</div>
                     {meta.technology}
                     <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       {meta.sources.map((s, i) => (
                         <div key={i} style={{
                           padding: '8px 10px',
-                          background: '#1e2028',
+                          background: B.surface2,
                           borderRadius: '6px',
                         }}>
-                          <div style={{ color: '#14b8a6', fontSize: '11px', fontWeight: 600 }}>{s.provider}</div>
-                          <div style={{ color: '#ffffff', fontSize: '12px' }}>{s.endpoint}</div>
-                          <div style={{ fontSize: '11px', color: '#6b7280', fontFamily: "'JetBrains Mono', monospace", marginTop: '2px' }}>
+                          <div style={{ color: B.teal, fontSize: '11px', fontWeight: 600 }}>{s.provider}</div>
+                          <div style={{ color: B.ink, fontSize: '12px' }}>{s.endpoint}</div>
+                          <div style={{ fontSize: '11px', color: B.muted, fontFamily: B.fontMono, marginTop: '2px' }}>
                             {s.fields.join(' · ')}
                           </div>
                         </div>
@@ -448,43 +449,43 @@ export default function DriverDetail({
                   </div>
 
                   <div style={{ marginBottom: '14px' }}>
-                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>4. Come si calcola il punteggio</div>
+                    <div style={{ color: B.ink, fontWeight: 600, marginBottom: '4px' }}>4. Come si calcola il punteggio</div>
                     <div style={{ marginBottom: '6px' }}>{meta.formula}</div>
                     <div style={{
                       padding: '8px 10px',
-                      background: '#1e2028',
+                      background: B.surface2,
                       borderRadius: '6px',
-                      fontFamily: "'JetBrains Mono', monospace",
+                      fontFamily: B.fontMono,
                       fontSize: '11px',
-                      color: '#cfcfcf',
+                      color: B.ink,
                       lineHeight: '1.5',
                     }}>
-                      <span style={{ color: '#14b8a6', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Esempio numerico:</span>{' '}
+                      <span style={{ color: B.teal, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Esempio numerico:</span>{' '}
                       {meta.formulaExample}
                     </div>
                   </div>
 
                   <div style={{ marginBottom: '14px' }}>
-                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>5. Bande di punteggio</div>
-                    <div style={{ marginBottom: '6px', fontSize: '11px', color: '#9ca3af' }}>{meta.scoring}</div>
+                    <div style={{ color: B.ink, fontWeight: 600, marginBottom: '4px' }}>5. Bande di punteggio</div>
+                    <div style={{ marginBottom: '6px', fontSize: '11px', color: B.muted }}>{meta.scoring}</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       {meta.scoreBands.map((b, i) => {
-                        const color = b.color === 'green' ? '#22c55e' : b.color === 'teal' ? '#14b8a6' : b.color === 'amber' ? '#f59e0b' : '#ef4444'
+                        const color = b.color === 'green' ? B.success : b.color === 'teal' ? B.teal : b.color === 'amber' ? B.warning : B.error
                         return (
                           <div key={i} style={{
                             display: 'flex',
                             gap: '10px',
                             alignItems: 'center',
                             padding: '6px 10px',
-                            background: '#1e2028',
+                            background: B.surface2,
                             borderRadius: '6px',
                             borderLeft: `3px solid ${color}`,
                           }}>
-                            <span style={{ color, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', minWidth: '70px' }}>
+                            <span style={{ color, fontWeight: 700, fontFamily: B.fontMono, fontSize: '11px', minWidth: '70px' }}>
                               {b.range}
                             </span>
-                            <span style={{ color: '#ffffff', fontWeight: 600, fontSize: '12px', minWidth: '90px' }}>{b.label}</span>
-                            <span style={{ color: '#9ca3af', fontSize: '11px', lineHeight: '1.4' }}>{b.meaning}</span>
+                            <span style={{ color: B.ink, fontWeight: 600, fontSize: '12px', minWidth: '90px' }}>{b.label}</span>
+                            <span style={{ color: B.muted, fontSize: '11px', lineHeight: '1.4' }}>{b.meaning}</span>
                           </div>
                         )
                       })}
@@ -492,12 +493,12 @@ export default function DriverDetail({
                   </div>
 
                   <div style={{ marginBottom: '14px' }}>
-                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>6. Come diventa una considerazione</div>
+                    <div style={{ color: B.ink, fontWeight: 600, marginBottom: '4px' }}>6. Come diventa una considerazione</div>
                     {meta.considerationsLogic}
                   </div>
 
                   <div>
-                    <div style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>7. Livello LLM</div>
+                    <div style={{ color: B.ink, fontWeight: 600, marginBottom: '4px' }}>7. Livello LLM</div>
                     {meta.llmLayer}
                   </div>
                 </div>
@@ -518,15 +519,15 @@ export default function DriverDetail({
             } } | undefined
             const ex = aq?.excellence
             if (!ex || ex.skipped) return null
-            const sigColor = (s: string) => s === 'positive' ? '#22c55e' : s === 'concern' ? '#ef4444' : '#6b7280'
-            const prColor = (p: string) => p === 'high' ? '#ef4444' : p === 'medium' ? '#f59e0b' : '#6b7280'
+            const sigColor = (s: string) => s === 'positive' ? B.success : s === 'concern' ? B.error : B.muted
+            const prColor = (p: string) => p === 'high' ? B.error : p === 'medium' ? B.warning : B.muted
             return (
               <div style={{ marginTop: '18px' }}>
                 <div style={{
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: B.fontMono,
                   fontSize: '11px',
                   fontWeight: 700,
-                  color: '#14b8a6',
+                  color: B.teal,
                   textTransform: 'uppercase',
                   letterSpacing: '1px',
                   marginBottom: '8px',
@@ -536,11 +537,11 @@ export default function DriverDetail({
                 {ex.executive_summary && (
                   <div style={{
                     padding: '12px 14px',
-                    background: '#14b8a610',
-                    borderLeft: '3px solid #14b8a6',
+                    background: `${B.teal}10`,
+                    borderLeft: `3px solid ${B.teal}`,
                     borderRadius: '6px',
                     fontSize: '13px',
-                    color: '#ffffff',
+                    color: B.ink,
                     lineHeight: '1.6',
                     marginBottom: '12px',
                   }}>
@@ -552,20 +553,20 @@ export default function DriverDetail({
                     {ex.findings.map((f, i) => (
                       <div key={i} style={{
                         padding: '10px 12px',
-                        background: '#1e2028',
+                        background: B.surface2,
                         borderRadius: '6px',
                         borderLeft: `3px solid ${sigColor(f.signal)}`,
                       }}>
-                        <div style={{ color: '#ffffff', fontWeight: 600, fontSize: '13px', marginBottom: '4px' }}>
+                        <div style={{ color: B.ink, fontWeight: 600, fontSize: '13px', marginBottom: '4px' }}>
                           {f.title}
                         </div>
-                        <div style={{ fontSize: '12px', color: '#cfcfcf', lineHeight: '1.6' }}>{f.detail}</div>
+                        <div style={{ fontSize: '12px', color: B.ink, lineHeight: '1.6' }}>{f.detail}</div>
                         {f.evidence && f.evidence.length > 0 && (
                           <div style={{
                             marginTop: '6px',
                             fontSize: '11px',
-                            color: '#9ca3af',
-                            fontFamily: "'JetBrains Mono', monospace",
+                            color: B.muted,
+                            fontFamily: B.fontMono,
                             display: 'flex',
                             flexWrap: 'wrap',
                             gap: '6px',
@@ -573,9 +574,9 @@ export default function DriverDetail({
                             {f.evidence.map((e, j) => (
                               <span key={j} style={{
                                 padding: '2px 8px',
-                                background: '#111318',
+                                background: B.bg,
                                 borderRadius: '4px',
-                                border: '1px solid #2a2d35',
+                                border: `1px solid ${B.border}`,
                               }}>{e}</span>
                             ))}
                           </div>
@@ -587,10 +588,10 @@ export default function DriverDetail({
                 {ex.recommendations && ex.recommendations.length > 0 && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <div style={{
-                      fontFamily: "'JetBrains Mono', monospace",
+                      fontFamily: B.fontMono,
                       fontSize: '10px',
                       fontWeight: 700,
-                      color: '#c8e64a',
+                      color: B.primary,
                       textTransform: 'uppercase',
                       letterSpacing: '1px',
                     }}>
@@ -599,7 +600,7 @@ export default function DriverDetail({
                     {ex.recommendations.map((r, i) => (
                       <div key={i} style={{
                         padding: '10px 12px',
-                        background: '#1e2028',
+                        background: B.surface2,
                         borderRadius: '6px',
                         borderLeft: `3px solid ${prColor(r.priority)}`,
                       }}>
@@ -609,18 +610,18 @@ export default function DriverDetail({
                           justifyContent: 'space-between',
                           marginBottom: '4px',
                         }}>
-                          <div style={{ color: '#ffffff', fontWeight: 600, fontSize: '13px' }}>{r.title}</div>
-                          <div style={{ display: 'flex', gap: '6px', fontFamily: "'JetBrains Mono', monospace" }}>
+                          <div style={{ color: B.ink, fontWeight: 600, fontSize: '13px' }}>{r.title}</div>
+                          <div style={{ display: 'flex', gap: '6px', fontFamily: B.fontMono }}>
                             <span style={{
                               fontSize: '10px',
                               color: prColor(r.priority),
                               textTransform: 'uppercase',
                               fontWeight: 700,
                             }}>{r.priority}</span>
-                            <span style={{ fontSize: '10px', color: '#6b7280' }}>{r.effort}</span>
+                            <span style={{ fontSize: '10px', color: B.muted }}>{r.effort}</span>
                           </div>
                         </div>
-                        <div style={{ fontSize: '12px', color: '#cfcfcf', lineHeight: '1.6' }}>{r.detail}</div>
+                        <div style={{ fontSize: '12px', color: B.ink, lineHeight: '1.6' }}>{r.detail}</div>
                       </div>
                     ))}
                   </div>
@@ -639,10 +640,10 @@ export default function DriverDetail({
                 marginBottom: '8px',
               }}>
                 <h4 style={{
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: B.fontMono,
                   fontSize: '11px',
                   fontWeight: 600,
-                  color: '#14b8a6',
+                  color: B.teal,
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
                   margin: 0,
@@ -650,7 +651,7 @@ export default function DriverDetail({
                   Agent — {driverLabel}
                 </h4>
                 {turnCount > 0 && (
-                  <span style={{ fontSize: '10px', color: '#6b7280', fontFamily: "'JetBrains Mono', monospace" }}>
+                  <span style={{ fontSize: '10px', color: B.muted, fontFamily: B.fontMono }}>
                     Turno {turnCount} di 3 {locked ? '· chiuso' : ''}
                   </span>
                 )}
@@ -658,7 +659,7 @@ export default function DriverDetail({
 
               {/* Latest observations (always show the freshest synthesis) */}
               {observations.length > 0 && (
-                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', color: '#a0a0a0', lineHeight: '1.6' }}>
+                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', color: B.muted, lineHeight: '1.6' }}>
                   {observations.map((o, i) => <li key={i}>{o}</li>)}
                 </ul>
               )}
@@ -666,7 +667,7 @@ export default function DriverDetail({
               {/* Conversation history: prior user answers */}
               {turns.filter(t => t.role === 'user').length > 0 && (
                 <details style={{ marginTop: '10px' }}>
-                  <summary style={{ cursor: 'pointer', fontSize: '11px', color: '#6b7280', fontFamily: "'JetBrains Mono', monospace" }}>
+                  <summary style={{ cursor: 'pointer', fontSize: '11px', color: B.muted, fontFamily: B.fontMono }}>
                     Conversazione precedente ({turns.filter(t => t.role === 'user').length} risposte tue)
                   </summary>
                   <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -675,12 +676,12 @@ export default function DriverDetail({
                         padding: '6px 10px',
                         borderRadius: '6px',
                         fontSize: '12px',
-                        background: t.role === 'user' ? '#14b8a615' : '#1e2028',
-                        borderLeft: `3px solid ${t.role === 'user' ? '#14b8a6' : '#6b7280'}`,
-                        color: '#a0a0a0',
+                        background: t.role === 'user' ? `${B.teal}15` : B.surface2,
+                        borderLeft: `3px solid ${t.role === 'user' ? B.teal : B.muted}`,
+                        color: B.muted,
                         whiteSpace: 'pre-wrap',
                       }}>
-                        <div style={{ fontSize: '10px', color: t.role === 'user' ? '#14b8a6' : '#6b7280', fontWeight: 600, marginBottom: '2px' }}>
+                        <div style={{ fontSize: '10px', color: t.role === 'user' ? B.teal : B.muted, fontWeight: 600, marginBottom: '2px' }}>
                           {t.role === 'user' ? 'TU' : 'AGENT'} · turno {t.turn_idx}
                         </div>
                         {t.role === 'agent' ? (() => {
@@ -712,11 +713,11 @@ export default function DriverDetail({
                   {agentQuestions.map((q) => (
                     <div key={q.id} style={{
                       padding: '12px',
-                      background: '#1e2028',
+                      background: B.surface2,
                       borderRadius: '8px',
-                      border: '1px solid #2a2d35',
+                      border: `1px solid ${B.border}`,
                     }}>
-                      <label style={{ display: 'block', fontSize: '13px', color: '#ffffff', marginBottom: '8px' }}>
+                      <label style={{ display: 'block', fontSize: '13px', color: B.ink, marginBottom: '8px' }}>
                         {q.text}
                       </label>
                       {q.options && q.options.length > 0 ? (
@@ -725,8 +726,8 @@ export default function DriverDetail({
                           onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })}
                           disabled={submitting}
                           style={{
-                            width: '100%', padding: '8px 10px', background: '#111318',
-                            border: '1px solid #2a2d35', borderRadius: '6px', color: '#ffffff',
+                            width: '100%', padding: '8px 10px', background: B.bg,
+                            border: `1px solid ${B.border}`, borderRadius: '6px', color: B.ink,
                             fontSize: '13px', outline: 'none',
                           }}
                         >
@@ -741,23 +742,23 @@ export default function DriverDetail({
                           rows={2}
                           placeholder="Your answer…"
                           style={{
-                            width: '100%', padding: '8px 10px', background: '#111318',
-                            border: '1px solid #2a2d35', borderRadius: '6px', color: '#ffffff',
+                            width: '100%', padding: '8px 10px', background: B.bg,
+                            border: `1px solid ${B.border}`, borderRadius: '6px', color: B.ink,
                             fontSize: '13px', fontFamily: 'inherit', outline: 'none', resize: 'vertical',
                           }}
                         />
                       )}
                     </div>
                   ))}
-                  {submitError && <div style={{ fontSize: '12px', color: '#ef4444' }}>{submitError}</div>}
+                  {submitError && <div style={{ fontSize: '12px', color: B.error }}>{submitError}</div>}
                   <button
                     onClick={(e) => { e.stopPropagation(); handleSubmit(); }}
                     disabled={submitting}
                     style={{
                       alignSelf: 'flex-start',
                       padding: '8px 14px',
-                      background: submitting ? '#2a2d35' : '#14b8a6',
-                      color: submitting ? '#6b7280' : '#ffffff',
+                      background: submitting ? B.border : B.teal,
+                      color: submitting ? B.muted : B.ink,
                       border: 'none', borderRadius: '6px', fontSize: '12px',
                       fontWeight: 600,
                       cursor: submitting ? 'default' : 'pointer',
@@ -770,7 +771,7 @@ export default function DriverDetail({
               )}
 
               {locked && (
-                <div style={{ marginTop: '10px', fontSize: '11px', color: '#14b8a6' }}>
+                <div style={{ marginTop: '10px', fontSize: '11px', color: B.teal }}>
                   ✓ Conversazione chiusa — il contesto è salvato per i prossimi run.
                 </div>
               )}
@@ -781,10 +782,10 @@ export default function DriverDetail({
           {issues.length > 0 && (
             <div style={{ marginTop: '16px' }}>
               <h4 style={{
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: B.fontMono,
                 fontSize: '11px',
                 fontWeight: 600,
-                color: '#ef4444',
+                color: B.error,
                 textTransform: 'uppercase',
                 letterSpacing: '0.5px',
                 marginBottom: '8px',
@@ -797,18 +798,18 @@ export default function DriverDetail({
                   const title = issueObj ? String(issueObj.title || '') : String(issue)
                   const description = issueObj ? String(issueObj.description || '') : ''
                   const severity = issueObj ? String(issueObj.severity || 'medium') : 'medium'
-                  const sevColor = severity === 'high' ? '#ef4444' : severity === 'medium' ? '#f59e0b' : '#6b7280'
+                  const sevColor = severity === 'high' ? B.error : severity === 'medium' ? B.warning : B.muted
 
                   return (
                     <div key={i} style={{
                       fontSize: '13px',
-                      color: '#a0a0a0',
+                      color: B.muted,
                       padding: '8px 12px',
                       background: `${sevColor}10`,
                       borderRadius: '6px',
                       borderLeft: `3px solid ${sevColor}`,
                     }}>
-                      <div style={{ fontWeight: 600, color: '#ffffff', marginBottom: description ? '4px' : 0 }}>
+                      <div style={{ fontWeight: 600, color: B.ink, marginBottom: description ? '4px' : 0 }}>
                         {title}
                       </div>
                       {description && <div style={{ fontSize: '12px' }}>{description}</div>}
@@ -823,10 +824,10 @@ export default function DriverDetail({
           {solutions.length > 0 ? (
             <div style={{ marginTop: '16px' }}>
               <h4 style={{
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: B.fontMono,
                 fontSize: '11px',
                 fontWeight: 600,
-                color: '#c8e64a',
+                color: B.primary,
                 textTransform: 'uppercase',
                 letterSpacing: '0.5px',
                 marginBottom: '8px',
@@ -837,9 +838,9 @@ export default function DriverDetail({
                 {solutions.map((sol, i) => (
                   <div key={i} style={{
                     padding: '12px 16px',
-                    background: '#1e2028',
+                    background: B.surface2,
                     borderRadius: '8px',
-                    border: '1px solid #2a2d35',
+                    border: `1px solid ${B.border}`,
                   }}>
                     <div style={{
                       display: 'flex',
@@ -850,7 +851,7 @@ export default function DriverDetail({
                       <span style={{
                         fontWeight: 600,
                         fontSize: '13px',
-                        color: '#ffffff',
+                        color: B.ink,
                       }}>
                         {sol.title}
                       </span>
@@ -858,17 +859,17 @@ export default function DriverDetail({
                         fontSize: '11px',
                         padding: '2px 8px',
                         borderRadius: '4px',
-                        background: sol.impact === 'high' ? '#22c55e15' : sol.impact === 'medium' ? '#f59e0b15' : '#6b728015',
-                        color: sol.impact === 'high' ? '#22c55e' : sol.impact === 'medium' ? '#f59e0b' : '#6b7280',
+                        background: sol.impact === 'high' ? `${B.success}15` : sol.impact === 'medium' ? `${B.warning}15` : `${B.muted}15`,
+                        color: sol.impact === 'high' ? B.success : sol.impact === 'medium' ? B.warning : B.muted,
                         fontWeight: 600,
                       }}>
                         {sol.impact} impact
                       </span>
                     </div>
-                    <p style={{ fontSize: '12px', color: '#a0a0a0', lineHeight: '1.5', margin: '0 0 8px' }}>
+                    <p style={{ fontSize: '12px', color: B.muted, lineHeight: '1.5', margin: '0 0 8px' }}>
                       {sol.description}
                     </p>
-                    <div style={{ display: 'flex', gap: '16px', fontSize: '11px', color: '#6b7280' }}>
+                    <div style={{ display: 'flex', gap: '16px', fontSize: '11px', color: B.muted }}>
                       <span>+{sol.estimated_improvement} pts</span>
                       <span>{sol.timeframe}</span>
                       <span>Effort: {sol.effort || (sol as unknown as Record<string, string>).effort_level || '—'}</span>
@@ -884,8 +885,8 @@ export default function DriverDetail({
                 disabled={isGenerating}
                 style={{
                   padding: '8px 16px',
-                  background: isGenerating ? '#2a2d35' : '#c8e64a',
-                  color: isGenerating ? '#6b7280' : '#111318',
+                  background: isGenerating ? B.border : B.primary,
+                  color: isGenerating ? B.muted : B.bg,
                   border: 'none',
                   borderRadius: '6px',
                   fontSize: '13px',
@@ -904,18 +905,18 @@ export default function DriverDetail({
               <summary style={{
                 cursor: 'pointer',
                 fontSize: '11px',
-                color: '#6b7280',
-                fontFamily: "'JetBrains Mono', monospace",
+                color: B.muted,
+                fontFamily: B.fontMono,
               }}>
                 Raw Data
               </summary>
               <pre style={{
                 marginTop: '8px',
                 padding: '12px',
-                background: '#111318',
+                background: B.bg,
                 borderRadius: '6px',
                 fontSize: '11px',
-                color: '#a0a0a0',
+                color: B.muted,
                 overflow: 'auto',
                 maxHeight: '200px',
               }}>

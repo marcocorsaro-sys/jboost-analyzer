@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useLocale } from '@/lib/i18n'
+import { B } from '@/lib/brand'
 
 interface MonitoringSubscription {
   client_id: string
@@ -132,9 +133,9 @@ export default function MonitoringPanel({ clientId, canEdit }: MonitoringPanelPr
   return (
     <div
       style={{
-        background: '#1a1c24',
+        background: B.surface,
         borderRadius: '12px',
-        border: '1px solid #2a2d35',
+        border: `1px solid ${B.border}`,
         padding: '20px',
         marginBottom: '24px',
       }}
@@ -143,10 +144,10 @@ export default function MonitoringPanel({ clientId, canEdit }: MonitoringPanelPr
         <div>
           <h3
             style={{
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: B.fontMono,
               fontSize: '13px',
               fontWeight: 600,
-              color: '#c8e64a',
+              color: B.primary,
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
               margin: 0,
@@ -154,7 +155,7 @@ export default function MonitoringPanel({ clientId, canEdit }: MonitoringPanelPr
           >
             {t('clients.monitoring_title')}
           </h3>
-          <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+          <div style={{ fontSize: '12px', color: B.muted, marginTop: '4px' }}>
             {t('clients.monitoring_subtitle')}
           </div>
         </div>
@@ -165,14 +166,14 @@ export default function MonitoringPanel({ clientId, canEdit }: MonitoringPanelPr
             disabled={running || saving}
             style={{
               padding: '8px 14px',
-              background: running ? '#2a2d35' : '#c8e64a',
-              color: running ? '#6b7280' : '#111318',
+              background: running ? B.border : B.primary,
+              color: running ? B.muted : B.bg,
               border: 'none',
               borderRadius: '6px',
               fontSize: '12px',
               fontWeight: 700,
               cursor: running ? 'default' : 'pointer',
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: B.fontMono,
               textTransform: 'uppercase',
               letterSpacing: '0.3px',
             }}
@@ -183,7 +184,7 @@ export default function MonitoringPanel({ clientId, canEdit }: MonitoringPanelPr
       </div>
 
       {loading ? (
-        <div style={{ color: '#6b7280', fontSize: '13px' }}>{t('clients.monitoring_loading')}</div>
+        <div style={{ color: B.muted, fontSize: '13px' }}>{t('clients.monitoring_loading')}</div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
           {/* Enable toggle */}
@@ -193,7 +194,7 @@ export default function MonitoringPanel({ clientId, canEdit }: MonitoringPanelPr
               alignItems: 'center',
               gap: '10px',
               padding: '10px 14px',
-              background: '#111318',
+              background: B.bg,
               borderRadius: '8px',
               cursor: canEdit ? 'pointer' : 'default',
               gridColumn: '1 / -1',
@@ -204,16 +205,16 @@ export default function MonitoringPanel({ clientId, canEdit }: MonitoringPanelPr
               checked={enabled}
               disabled={!canEdit || saving}
               onChange={e => setEnabled(e.target.checked)}
-              style={{ accentColor: '#c8e64a', width: 16, height: 16 }}
+              style={{ accentColor: B.primary, width: 16, height: 16 }}
             />
-            <span style={{ fontSize: '13px', color: '#ffffff', fontWeight: 600 }}>
+            <span style={{ fontSize: '13px', color: B.ink, fontWeight: 600 }}>
               {enabled ? t('clients.monitoring_enabled') : t('clients.monitoring_disabled')}
             </span>
           </label>
 
           {/* Frequency */}
-          <div style={{ padding: '10px 14px', background: '#111318', borderRadius: '8px', gridColumn: '1 / -1' }}>
-            <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', fontFamily: "'JetBrains Mono', monospace" }}>
+          <div style={{ padding: '10px 14px', background: B.bg, borderRadius: '8px', gridColumn: '1 / -1' }}>
+            <div style={{ fontSize: '11px', color: B.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', fontFamily: B.fontMono }}>
               {t('clients.monitoring_frequency')}
             </div>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -225,14 +226,14 @@ export default function MonitoringPanel({ clientId, canEdit }: MonitoringPanelPr
                   onClick={() => setFrequencyMode(mode)}
                   style={{
                     padding: '6px 12px',
-                    background: frequencyMode === mode ? '#c8e64a15' : 'transparent',
-                    color: frequencyMode === mode ? '#c8e64a' : '#6b7280',
-                    border: `1px solid ${frequencyMode === mode ? '#c8e64a40' : '#2a2d35'}`,
+                    background: frequencyMode === mode ? B.primarySoft : 'transparent',
+                    color: frequencyMode === mode ? B.primary : B.muted,
+                    border: `1px solid ${frequencyMode === mode ? `${B.primary}40` : B.border}`,
                     borderRadius: '6px',
                     fontSize: '11px',
                     fontWeight: 700,
                     cursor: canEdit ? 'pointer' : 'default',
-                    fontFamily: "'JetBrains Mono', monospace",
+                    fontFamily: B.fontMono,
                     textTransform: 'uppercase',
                   }}
                 >
@@ -250,10 +251,10 @@ export default function MonitoringPanel({ clientId, canEdit }: MonitoringPanelPr
                   style={{
                     width: '70px',
                     padding: '6px 10px',
-                    background: '#1a1c24',
-                    border: '1px solid #2a2d35',
+                    background: B.surface,
+                    border: `1px solid ${B.border}`,
                     borderRadius: '6px',
-                    color: '#ffffff',
+                    color: B.ink,
                     fontSize: '12px',
                     fontFamily: 'inherit',
                   }}
@@ -263,25 +264,25 @@ export default function MonitoringPanel({ clientId, canEdit }: MonitoringPanelPr
           </div>
 
           {/* Last / next run */}
-          <div style={{ padding: '10px 14px', background: '#111318', borderRadius: '8px' }}>
-            <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px', fontFamily: "'JetBrains Mono', monospace" }}>
+          <div style={{ padding: '10px 14px', background: B.bg, borderRadius: '8px' }}>
+            <div style={{ fontSize: '11px', color: B.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px', fontFamily: B.fontMono }}>
               {t('clients.monitoring_last_run')}
             </div>
-            <div style={{ fontSize: '12px', color: '#ffffff' }}>
+            <div style={{ fontSize: '12px', color: B.ink }}>
               {formatDate(subscription?.last_run_at ?? null)}
             </div>
           </div>
-          <div style={{ padding: '10px 14px', background: '#111318', borderRadius: '8px' }}>
-            <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px', fontFamily: "'JetBrains Mono', monospace" }}>
+          <div style={{ padding: '10px 14px', background: B.bg, borderRadius: '8px' }}>
+            <div style={{ fontSize: '11px', color: B.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px', fontFamily: B.fontMono }}>
               {t('clients.monitoring_next_run')}
             </div>
-            <div style={{ fontSize: '12px', color: '#ffffff' }}>
+            <div style={{ fontSize: '12px', color: B.ink }}>
               {formatDate(subscription?.next_run_at ?? null)}
             </div>
           </div>
 
           {!subscription && (
-            <div style={{ gridColumn: '1 / -1', fontSize: '11px', color: '#6b7280', fontStyle: 'italic' }}>
+            <div style={{ gridColumn: '1 / -1', fontSize: '11px', color: B.muted, fontStyle: 'italic' }}>
               {t('clients.monitoring_no_subscription')}
             </div>
           )}
@@ -293,10 +294,10 @@ export default function MonitoringPanel({ clientId, canEdit }: MonitoringPanelPr
           style={{
             marginTop: '12px',
             padding: '8px 12px',
-            background: '#ef444415',
-            border: '1px solid #ef444440',
+            background: `${B.error}15`,
+            border: `1px solid ${B.error}40`,
             borderRadius: '6px',
-            color: '#ef4444',
+            color: B.error,
             fontSize: '12px',
           }}
         >
@@ -308,10 +309,10 @@ export default function MonitoringPanel({ clientId, canEdit }: MonitoringPanelPr
           style={{
             marginTop: '12px',
             padding: '8px 12px',
-            background: '#22c55e15',
-            border: '1px solid #22c55e40',
+            background: `${B.success}15`,
+            border: `1px solid ${B.success}40`,
             borderRadius: '6px',
-            color: '#22c55e',
+            color: B.success,
             fontSize: '12px',
           }}
         >
@@ -327,14 +328,14 @@ export default function MonitoringPanel({ clientId, canEdit }: MonitoringPanelPr
             disabled={saving || running}
             style={{
               padding: '8px 18px',
-              background: saving ? '#2a2d35' : '#22c55e',
-              color: saving ? '#6b7280' : '#111318',
+              background: saving ? B.border : B.success,
+              color: saving ? B.muted : B.bg,
               border: 'none',
               borderRadius: '6px',
               fontSize: '12px',
               fontWeight: 700,
               cursor: saving ? 'default' : 'pointer',
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: B.fontMono,
               textTransform: 'uppercase',
               letterSpacing: '0.3px',
             }}

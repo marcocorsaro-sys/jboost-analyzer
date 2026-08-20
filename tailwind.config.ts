@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss'
+import { brand } from './lib/brand'
 
 const config: Config = {
   darkMode: ['class'],
@@ -17,20 +18,33 @@ const config: Config = {
     },
     extend: {
       colors: {
-        // Legacy palette (kept for backwards-compat with pre-existing components).
-        // The new shell and shadcn components use the CSS-variable tokens below.
-        bg: '#111318',
-        card2: '#22252e',
-        lime: '#c8e64a',
-        'lime-dim': '#8ba832',
-        gray: {
-          DEFAULT: '#7a7f8d',
-          l: '#b0b5c0',
+        // JAKALA brand tokens (lib/brand.ts is the single source of truth).
+        brand: {
+          DEFAULT: brand.primary,
+          hover: brand.primaryHover,
+          soft: brand.primarySoft,
+          ink: brand.ink,
+          panel: brand.inkPanel,
+          red: brand.accentRed,
+          surface: brand.surface,
+          surface2: brand.surface2,
         },
-        green: '#10b981',
-        red: '#ef4444',
-        amber: '#f59e0b',
-        teal: '#2dd4bf',
+
+        // Legacy palette names (kept for backwards-compat with pre-existing
+        // components), remapped onto the JAKALA palette: the old lime accent
+        // is now the navy primary, old dark bg/card2 are light surfaces.
+        bg: brand.bg,
+        card2: brand.surface2,
+        lime: brand.primary,
+        'lime-dim': brand.muted,
+        gray: {
+          DEFAULT: brand.muted,
+          l: '#3f4450',
+        },
+        green: brand.success,
+        red: brand.error,
+        amber: brand.warning,
+        teal: brand.teal,
 
         // shadcn tokens (HSL CSS vars)
         border: 'hsl(var(--border))',
@@ -73,8 +87,9 @@ const config: Config = {
         sm: 'calc(var(--radius) - 4px)',
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'monospace'],
+        sans: ['var(--font-sans)', 'Source Sans 3', 'system-ui', 'sans-serif'],
+        // Mono kept for tabular data / micro-labels only (system stack, no webfont).
+        mono: ['ui-monospace', 'SF Mono', 'Cascadia Mono', 'Menlo', 'monospace'],
       },
       keyframes: {
         'accordion-down': {

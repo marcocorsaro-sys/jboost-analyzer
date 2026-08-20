@@ -561,7 +561,7 @@ export default function AdminPage() {
 
   return (
     <div className="max-w-[1100px] p-8">
-      <h1 className="mb-6 font-mono text-2xl font-bold text-foreground">
+      <h1 className="mb-6 text-2xl font-bold tracking-tight text-foreground">
         {t('admin.adminPanel')}
       </h1>
 
@@ -613,10 +613,10 @@ export default function AdminPage() {
                       <td className="px-4 py-3 text-[13px] text-foreground">
                         {user.full_name || '\u2014'}
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs text-[#a0a0a0]">
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                         {user.email || '\u2014'}
                       </td>
-                      <td className="px-4 py-3 text-[13px] text-[#a0a0a0]">
+                      <td className="px-4 py-3 text-[13px] text-muted-foreground">
                         {user.company || '\u2014'}
                       </td>
                       <td className="px-4 py-3">
@@ -629,7 +629,7 @@ export default function AdminPage() {
                           {user.role}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-xs text-[#a0a0a0]">
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
                         <span title="Owned / Shared">
                           {user.owned_clients_count}
                           {user.shared_clients_count > 0 && (
@@ -654,31 +654,31 @@ export default function AdminPage() {
                         <div className="flex flex-wrap gap-1.5">
                           <button
                             onClick={() => toggleActive(user.id, user.is_active)}
-                            className="cursor-pointer rounded border border-border bg-[#1e2028] px-2.5 py-1 text-[11px] text-[#a0a0a0]"
+                            className="cursor-pointer rounded border border-border bg-secondary px-2.5 py-1 text-[11px] text-muted-foreground"
                           >
                             {user.is_active ? t('admin.deactivate') : t('admin.activate')}
                           </button>
                           <button
                             onClick={() => toggleRole(user.id, user.role)}
-                            className="cursor-pointer rounded border border-border bg-[#1e2028] px-2.5 py-1 text-[11px] text-[#a0a0a0]"
+                            className="cursor-pointer rounded border border-border bg-secondary px-2.5 py-1 text-[11px] text-muted-foreground"
                           >
                             {user.role === 'admin' ? t('admin.removeAdmin') : t('admin.makeAdmin')}
                           </button>
                           <button
                             onClick={() => resetPassword(user.id, user.email)}
-                            className="cursor-pointer rounded border border-blue-500/40 bg-[#1e2028] px-2.5 py-1 text-[11px] text-blue-500"
+                            className="cursor-pointer rounded border border-blue-500/40 bg-secondary px-2.5 py-1 text-[11px] text-blue-500"
                           >
                             Reset PW
                           </button>
                           <button
                             onClick={() => softDeleteUser(user.id, user.email)}
-                            className="cursor-pointer rounded border border-amber-500/40 bg-[#1e2028] px-2.5 py-1 text-[11px] text-amber-500"
+                            className="cursor-pointer rounded border border-amber-500/40 bg-secondary px-2.5 py-1 text-[11px] text-amber-500"
                           >
                             Delete
                           </button>
                           <button
                             onClick={() => purgeUser(user.id, user.email)}
-                            className="cursor-pointer rounded border border-red-500/40 bg-[#1e2028] px-2.5 py-1 text-[11px] text-red-500"
+                            className="cursor-pointer rounded border border-red-500/40 bg-secondary px-2.5 py-1 text-[11px] text-red-500"
                           >
                             Purge
                           </button>
@@ -775,14 +775,14 @@ export default function AdminPage() {
                       <div className="flex gap-2">
                         <button
                           onClick={() => { setEditingKey(def.key); setEditValue('') }}
-                          className="cursor-pointer rounded-md border border-border bg-[#1e2028] px-3.5 py-1.5 text-xs font-medium text-primary"
+                          className="cursor-pointer rounded-md border border-border bg-secondary px-3.5 py-1.5 text-xs font-medium text-primary"
                         >
                           {stored ? t('admin.update') : t('admin.setKey')}
                         </button>
                         {stored && (
                           <button
                             onClick={() => removeApiKey(def.key)}
-                            className="cursor-pointer rounded-md border border-border bg-[#1e2028] px-3.5 py-1.5 text-xs font-medium text-red-500"
+                            className="cursor-pointer rounded-md border border-border bg-secondary px-3.5 py-1.5 text-xs font-medium text-red-500"
                           >
                             {t('admin.remove')}
                           </button>
@@ -806,7 +806,7 @@ export default function AdminPage() {
 
           <div className="flex flex-col gap-4">
             <div>
-              <label className="block text-xs font-medium text-[#a0a0a0] mb-1.5">{t('admin.emailLabel')}</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">{t('admin.emailLabel')}</label>
               <input
                 type="email"
                 value={newEmail}
@@ -816,7 +816,7 @@ export default function AdminPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-[#a0a0a0] mb-1.5">{t('admin.passwordLabel')}</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">{t('admin.passwordLabel')}</label>
               <input
                 type="password"
                 value={newPassword}
@@ -826,7 +826,7 @@ export default function AdminPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-[#a0a0a0] mb-1.5">{t('admin.fullNameLabel')}</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">{t('admin.fullNameLabel')}</label>
               <input
                 type="text"
                 value={newFullName}
@@ -836,7 +836,7 @@ export default function AdminPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-[#a0a0a0] mb-1.5">{t('admin.roleLabel')}</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">{t('admin.roleLabel')}</label>
               <select
                 value={newRole}
                 onChange={e => setNewRole(e.target.value as 'user' | 'admin')}

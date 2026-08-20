@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useLocale } from '@/lib/i18n'
 import type { ClientLifecycleStage } from '@/lib/types/client'
+import { B } from '@/lib/brand'
 
 interface LifecycleActionsProps {
   clientId: string
@@ -133,14 +134,14 @@ export default function LifecycleActions({
           <span
             style={{
               padding: '4px 10px',
-              background: '#f59e0b15',
-              color: '#f59e0b',
-              border: '1px solid #f59e0b40',
+              background: `${B.warning}15`,
+              color: B.warning,
+              border: `1px solid ${B.warning}40`,
               borderRadius: '999px',
               fontSize: '11px',
               fontWeight: 700,
               textTransform: 'uppercase',
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: B.fontMono,
             }}
           >
             {t('clients.lifecycle_paused_label')}
@@ -150,7 +151,7 @@ export default function LifecycleActions({
         {showActivate && (
           <ActionButton
             label={t('clients.lifecycle_activate')}
-            color="#22c55e"
+            color={B.success}
             disabled={busy !== null}
             loading={busy === 'activate'}
             onClick={() => call('activate', 'POST', `/api/clients/${clientId}/promote`)}
@@ -159,7 +160,7 @@ export default function LifecycleActions({
         {showResume && (
           <ActionButton
             label={t('clients.lifecycle_resume')}
-            color="#22c55e"
+            color={B.success}
             disabled={busy !== null}
             loading={busy === 'reactivate'}
             onClick={() =>
@@ -176,7 +177,7 @@ export default function LifecycleActions({
         {showPause && (
           <ActionButton
             label={t('clients.lifecycle_pause')}
-            color="#f59e0b"
+            color={B.warning}
             disabled={busy !== null}
             loading={busy === 'pause'}
             onClick={() =>
@@ -193,7 +194,7 @@ export default function LifecycleActions({
         {showChurn && (
           <ActionButton
             label={t('clients.lifecycle_churn')}
-            color="#ef4444"
+            color={B.error}
             disabled={busy !== null}
             loading={busy === 'churn'}
             onClick={() =>
@@ -210,7 +211,7 @@ export default function LifecycleActions({
         {showReactivate && (
           <ActionButton
             label={t('clients.lifecycle_reactivate')}
-            color="#22c55e"
+            color={B.success}
             disabled={busy !== null}
             loading={busy === 'reactivate'}
             onClick={() =>
@@ -227,7 +228,7 @@ export default function LifecycleActions({
         {showArchive && (
           <ActionButton
             label={t('clients.lifecycle_archive')}
-            color="#6b7280"
+            color={B.muted}
             disabled={busy !== null}
             loading={busy === 'archive'}
             onClick={() =>
@@ -244,7 +245,7 @@ export default function LifecycleActions({
         {showHardDelete && (
           <ActionButton
             label={t('clients.lifecycle_hard_delete')}
-            color="#ef4444"
+            color={B.error}
             disabled={busy !== null}
             loading={busy === 'hard_delete'}
             onClick={() =>
@@ -267,7 +268,7 @@ export default function LifecycleActions({
             alignItems: 'center',
             gap: '8px',
             fontSize: '11px',
-            color: '#6b7280',
+            color: B.muted,
           }}
         >
           {editingDate ? (
@@ -278,10 +279,10 @@ export default function LifecycleActions({
                 onChange={e => setDateValue(e.target.value)}
                 style={{
                   padding: '4px 8px',
-                  background: '#1a1c24',
-                  border: '1px solid #2a2d35',
+                  background: B.surface,
+                  border: `1px solid ${B.border}`,
                   borderRadius: '4px',
-                  color: '#ffffff',
+                  color: B.ink,
                   fontSize: '12px',
                   fontFamily: 'inherit',
                 }}
@@ -292,14 +293,14 @@ export default function LifecycleActions({
                 disabled={busy !== null}
                 style={{
                   padding: '4px 10px',
-                  background: '#22c55e',
-                  color: '#111318',
+                  background: B.success,
+                  color: B.bg,
                   border: 'none',
                   borderRadius: '4px',
                   fontSize: '11px',
                   fontWeight: 700,
                   cursor: busy ? 'default' : 'pointer',
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: B.fontMono,
                 }}
               >
                 {t('clients.lifecycle_save_date')}
@@ -314,8 +315,8 @@ export default function LifecycleActions({
                 style={{
                   padding: '4px 10px',
                   background: 'transparent',
-                  color: '#6b7280',
-                  border: '1px solid #2a2d35',
+                  color: B.muted,
+                  border: `1px solid ${B.border}`,
                   borderRadius: '4px',
                   fontSize: '11px',
                   cursor: 'pointer',
@@ -331,14 +332,14 @@ export default function LifecycleActions({
               style={{
                 padding: '2px 8px',
                 background: 'transparent',
-                color: '#6b7280',
-                border: '1px solid #2a2d35',
+                color: B.muted,
+                border: `1px solid ${B.border}`,
                 borderRadius: '4px',
                 fontSize: '10px',
                 cursor: 'pointer',
                 textTransform: 'uppercase',
                 letterSpacing: '0.5px',
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: B.fontMono,
               }}
             >
               {t('clients.lifecycle_edit_date')}
@@ -351,10 +352,10 @@ export default function LifecycleActions({
         <div
           style={{
             padding: '6px 10px',
-            background: '#ef444415',
-            border: '1px solid #ef444440',
+            background: `${B.error}15`,
+            border: `1px solid ${B.error}40`,
             borderRadius: '4px',
-            color: '#ef4444',
+            color: B.error,
             fontSize: '11px',
           }}
         >
@@ -385,14 +386,14 @@ function ActionButton({
       disabled={disabled}
       style={{
         padding: '8px 14px',
-        background: loading || disabled ? '#2a2d35' : color,
-        color: loading || disabled ? '#6b7280' : '#111318',
+        background: loading || disabled ? B.border : color,
+        color: loading || disabled ? B.muted : B.bg,
         border: 'none',
         borderRadius: '6px',
         fontSize: '12px',
         fontWeight: 700,
         cursor: disabled ? 'default' : 'pointer',
-        fontFamily: "'JetBrains Mono', monospace",
+        fontFamily: B.fontMono,
         textTransform: 'uppercase',
         letterSpacing: '0.3px',
       }}

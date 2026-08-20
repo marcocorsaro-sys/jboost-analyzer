@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useLocale } from '@/lib/i18n/context'
+import { B } from '@/lib/brand'
 
 interface MatrixItem {
   title: string
@@ -34,10 +35,10 @@ export default function PriorityMatrix({
   const { t } = useLocale()
 
   const QUADRANTS = [
-    { key: 'opportunities', label: t('matrix.opportunities'), subtitle: t('matrix.opportunitiesSub'), color: '#22c55e', icon: '\u26A1' },
-    { key: 'issues', label: t('matrix.issues'), subtitle: t('matrix.issuesSub'), color: '#ef4444', icon: '\uD83D\uDD34' },
-    { key: 'improvements', label: t('matrix.improvements'), subtitle: t('matrix.improvementsSub'), color: '#6366f1', icon: '\uD83D\uDCC8' },
-    { key: 'suggestions', label: t('matrix.suggestions'), subtitle: t('matrix.suggestionsSub'), color: '#6b7280', icon: '\uD83D\uDCA1' },
+    { key: 'opportunities', label: t('matrix.opportunities'), subtitle: t('matrix.opportunitiesSub'), color: B.success, icon: '\u26A1' },
+    { key: 'issues', label: t('matrix.issues'), subtitle: t('matrix.issuesSub'), color: B.error, icon: '\uD83D\uDD34' },
+    { key: 'improvements', label: t('matrix.improvements'), subtitle: t('matrix.improvementsSub'), color: B.chartCompetitors[0], icon: '\uD83D\uDCC8' },
+    { key: 'suggestions', label: t('matrix.suggestions'), subtitle: t('matrix.suggestionsSub'), color: B.muted, icon: '\uD83D\uDCA1' },
   ] as const
 
   const dataMap: Record<string, MatrixItem[]> = {
@@ -50,23 +51,23 @@ export default function PriorityMatrix({
   if (!hasData) {
     return (
       <div style={{
-        background: '#1a1d24',
+        background: B.surface,
         borderRadius: '12px',
-        border: '1px solid #2a2d35',
+        border: `1px solid ${B.border}`,
         padding: '32px',
         textAlign: 'center',
       }}>
         <h3 style={{
-          fontFamily: "'JetBrains Mono', monospace",
+          fontFamily: B.fontMono,
           fontSize: '14px',
           fontWeight: 600,
-          color: '#ffffff',
+          color: B.ink,
           marginBottom: '12px',
           textTransform: 'uppercase',
         }}>
           {t('matrix.title')}
         </h3>
-        <p style={{ color: '#6b7280', fontSize: '13px', marginBottom: '16px' }}>
+        <p style={{ color: B.muted, fontSize: '13px', marginBottom: '16px' }}>
           {t('matrix.description')}
         </p>
         {onGenerate && (
@@ -75,8 +76,8 @@ export default function PriorityMatrix({
             disabled={isGenerating}
             style={{
               padding: '10px 20px',
-              background: isGenerating ? '#2a2d35' : '#c8e64a',
-              color: isGenerating ? '#6b7280' : '#111318',
+              background: isGenerating ? B.border : B.primary,
+              color: isGenerating ? B.muted : B.bg,
               border: 'none',
               borderRadius: '8px',
               fontSize: '13px',
@@ -93,16 +94,16 @@ export default function PriorityMatrix({
 
   return (
     <div style={{
-      background: '#1a1d24',
+      background: B.surface,
       borderRadius: '12px',
-      border: '1px solid #2a2d35',
+      border: `1px solid ${B.border}`,
       padding: '24px',
     }}>
       <h3 style={{
-        fontFamily: "'JetBrains Mono', monospace",
+        fontFamily: B.fontMono,
         fontSize: '14px',
         fontWeight: 600,
-        color: '#ffffff',
+        color: B.ink,
         marginBottom: '16px',
         textTransform: 'uppercase',
         letterSpacing: '0.5px',
@@ -119,7 +120,7 @@ export default function PriorityMatrix({
           <div
             key={q.key}
             style={{
-              background: '#111318',
+              background: B.bg,
               borderRadius: '10px',
               padding: '16px',
               border: `1px solid ${q.color}20`,
@@ -134,14 +135,14 @@ export default function PriorityMatrix({
               <span style={{ fontSize: '16px' }}>{q.icon}</span>
               <div>
                 <div style={{
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: B.fontMono,
                   fontSize: '12px',
                   fontWeight: 600,
                   color: q.color,
                 }}>
                   {q.label}
                 </div>
-                <div style={{ fontSize: '10px', color: '#6b7280' }}>{q.subtitle}</div>
+                <div style={{ fontSize: '10px', color: B.muted }}>{q.subtitle}</div>
               </div>
               <span style={{
                 marginLeft: 'auto',
@@ -164,7 +165,7 @@ export default function PriorityMatrix({
                   onMouseLeave={() => setHovered(null)}
                   style={{
                     padding: '8px 10px',
-                    background: hovered === `${q.key}-${i}` ? '#1e2028' : 'transparent',
+                    background: hovered === `${q.key}-${i}` ? B.surface2 : 'transparent',
                     borderRadius: '6px',
                     transition: 'background 0.2s',
                     cursor: 'default',
@@ -173,18 +174,18 @@ export default function PriorityMatrix({
                   <div style={{
                     fontSize: '12px',
                     fontWeight: 600,
-                    color: '#ffffff',
+                    color: B.ink,
                     marginBottom: '2px',
                   }}>
                     {item.title}
                   </div>
-                  <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                  <div style={{ fontSize: '11px', color: B.muted }}>
                     {item.driver} &bull; {t('matrix.impact')}: {item.impact_score}/10 &bull; {t('matrix.effort')}: {item.effort_score}/10
                   </div>
                   {hovered === `${q.key}-${i}` && (
                     <div style={{
                       fontSize: '11px',
-                      color: '#a0a0a0',
+                      color: B.muted,
                       marginTop: '4px',
                       lineHeight: '1.4',
                     }}>
@@ -194,7 +195,7 @@ export default function PriorityMatrix({
                 </div>
               ))}
               {(dataMap[q.key] ?? []).length === 0 && (
-                <div style={{ fontSize: '11px', color: '#4a4d55', fontStyle: 'italic', padding: '8px' }}>
+                <div style={{ fontSize: '11px', color: B.border, fontStyle: 'italic', padding: '8px' }}>
                   {t('matrix.noItems')}
                 </div>
               )}

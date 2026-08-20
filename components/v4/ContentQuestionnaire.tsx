@@ -30,6 +30,7 @@ import {
 import { templateScore, band } from '@/lib/v4/content/score'
 import type { SiteMeta } from './results-shared'
 import { card, sectionTitle, mutedLabel, primaryButton, ghostButton, scoreColor } from './results-shared'
+import { B } from '@/lib/brand'
 
 type AnswerMap = Record<string, Record<string, Record<number, ContentAnswerKey>>>
 // site_ref -> template_key -> question id -> selected
@@ -197,7 +198,7 @@ export default function ContentQuestionnaire({
     <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: '18px' }}>
       <div>
         <h4 style={sectionTitle}>{t('v4content.title')}</h4>
-        <div style={{ fontSize: '12px', color: '#6b7280' }}>{t('v4content.subtitle')}</div>
+        <div style={{ fontSize: '12px', color: B.muted }}>{t('v4content.subtitle')}</div>
       </div>
 
       {/* Template selector — the 9 templates of the bank. */}
@@ -210,8 +211,8 @@ export default function ContentQuestionnaire({
             onClick={() => setTemplateKey(tp.key)}
             style={{
               ...ghostButton,
-              borderColor: tp.key === templateKey ? '#c8e64a' : '#2a2d35',
-              color: tp.key === templateKey ? '#c8e64a' : '#a0a0a0',
+              borderColor: tp.key === templateKey ? B.primary : B.border,
+              color: tp.key === templateKey ? B.primary : B.muted,
             }}
           >
             {tp.label}
@@ -225,20 +226,20 @@ export default function ContentQuestionnaire({
           <div
             key={site.site_ref}
             style={{
-              border: '1px solid #2a2d35',
+              border: `1px solid ${B.border}`,
               borderRadius: '8px',
               padding: '8px 12px',
               minWidth: '150px',
             }}
           >
-            <div style={{ fontSize: '11px', color: '#6b7280' }}>
+            <div style={{ fontSize: '11px', color: B.muted }}>
               {site.is_client ? `${site.name} · ${t('v4content.client_required')}` : site.name}
             </div>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'baseline' }}>
               <span style={{ fontSize: '18px', fontWeight: 700, color: scoreColor(score) }}>
                 {score === null ? '—' : score}
               </span>
-              <span style={{ fontSize: '11px', color: '#6b7280' }}>
+              <span style={{ fontSize: '11px', color: B.muted }}>
                 {score === null
                   ? `${answered}/${total} ${t('v4content.answered')}`
                   : b
@@ -248,17 +249,17 @@ export default function ContentQuestionnaire({
             </div>
           </div>
         ))}
-        <div style={{ alignSelf: 'center', fontSize: '11px', color: '#6b7280' }}>
+        <div style={{ alignSelf: 'center', fontSize: '11px', color: B.muted }}>
           {t('v4content.client_required')} · {t('v4content.competitor_optional')}
         </div>
       </div>
 
       {template.description && (
-        <div style={{ fontSize: '12px', color: '#a0a0a0', lineHeight: 1.5 }}>{template.description}</div>
+        <div style={{ fontSize: '12px', color: B.muted, lineHeight: 1.5 }}>{template.description}</div>
       )}
 
       {!loaded ? (
-        <div style={{ color: '#6b7280', fontSize: '13px' }}>{t('v4res.loading')}</div>
+        <div style={{ color: B.muted, fontSize: '13px' }}>{t('v4res.loading')}</div>
       ) : (
         template.questions.map((q) => (
           <QuestionBlock
@@ -288,12 +289,12 @@ export default function ContentQuestionnaire({
             >
               {resuming ? t('v4content.resuming') : t('v4content.resume_driver')}
             </button>
-            <span style={{ fontSize: '12px', color: '#f59e0b', maxWidth: '420px' }}>
+            <span style={{ fontSize: '12px', color: B.warning, maxWidth: '420px' }}>
               {t('v4content.resume_hint')}
             </span>
           </>
         )}
-        {message && <span style={{ fontSize: '12px', color: '#a0a0a0' }}>{message}</span>}
+        {message && <span style={{ fontSize: '12px', color: B.muted }}>{message}</span>}
       </div>
     </div>
   )
@@ -321,13 +322,13 @@ function QuestionBlock({
   const selected = site ? selectedBySite[site.site_ref] : null
 
   return (
-    <div style={{ border: '1px solid #2a2d35', borderRadius: '10px', padding: '16px' }}>
+    <div style={{ border: `1px solid ${B.border}`, borderRadius: '10px', padding: '16px' }}>
       <div style={{ display: 'flex', gap: '10px', alignItems: 'baseline', flexWrap: 'wrap' }}>
-        <span style={{ ...mutedLabel, color: '#c8e64a' }}>
+        <span style={{ ...mutedLabel, color: B.primary }}>
           Q{question.id} · {question.area} (w {question.weight})
         </span>
       </div>
-      <div style={{ fontSize: '14px', color: '#ffffff', margin: '8px 0 12px 0', lineHeight: 1.5 }}>
+      <div style={{ fontSize: '14px', color: B.ink, margin: '8px 0 12px 0', lineHeight: 1.5 }}>
         {question.question}
       </div>
 
@@ -344,8 +345,8 @@ function QuestionBlock({
               style={{
                 ...ghostButton,
                 padding: '4px 12px',
-                borderColor: active ? '#c8e64a' : '#2a2d35',
-                color: active ? '#c8e64a' : answered ? '#14b8a6' : '#a0a0a0',
+                borderColor: active ? B.primary : B.border,
+                color: active ? B.primary : answered ? B.teal : B.muted,
               }}
             >
               {s.name}
@@ -367,25 +368,25 @@ function QuestionBlock({
                 onClick={() => onSelect(site.site_ref, question.id, opt.key)}
                 style={{
                   textAlign: 'left',
-                  background: isSelected ? '#c8e64a12' : '#111318',
-                  border: `1px solid ${isSelected ? '#c8e64a' : '#2a2d35'}`,
+                  background: isSelected ? B.primarySoft : B.bg,
+                  border: `1px solid ${isSelected ? B.primary : B.border}`,
                   borderRadius: '8px',
                   padding: '12px',
                   cursor: 'pointer',
-                  color: '#a0a0a0',
+                  color: B.muted,
                 }}
               >
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'baseline', marginBottom: '6px' }}>
                   <span
                     style={{
-                      fontFamily: "'JetBrains Mono', monospace",
+                      fontFamily: B.fontMono,
                       fontWeight: 700,
-                      color: isSelected ? '#c8e64a' : '#ffffff',
+                      color: isSelected ? B.primary : B.ink,
                     }}
                   >
                     {opt.key} · {ANSWER_LABELS[opt.key]}
                   </span>
-                  <span style={{ fontSize: '11px', color: '#6b7280' }}>
+                  <span style={{ fontSize: '11px', color: B.muted }}>
                     {opt.points} {ptsLabel}
                   </span>
                 </div>

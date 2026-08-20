@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { B } from '@/lib/brand'
 
 // URL-first prospect intake. User types a URL/domain, clicks "Analizza",
 // Firecrawl + Sonnet pre-fill every field. The user verifies/edits and
@@ -32,10 +33,10 @@ const COUNTRY_OPTIONS: Array<{ code: IntakeResponse['country']; label: string; l
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '10px 14px',
-  background: '#111318',
-  border: '1px solid #2a2d35',
+  background: B.bg,
+  border: `1px solid ${B.border}`,
   borderRadius: '8px',
-  color: '#ffffff',
+  color: B.ink,
   fontSize: '14px',
   outline: 'none',
   fontFamily: 'inherit',
@@ -44,9 +45,9 @@ const labelStyle: React.CSSProperties = {
   display: 'block',
   fontSize: '12px',
   fontWeight: 600,
-  color: '#a0a0a0',
+  color: B.muted,
   marginBottom: '6px',
-  fontFamily: "'JetBrains Mono', monospace",
+  fontFamily: B.fontMono,
   textTransform: 'uppercase',
   letterSpacing: '0.5px',
 }
@@ -200,13 +201,13 @@ export default function NewProspectIntake() {
               disabled={intakeLoading || !urlInput.trim()}
               style={{
                 padding: '10px 22px',
-                background: intakeLoading || !urlInput.trim() ? '#2a2d35' : '#c8e64a',
-                color: intakeLoading || !urlInput.trim() ? '#6b7280' : '#111318',
+                background: intakeLoading || !urlInput.trim() ? B.border : B.primary,
+                color: intakeLoading || !urlInput.trim() ? B.muted : B.bg,
                 border: 'none',
                 borderRadius: '8px',
                 fontSize: '14px',
                 fontWeight: 700,
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: B.fontMono,
                 cursor: intakeLoading || !urlInput.trim() ? 'default' : 'pointer',
                 whiteSpace: 'nowrap',
               }}
@@ -214,7 +215,7 @@ export default function NewProspectIntake() {
               {intakeLoading ? 'Analizzo…' : 'Analizza dominio'}
             </button>
           </div>
-          <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px' }}>
+          <div style={{ fontSize: '12px', color: B.muted, marginTop: '8px' }}>
             Firecrawl renderizza il sito + Claude Sonnet estrae nome, paese, lingua, settore e 4 competitor suggeriti.
             Tutto è modificabile prima del salvataggio.
           </div>
@@ -222,10 +223,10 @@ export default function NewProspectIntake() {
         {intakeError && (
           <div style={{
             padding: '12px 16px',
-            background: '#ef444420',
-            border: '1px solid #ef4444',
+            background: `${B.error}20`,
+            border: `1px solid ${B.error}`,
             borderRadius: '8px',
-            color: '#ef4444',
+            color: B.error,
             fontSize: '13px',
           }}>
             {intakeError}
@@ -240,10 +241,10 @@ export default function NewProspectIntake() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div style={{
         padding: '10px 14px',
-        background: '#14b8a615',
-        border: '1px solid #14b8a640',
+        background: `${B.teal}15`,
+        border: `1px solid ${B.teal}40`,
         borderRadius: '8px',
-        color: '#14b8a6',
+        color: B.teal,
         fontSize: '13px',
         display: 'flex',
         justifyContent: 'space-between',
@@ -255,13 +256,13 @@ export default function NewProspectIntake() {
           onClick={() => setIntake(null)}
           style={{
             background: 'transparent',
-            border: '1px solid #14b8a640',
-            color: '#14b8a6',
+            border: `1px solid ${B.teal}40`,
+            color: B.teal,
             borderRadius: '6px',
             padding: '4px 10px',
             fontSize: '11px',
             cursor: 'pointer',
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
           }}
         >
           Cambia URL
@@ -271,12 +272,12 @@ export default function NewProspectIntake() {
       {warnings.length > 0 && (
         <div style={{
           padding: '10px 14px',
-          background: '#f59e0b15',
-          border: '1px solid #f59e0b40',
+          background: `${B.warning}15`,
+          border: `1px solid ${B.warning}40`,
           borderRadius: '8px',
-          color: '#f59e0b',
+          color: B.warning,
           fontSize: '12px',
-          fontFamily: "'JetBrains Mono', monospace",
+          fontFamily: B.fontMono,
         }}>
           {warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
         </div>
@@ -337,12 +338,12 @@ export default function NewProspectIntake() {
               alignItems: 'center',
               gap: '6px',
               padding: '4px 10px',
-              background: '#1e2028',
-              border: '1px solid #2a2d35',
+              background: B.surface2,
+              border: `1px solid ${B.border}`,
               borderRadius: '999px',
               fontSize: '12px',
-              color: '#ffffff',
-              fontFamily: "'JetBrains Mono', monospace",
+              color: B.ink,
+              fontFamily: B.fontMono,
             }}>
               {c}
               <button
@@ -351,7 +352,7 @@ export default function NewProspectIntake() {
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  color: '#9ca3af',
+                  color: B.muted,
                   cursor: 'pointer',
                   padding: 0,
                   fontSize: '14px',
@@ -364,7 +365,7 @@ export default function NewProspectIntake() {
             </span>
           ))}
           {competitors.length === 0 && (
-            <span style={{ fontSize: '12px', color: '#6b7280' }}>Nessun competitor suggerito — aggiungili sotto.</span>
+            <span style={{ fontSize: '12px', color: B.muted }}>Nessun competitor suggerito — aggiungili sotto.</span>
           )}
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
@@ -381,13 +382,13 @@ export default function NewProspectIntake() {
             disabled={!competitorInput.trim() || competitors.length >= 8}
             style={{
               padding: '10px 16px',
-              background: !competitorInput.trim() || competitors.length >= 8 ? '#2a2d35' : '#1e2028',
-              color: !competitorInput.trim() || competitors.length >= 8 ? '#6b7280' : '#ffffff',
-              border: '1px solid #2a2d35',
+              background: !competitorInput.trim() || competitors.length >= 8 ? B.border : B.surface2,
+              color: !competitorInput.trim() || competitors.length >= 8 ? B.muted : B.ink,
+              border: `1px solid ${B.border}`,
               borderRadius: '8px',
               fontSize: '13px',
               cursor: !competitorInput.trim() || competitors.length >= 8 ? 'default' : 'pointer',
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: B.fontMono,
             }}
           >
             Aggiungi
@@ -398,10 +399,10 @@ export default function NewProspectIntake() {
       {createError && (
         <div style={{
           padding: '12px 16px',
-          background: '#ef444420',
-          border: '1px solid #ef4444',
+          background: `${B.error}20`,
+          border: `1px solid ${B.error}`,
           borderRadius: '8px',
-          color: '#ef4444',
+          color: B.error,
           fontSize: '13px',
         }}>
           {createError}
@@ -415,13 +416,13 @@ export default function NewProspectIntake() {
           disabled={creating || !name.trim() || !domain.trim()}
           style={{
             padding: '10px 24px',
-            background: creating || !name.trim() || !domain.trim() ? '#2a2d35' : '#c8e64a',
-            color: creating || !name.trim() || !domain.trim() ? '#6b7280' : '#111318',
+            background: creating || !name.trim() || !domain.trim() ? B.border : B.primary,
+            color: creating || !name.trim() || !domain.trim() ? B.muted : B.bg,
             border: 'none',
             borderRadius: '8px',
             fontSize: '14px',
             fontWeight: 700,
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
             cursor: creating || !name.trim() || !domain.trim() ? 'default' : 'pointer',
           }}
         >
@@ -433,8 +434,8 @@ export default function NewProspectIntake() {
           style={{
             padding: '10px 24px',
             background: 'transparent',
-            color: '#6b7280',
-            border: '1px solid #2a2d35',
+            color: B.muted,
+            border: `1px solid ${B.border}`,
             borderRadius: '8px',
             fontSize: '14px',
             cursor: 'pointer',

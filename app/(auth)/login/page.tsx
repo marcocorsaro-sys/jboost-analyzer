@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useLocale } from '@/lib/i18n'
 import LocaleSwitcher from '@/components/ui/LocaleSwitcher'
+import BrandHero from '@/components/layout/BrandHero'
+import { B } from '@/lib/brand'
 
 function LoginForm() {
   const [email, setEmail] = useState('')
@@ -41,59 +43,54 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg)' }}>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: B.bg }}>
       {/* Language switcher - top right */}
       <div style={{ position: 'absolute', top: '16px', right: '16px' }}>
         <LocaleSwitcher />
       </div>
 
       <div className="w-full max-w-md p-8">
-        {/* Logo */}
-        <div className="text-center mb-10">
-          <div className="font-mono text-xs tracking-widest uppercase" style={{ color: 'var(--lime-dim)' }}>
-            // JBoost
-          </div>
-          <h1 className="text-3xl font-black mt-2" style={{ color: 'var(--lime)' }}>
-            Analyzer
-          </h1>
-          <p className="text-sm mt-2" style={{ color: 'var(--gray)' }}>
-            SEO/GEO Analysis Platform
-          </p>
-        </div>
+        {/* JAKALA hero band as the login masthead */}
+        <BrandHero
+          className="mb-8"
+          height={170}
+          title="J·Boost Analyzer"
+          subtitle="SEO/GEO Analysis Platform"
+        />
 
         {/* Form */}
         <form onSubmit={handleLogin} className="space-y-5">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider mb-2"
-              style={{ color: 'var(--lime)' }}>{t('auth.email')}</label>
+              style={{ color: B.primary }}>{t('auth.email')}</label>
             <input
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
               required
-              className="w-full px-4 py-3 rounded-lg text-sm outline-none"
-              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'var(--white)' }}
+              className="w-full px-4 py-3 rounded-lg text-sm outline-none focus:ring-2 focus:ring-ring"
+              style={{ background: B.bg, border: `1px solid ${B.border}`, color: B.ink }}
               placeholder="you@company.com"
             />
           </div>
 
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider mb-2"
-              style={{ color: 'var(--lime)' }}>{t('auth.password')}</label>
+              style={{ color: B.primary }}>{t('auth.password')}</label>
             <input
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
-              className="w-full px-4 py-3 rounded-lg text-sm outline-none"
-              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'var(--white)' }}
+              className="w-full px-4 py-3 rounded-lg text-sm outline-none focus:ring-2 focus:ring-ring"
+              style={{ background: B.bg, border: `1px solid ${B.border}`, color: B.ink }}
               placeholder="••••••••"
             />
           </div>
 
           {error && (
             <div className="p-3 rounded-lg text-sm"
-              style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', color: 'var(--red)' }}>
+              style={{ background: `${B.error}10`, border: `1px solid ${B.error}30`, color: B.error }}>
               {error}
             </div>
           )}
@@ -103,8 +100,8 @@ function LoginForm() {
             disabled={loading}
             className="w-full py-3.5 rounded-lg text-sm font-bold uppercase tracking-widest"
             style={{
-              background: loading ? 'var(--card2)' : 'var(--lime)',
-              color: loading ? 'var(--gray)' : 'var(--bg)',
+              background: loading ? B.surface2 : B.primary,
+              color: loading ? B.muted : B.onPrimary,
             }}
           >
             {loading ? t('auth.signingIn') : t('auth.signIn')}
@@ -112,7 +109,7 @@ function LoginForm() {
         </form>
 
         <div className="text-center mt-6">
-          <Link href="/forgot-password" className="text-xs" style={{ color: 'var(--teal)' }}>
+          <Link href="/forgot-password" className="text-xs" style={{ color: B.primary }}>
             {t('auth.forgotPassword')}
           </Link>
         </div>

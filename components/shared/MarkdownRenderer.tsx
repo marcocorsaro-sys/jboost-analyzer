@@ -1,10 +1,11 @@
 'use client'
 
+import { B } from '@/lib/brand'
+
 interface MarkdownRendererProps {
   content: string
   /**
-   * Color theme for headers and accents.
-   * 'lime' = #c8e64a (dark bg), 'dark' = #111318 (light bg)
+   * Color theme for headers and accents (defaults come from lib/brand.ts).
    */
   accentColor?: string
   textColor?: string
@@ -16,8 +17,8 @@ interface MarkdownRendererProps {
  */
 export default function MarkdownRenderer({
   content,
-  accentColor = '#c8e64a',
-  textColor = '#e0e0e0',
+  accentColor = B.primary,
+  textColor = B.ink,
 }: MarkdownRendererProps) {
   return (
     <div style={{ fontSize: '14px', lineHeight: '1.7', color: textColor }}>
@@ -27,7 +28,7 @@ export default function MarkdownRenderer({
           return (
             <hr key={i} style={{
               border: 'none',
-              borderTop: '1px solid #2a2d35',
+              borderTop: `1px solid ${B.border}`,
               margin: '16px 0',
             }} />
           )
@@ -37,7 +38,7 @@ export default function MarkdownRenderer({
         if (line.startsWith('### ')) {
           return (
             <div key={i} style={{
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: B.fontMono,
               fontSize: '13px',
               fontWeight: 700,
               color: accentColor,
@@ -51,14 +52,14 @@ export default function MarkdownRenderer({
         if (line.startsWith('## ')) {
           return (
             <div key={i} style={{
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: B.fontMono,
               fontSize: '15px',
               fontWeight: 700,
               color: accentColor,
               marginTop: i > 0 ? '20px' : 0,
               marginBottom: '8px',
               paddingBottom: '4px',
-              borderBottom: '1px solid rgba(200, 230, 74, 0.15)',
+              borderBottom: `1px solid ${B.primary}26`,
             }}>
               {renderInline(line.replace('## ', ''), accentColor, textColor)}
             </div>
@@ -67,7 +68,7 @@ export default function MarkdownRenderer({
         if (line.startsWith('# ')) {
           return (
             <div key={i} style={{
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: B.fontMono,
               fontSize: '18px',
               fontWeight: 700,
               color: accentColor,
@@ -93,7 +94,7 @@ export default function MarkdownRenderer({
         if (line.startsWith('  - ') || line.startsWith('  * ')) {
           return (
             <div key={i} style={{ paddingLeft: '32px', position: 'relative', marginBottom: '2px' }}>
-              <span style={{ position: 'absolute', left: 16, color: '#6b7280' }}>◦</span>
+              <span style={{ position: 'absolute', left: 16, color: B.muted }}>◦</span>
               {renderInline(line.slice(4), accentColor, textColor)}
             </div>
           )
@@ -107,7 +108,7 @@ export default function MarkdownRenderer({
               <span style={{
                 position: 'absolute',
                 left: 0,
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: B.fontMono,
                 fontSize: '12px',
                 color: accentColor,
                 fontWeight: 600,
@@ -139,7 +140,7 @@ function renderInline(text: string, accentColor: string, textColor: string) {
       {parts.map((part, i) => {
         if (part.startsWith('**') && part.endsWith('**')) {
           return (
-            <strong key={i} style={{ fontWeight: 700, color: '#ffffff' }}>
+            <strong key={i} style={{ fontWeight: 700, color: B.ink }}>
               {renderCode(part.slice(2, -2), accentColor)}
             </strong>
           )
@@ -156,7 +157,7 @@ function renderCode(text: string, accentColor: string) {
     if (cp.startsWith('`') && cp.endsWith('`')) {
       return (
         <code key={j} style={{
-          fontFamily: "'JetBrains Mono', monospace",
+          fontFamily: B.fontMono,
           fontSize: '12px',
           padding: '2px 6px',
           borderRadius: '4px',

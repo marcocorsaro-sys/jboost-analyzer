@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { B } from '@/lib/brand'
 
 const PHASES = [
   { key: 'initializing', label: 'Initializing', icon: '⚙️' },
@@ -114,7 +115,7 @@ export default function AnalysisProgress({
               key={phase.key}
               className="flex items-center gap-3 py-1.5 px-3 rounded-lg text-xs transition-all"
               style={{
-                background: isActive ? 'rgba(200, 230, 74, 0.06)' : 'transparent',
+                background: isActive ? B.primarySoft : 'transparent',
                 opacity: isPending ? 0.35 : 1,
               }}
             >

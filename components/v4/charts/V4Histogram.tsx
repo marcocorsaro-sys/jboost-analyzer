@@ -23,6 +23,7 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from 'recharts'
+import { B } from '@/lib/brand'
 
 export interface HistogramSite {
   name: string
@@ -41,8 +42,8 @@ interface V4HistogramProps {
   rawLabel: string
 }
 
-const CLIENT_COLOR = '#c8e64a'
-const COMPETITOR_COLOR = '#6366f1'
+const CLIENT_COLOR = B.chartClient
+const COMPETITOR_COLOR = B.chartCompetitors[0]
 
 export default function V4Histogram({
   title,
@@ -57,18 +58,18 @@ export default function V4Histogram({
   return (
     <div
       style={{
-        background: '#1a1c24',
+        background: B.surface,
         borderRadius: '12px',
-        border: '1px solid #2a2d35',
+        border: `1px solid ${B.border}`,
         padding: '20px',
       }}
     >
       <h4
         style={{
-          fontFamily: "'JetBrains Mono', monospace",
+          fontFamily: B.fontMono,
           fontSize: '12px',
           fontWeight: 600,
-          color: '#ffffff',
+          color: B.ink,
           margin: '0 0 14px 0',
           textTransform: 'uppercase',
           letterSpacing: '0.5px',
@@ -77,31 +78,31 @@ export default function V4Histogram({
         {title}
       </h4>
       {measured.length === 0 ? (
-        <div style={{ color: '#6b7280', fontSize: '13px' }}>—</div>
+        <div style={{ color: B.muted, fontSize: '13px' }}>—</div>
       ) : (
         <ResponsiveContainer width="100%" height={240}>
           <BarChart data={measured} margin={{ top: 8, right: 8, bottom: 4, left: -16 }}>
-            <CartesianGrid stroke="#2a2d35" vertical={false} />
+            <CartesianGrid stroke={B.border} vertical={false} />
             <XAxis
               dataKey="name"
-              tick={{ fill: '#a0a0a0', fontSize: 11 }}
+              tick={{ fill: B.muted, fontSize: 11 }}
               interval={0}
               tickLine={false}
-              axisLine={{ stroke: '#2a2d35' }}
+              axisLine={{ stroke: B.border }}
             />
             <YAxis
               domain={[0, maxValue]}
-              tick={{ fill: '#6b7280', fontSize: 10 }}
+              tick={{ fill: B.muted, fontSize: 10 }}
               tickLine={false}
               axisLine={false}
             />
             <Tooltip
-              cursor={{ fill: '#2a2d3540' }}
+              cursor={{ fill: `${B.border}40` }}
               contentStyle={{
-                background: '#1e2028',
-                border: '1px solid #2a2d35',
+                background: B.surface2,
+                border: `1px solid ${B.border}`,
                 borderRadius: '8px',
-                color: '#ffffff',
+                color: B.ink,
                 fontSize: '12px',
               }}
               formatter={(value: number, _name, entry) => {
@@ -120,7 +121,7 @@ export default function V4Histogram({
         </ResponsiveContainer>
       )}
       {unmeasured.length > 0 && (
-        <div style={{ marginTop: '10px', fontSize: '11px', color: '#6b7280' }}>
+        <div style={{ marginTop: '10px', fontSize: '11px', color: B.muted }}>
           {notMeasuredLabel}: {unmeasured.map((s) => s.name).join(', ')}
         </div>
       )}

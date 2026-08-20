@@ -1,5 +1,6 @@
 import NewProspectIntake from '@/components/clients/NewProspectIntake'
 import T from '@/components/ui/T'
+import { B } from '@/lib/brand'
 
 // Route kept for backwards compatibility with deep links/bookmarks.
 // Identical UX to /pre-sales/new — URL-first intake powered by Firecrawl
@@ -10,25 +11,25 @@ export default function NewClientPage() {
   return (
     <div style={{ maxWidth: '800px' }}>
       <h1 style={{
-        fontFamily: "'JetBrains Mono', monospace",
+        fontFamily: B.fontMono,
         fontSize: '24px',
         fontWeight: 700,
-        color: '#ffffff',
+        color: B.ink,
         marginBottom: '8px',
       }}>
         <T k="clients.new_prospect_title" />
       </h1>
-      <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
+      <p style={{ fontSize: '14px', color: B.muted, marginBottom: '16px' }}>
         Incolla la URL del cliente. Estraiamo automaticamente nome, settore, paese, lingua e 4 competitor.
       </p>
 
       {/* Warning banner: all new clients are created as prospects */}
       <div style={{
         padding: '12px 16px',
-        background: '#f59e0b15',
-        border: '1px solid #f59e0b40',
+        background: `${B.warning}15`,
+        border: `1px solid ${B.warning}40`,
         borderRadius: '8px',
-        color: '#f59e0b',
+        color: B.warning,
         fontSize: '13px',
         marginBottom: '24px',
       }}>
@@ -36,9 +37,9 @@ export default function NewClientPage() {
       </div>
 
       <div style={{
-        background: '#1a1c24',
+        background: B.surface,
         borderRadius: '12px',
-        border: '1px solid #2a2d35',
+        border: `1px solid ${B.border}`,
         padding: '24px',
       }}>
         <NewProspectIntake />

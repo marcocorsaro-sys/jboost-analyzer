@@ -14,12 +14,13 @@ import T from '@/components/ui/T'
 import { ONBOARDING_SECTIONS } from '@/lib/onboarding/sections'
 import type { ClientLifecycleStage, MemoryProfile } from '@/lib/types/client'
 import type { TranslationKey } from '@/lib/i18n'
+import { B } from '@/lib/brand'
 
 const STAGE_COLORS: Record<ClientLifecycleStage, { bg: string; fg: string; border: string }> = {
-  prospect: { bg: '#f59e0b15', fg: '#f59e0b', border: '#f59e0b40' },
-  active: { bg: '#22c55e15', fg: '#22c55e', border: '#22c55e40' },
-  churned: { bg: '#6b728015', fg: '#9ca3af', border: '#6b728040' },
-  archived: { bg: '#ffffff08', fg: '#6b7280', border: '#ffffff10' },
+  prospect: { bg: `${B.warning}15`, fg: B.warning, border: `${B.warning}40` },
+  active: { bg: `${B.success}15`, fg: B.success, border: `${B.success}40` },
+  churned: { bg: `${B.muted}15`, fg: B.muted, border: `${B.muted}40` },
+  archived: { bg: `${B.ink}08`, fg: B.muted, border: `${B.ink}10` },
 }
 
 const STAGE_LABEL_KEYS: Record<ClientLifecycleStage, TranslationKey> = {
@@ -30,10 +31,10 @@ const STAGE_LABEL_KEYS: Record<ClientLifecycleStage, TranslationKey> = {
 }
 
 const BAND_COLORS: Record<string, string> = {
-  green: '#22c55e',
-  teal: '#14b8a6',
-  amber: '#f59e0b',
-  red: '#ef4444',
+  green: B.success,
+  teal: B.teal,
+  amber: B.warning,
+  red: B.error,
 }
 
 const DRIVER_LABELS: Record<string, string> = {
@@ -199,7 +200,7 @@ export default async function ClientOverviewPage({
 
   const overallScore = latestAnalysis?.overall_score ?? null
   const band = overallScore !== null ? getScoreBand(overallScore) : null
-  const color = band ? BAND_COLORS[band.color] ?? '#6b7280' : '#6b7280'
+  const color = band ? BAND_COLORS[band.color] ?? B.muted : B.muted
 
   // Calculate overall delta
   const overallDelta = calcDelta(
@@ -208,7 +209,7 @@ export default async function ClientOverviewPage({
   )
 
   // Delta colors
-  const deltaColor = overallDelta.direction === 'up' ? '#22c55e' : overallDelta.direction === 'down' ? '#ef4444' : '#6b7280'
+  const deltaColor = overallDelta.direction === 'up' ? B.success : overallDelta.direction === 'down' ? B.error : B.muted
   const deltaArrow = overallDelta.direction === 'up' ? '\u2191' : overallDelta.direction === 'down' ? '\u2193' : '\u2192'
 
   return (
@@ -269,7 +270,7 @@ export default async function ClientOverviewPage({
           </div>
           <div
             className="text-4xl font-bold font-mono"
-            style={{ color: overallScore !== null ? color : '#6b7280' }}
+            style={{ color: overallScore !== null ? color : B.muted }}
           >
             {overallScore ?? '\u2014'}
           </div>
@@ -293,7 +294,7 @@ export default async function ClientOverviewPage({
           <div className="text-[11px] text-gray-500 uppercase tracking-wide mb-2 font-mono">
             <T k="clients.analyses" />
           </div>
-          <div className="text-4xl font-bold text-white font-mono">
+          <div className="text-4xl font-bold text-foreground font-mono">
             {analysesCount ?? 0}
           </div>
           {latestAnalysis?.completed_at && (
@@ -308,7 +309,7 @@ export default async function ClientOverviewPage({
           <div className="text-[11px] text-gray-500 uppercase tracking-wide mb-2 font-mono">
             <T k="clients.martechStack" />
           </div>
-          <div className="text-4xl font-bold text-white font-mono">
+          <div className="text-4xl font-bold text-foreground font-mono">
             {martechCount ?? 0}
           </div>
           <div className="text-xs text-gray-500 mt-1">
@@ -321,7 +322,7 @@ export default async function ClientOverviewPage({
           <div className="text-[11px] text-gray-500 uppercase tracking-wide mb-2 font-mono">
             <T k="clients.knowledge" />
           </div>
-          <div className="text-4xl font-bold text-white font-mono">
+          <div className="text-4xl font-bold text-foreground font-mono">
             {filesCount ?? 0}
           </div>
           <div className="text-xs text-gray-500 mt-1">
@@ -349,9 +350,9 @@ export default async function ClientOverviewPage({
           <div className="grid grid-cols-3 gap-3">
             {driverScores.map((dr) => {
               const drBand = dr.score !== null ? getScoreBand(dr.score) : null
-              const drColor = drBand ? BAND_COLORS[drBand.color] ?? '#6b7280' : '#6b7280'
+              const drColor = drBand ? BAND_COLORS[drBand.color] ?? B.muted : B.muted
               const drDelta = calcDelta(dr.score, prevDriverScores[dr.driver_name] ?? null)
-              const drDeltaColor = drDelta.direction === 'up' ? '#22c55e' : drDelta.direction === 'down' ? '#ef4444' : '#6b7280'
+              const drDeltaColor = drDelta.direction === 'up' ? B.success : drDelta.direction === 'down' ? B.error : B.muted
               const drArrow = drDelta.direction === 'up' ? '\u2191' : drDelta.direction === 'down' ? '\u2193' : drDelta.direction === 'stable' ? '\u2192' : ''
 
               return (
@@ -363,7 +364,7 @@ export default async function ClientOverviewPage({
                     {dr.score ?? '\u2014'}
                   </div>
                   <div className="flex-1">
-                    <div className="text-[13px] font-semibold text-white">
+                    <div className="text-[13px] font-semibold text-foreground">
                       {DRIVER_LABELS[dr.driver_name] || dr.driver_name}
                     </div>
                     <div className="text-[11px] flex items-center gap-1.5" style={{ color: drColor }}>
@@ -405,7 +406,7 @@ export default async function ClientOverviewPage({
 
       {/* Quick actions */}
       <div className="bg-card rounded-xl border border-border p-5">
-        <h3 className="font-mono text-[13px] font-semibold text-[#a0a0a0] uppercase tracking-wide mb-4">
+        <h3 className="font-mono text-[13px] font-semibold text-muted-foreground uppercase tracking-wide mb-4">
           <T k="clients.quickActions" />
         </h3>
         <div className="flex gap-3 flex-wrap">
@@ -420,19 +421,19 @@ export default async function ClientOverviewPage({
           </Link>
           <Link
             href={`/clients/${params.id}/martech`}
-            className="px-5 py-2.5 bg-border text-white rounded-lg text-[13px] font-semibold no-underline"
+            className="px-5 py-2.5 bg-secondary border border-border text-foreground rounded-lg text-[13px] font-semibold no-underline"
           >
             <T k="clients.detectMartech" />
           </Link>
           <Link
             href={`/clients/${params.id}/chat`}
-            className="px-5 py-2.5 bg-border text-white rounded-lg text-[13px] font-semibold no-underline"
+            className="px-5 py-2.5 bg-secondary border border-border text-foreground rounded-lg text-[13px] font-semibold no-underline"
           >
             <T k="common.askJ" />
           </Link>
           {client.contact_name && (
             <div className="text-[13px] text-gray-500 flex items-center gap-1.5 ml-auto">
-              <T k="clients.contact" />: <span className="text-[#a0a0a0]">{client.contact_name}</span>
+              <T k="clients.contact" />: <span className="text-muted-foreground">{client.contact_name}</span>
               {client.contact_email && (
                 <span className="text-gray-500">({client.contact_email})</span>
               )}

@@ -16,6 +16,7 @@ import { useMemo, useState } from 'react'
 import { useLocale } from '@/lib/i18n'
 import type { TranslationKey } from '@/lib/i18n'
 import type { OnboardingField, OnboardingSection } from '@/lib/onboarding/sections'
+import { B } from '@/lib/brand'
 
 interface SectionFormProps {
   section: OnboardingSection
@@ -45,8 +46,8 @@ function getAtPath(obj: Record<string, unknown>, path: string): unknown {
 const fieldWrapStyle: React.CSSProperties = {
   marginBottom: '20px',
   padding: '16px',
-  background: '#0f1115',
-  border: '1px solid #2a2d35',
+  background: B.surface2,
+  border: `1px solid ${B.border}`,
   borderRadius: '10px',
 }
 
@@ -60,15 +61,15 @@ const fieldHeaderStyle: React.CSSProperties = {
 const labelStyle: React.CSSProperties = {
   fontSize: '13px',
   fontWeight: 600,
-  color: '#e6e7eb',
-  fontFamily: "'JetBrains Mono', monospace",
+  color: B.ink,
+  fontFamily: B.fontMono,
   textTransform: 'uppercase',
   letterSpacing: '0.5px',
 }
 
 const helpStyle: React.CSSProperties = {
   fontSize: '12px',
-  color: '#8a8e97',
+  color: B.muted,
   marginBottom: '8px',
   lineHeight: 1.5,
 }
@@ -76,10 +77,10 @@ const helpStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '10px 14px',
-  background: '#111318',
-  border: '1px solid #2a2d35',
+  background: B.bg,
+  border: `1px solid ${B.border}`,
   borderRadius: '8px',
-  color: '#ffffff',
+  color: B.ink,
   fontSize: '14px',
   outline: 'none',
 }
@@ -89,20 +90,20 @@ const skipChipStyle: React.CSSProperties = {
   fontSize: '11px',
   fontWeight: 600,
   background: 'transparent',
-  border: '1px solid #2a2d35',
+  border: `1px solid ${B.border}`,
   borderRadius: '999px',
-  color: '#8a8e97',
+  color: B.muted,
   cursor: 'pointer',
-  fontFamily: "'JetBrains Mono', monospace",
+  fontFamily: B.fontMono,
   textTransform: 'uppercase',
   letterSpacing: '0.5px',
 }
 
 const skippedChipStyle: React.CSSProperties = {
   ...skipChipStyle,
-  background: '#f59e0b20',
-  borderColor: '#f59e0b80',
-  color: '#f59e0b',
+  background: `${B.warning}20`,
+  borderColor: `${B.warning}80`,
+  color: B.warning,
 }
 
 const importanceDotStyle = (importance: string): React.CSSProperties => ({
@@ -112,8 +113,8 @@ const importanceDotStyle = (importance: string): React.CSSProperties => ({
   borderRadius: '50%',
   marginRight: '6px',
   background:
-    importance === 'high' ? '#ef4444' :
-    importance === 'medium' ? '#f59e0b' : '#6b7280',
+    importance === 'high' ? B.error :
+    importance === 'medium' ? B.warning : B.muted,
 })
 
 // ─── Individual field renderers ──────────────────────────
@@ -128,11 +129,11 @@ function ListInput({
         {value.map((item, i) => (
           <span key={`${item}-${i}`} style={{
             padding: '4px 10px',
-            background: '#1a1d25',
-            border: '1px solid #2a2d35',
+            background: B.surface,
+            border: `1px solid ${B.border}`,
             borderRadius: '999px',
             fontSize: '12px',
-            color: '#e6e7eb',
+            color: B.ink,
             display: 'inline-flex',
             alignItems: 'center',
             gap: '6px',
@@ -144,7 +145,7 @@ function ListInput({
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: '#8a8e97',
+                color: B.muted,
                 cursor: 'pointer',
                 fontSize: '14px',
                 padding: 0,
@@ -228,11 +229,11 @@ function PersonasInput({
   return (
     <div>
       {value.map((p, i) => (
-        <div key={i} style={{ padding: '10px', background: '#1a1d25', borderRadius: '8px', marginBottom: '8px' }}>
-          <div style={{ fontSize: '13px', fontWeight: 600, color: '#e6e7eb' }}>{p.name}</div>
-          <div style={{ fontSize: '12px', color: '#8a8e97' }}>{p.description}</div>
+        <div key={i} style={{ padding: '10px', background: B.surface, borderRadius: '8px', marginBottom: '8px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 600, color: B.ink }}>{p.name}</div>
+          <div style={{ fontSize: '12px', color: B.muted }}>{p.description}</div>
           {p.pain_points && p.pain_points.length > 0 && (
-            <div style={{ fontSize: '11px', color: '#c8e64a', marginTop: '4px' }}>
+            <div style={{ fontSize: '11px', color: B.primary, marginTop: '4px' }}>
               Pain: {p.pain_points.join(', ')}
             </div>
           )}
@@ -282,13 +283,13 @@ function StakeholdersInput({
   return (
     <div>
       {value.map((s, i) => (
-        <div key={i} style={{ padding: '10px', background: '#1a1d25', borderRadius: '8px', marginBottom: '8px' }}>
+        <div key={i} style={{ padding: '10px', background: B.surface, borderRadius: '8px', marginBottom: '8px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#e6e7eb' }}>
-                {s.name} {s.is_decision_maker && <span style={{ color: '#c8e64a' }}>(DM)</span>}
+              <div style={{ fontSize: '13px', fontWeight: 600, color: B.ink }}>
+                {s.name} {s.is_decision_maker && <span style={{ color: B.primary }}>(DM)</span>}
               </div>
-              <div style={{ fontSize: '12px', color: '#8a8e97' }}>
+              <div style={{ fontSize: '12px', color: B.muted }}>
                 {s.role}{s.department ? ` · ${s.department}` : ''}{s.email ? ` · ${s.email}` : ''}
               </div>
             </div>
@@ -353,8 +354,8 @@ function AuthorsInput({
   return (
     <div>
       {value.map((a, i) => (
-        <div key={i} style={{ padding: '8px', background: '#1a1d25', borderRadius: '8px', marginBottom: '6px', display: 'flex', justifyContent: 'space-between' }}>
-          <div style={{ fontSize: '13px', color: '#e6e7eb' }}>
+        <div key={i} style={{ padding: '8px', background: B.surface, borderRadius: '8px', marginBottom: '6px', display: 'flex', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: '13px', color: B.ink }}>
             {a.name}{a.credentials ? ` — ${a.credentials}` : ''}
           </div>
           <button type="button" onClick={() => onChange(value.filter((_, idx) => idx !== i))} style={skipChipStyle}>×</button>
@@ -463,9 +464,9 @@ export default function SectionForm({
                   }}
                   style={{
                     padding: '8px 14px',
-                    background: active ? '#c8e64a' : 'transparent',
-                    color: active ? '#111318' : '#e6e7eb',
-                    border: `1px solid ${active ? '#c8e64a' : '#2a2d35'}`,
+                    background: active ? B.primary : 'transparent',
+                    color: active ? B.bg : B.ink,
+                    border: `1px solid ${active ? B.primary : B.border}`,
                     borderRadius: '8px',
                     fontSize: '13px',
                     fontWeight: active ? 700 : 500,
@@ -489,7 +490,7 @@ export default function SectionForm({
               onChange={(e) => change(e.target.checked)}
               style={{ width: '18px', height: '18px' }}
             />
-            <span style={{ fontSize: '13px', color: '#e6e7eb' }}>
+            <span style={{ fontSize: '13px', color: B.ink }}>
               {Boolean(current) ? 'Si' : 'No'}
             </span>
           </label>
@@ -533,7 +534,7 @@ export default function SectionForm({
       <div key={field.path} style={{
         ...fieldWrapStyle,
         opacity: isSkipped ? 0.55 : 1,
-        borderColor: isSkipped ? '#f59e0b40' : '#2a2d35',
+        borderColor: isSkipped ? `${B.warning}40` : B.border,
       }}>
         <div style={fieldHeaderStyle}>
           <div style={labelStyle}>
@@ -559,14 +560,14 @@ export default function SectionForm({
       <h2 style={{
         fontSize: '20px',
         fontWeight: 700,
-        color: '#ffffff',
+        color: B.ink,
         marginBottom: '8px',
-        fontFamily: "'JetBrains Mono', monospace",
+        fontFamily: B.fontMono,
       }}>
         {tr(section.titleKey)}
       </h2>
       {section.descriptionKey && (
-        <p style={{ fontSize: '14px', color: '#8a8e97', marginBottom: '24px', lineHeight: 1.6 }}>
+        <p style={{ fontSize: '14px', color: B.muted, marginBottom: '24px', lineHeight: 1.6 }}>
           {tr(section.descriptionKey)}
         </p>
       )}

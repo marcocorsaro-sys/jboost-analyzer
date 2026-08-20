@@ -103,7 +103,7 @@ export default function MemoryAnswerDialog({
             onChange={(e) => setAnswer(e.target.value)}
             placeholder={t('memory.answerPlaceholder')}
             rows={4}
-            className="w-full p-3 px-4 bg-background border border-border rounded-lg text-white text-sm resize-y outline-none leading-normal font-[inherit] focus:border-primary transition-colors"
+            className="w-full p-3 px-4 bg-background border border-border rounded-lg text-foreground text-sm resize-y outline-none leading-normal font-[inherit] focus:border-primary transition-colors"
           />
         </div>
 

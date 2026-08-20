@@ -7,14 +7,16 @@ import { listV4Audits, AUDIT_STATE_META } from '@/lib/v4/audits'
 import { getScoreBand } from '@/lib/constants'
 import { formatLocalDate, isValidLocale, type Locale } from '@/lib/i18n'
 import T from '@/components/ui/T'
+import { B } from '@/lib/brand'
+import BrandHero from '@/components/layout/BrandHero'
 
 export const dynamic = 'force-dynamic'
 
 const BAND_COLORS: Record<string, string> = {
-  green: '#22c55e',
-  teal: '#14b8a6',
-  amber: '#f59e0b',
-  red: '#ef4444',
+  green: B.success,
+  teal: B.teal,
+  amber: B.warning,
+  red: B.error,
 }
 
 /**
@@ -53,19 +55,20 @@ export default async function HomePage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      {/* Headliner + primary CTA */}
-      <div className="mb-10 mt-4 text-center">
-        <h1 className="font-mono text-3xl font-bold text-foreground">
-          J-Boost Analyzer
-        </h1>
+      {/* Headliner — JAKALA BrandHero band + primary CTA */}
+      <BrandHero
+        className="mb-10 mt-4"
+        title="J·Boost Analyzer"
+        subtitle="SEO/GEO Analysis Platform"
+      >
         <Link
           href="/analyzer/v4"
-          className="mt-6 inline-block rounded-lg px-6 py-3 text-sm font-bold text-white no-underline transition-opacity hover:opacity-90"
-          style={{ background: '#2563eb' }}
+          className="inline-block rounded-lg px-6 py-3 text-sm font-bold no-underline transition-opacity hover:opacity-90"
+          style={{ background: B.bg, color: B.primary }}
         >
           <T k="home.start_new_audit" />
         </Link>
-      </div>
+      </BrandHero>
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Audits widget — first 3, link to All audits */}
@@ -87,7 +90,7 @@ export default async function HomePage() {
             <div className="flex flex-col gap-2">
               {audits.map((a) => {
                 const band = getScoreBand(a.overallScore)
-                const color = band ? BAND_COLORS[band.color] ?? '#6b7280' : '#6b7280'
+                const color = band ? BAND_COLORS[band.color] ?? B.muted : B.muted
                 const stateMeta = AUDIT_STATE_META[a.state]
                 return (
                   /* An unlaunched draft opens back into the setup wizard. */
@@ -110,7 +113,7 @@ export default async function HomePage() {
                           {a.clientId && (
                             <span
                               className="ml-2 inline-block rounded-full px-2 py-0.5 align-middle text-[10px] font-semibold"
-                              style={{ background: '#c8e64a18', color: '#c8e64a' }}
+                              style={{ background: B.primarySoft, color: B.primary }}
                             >
                               <T k="audits.client_badge" />
                             </span>

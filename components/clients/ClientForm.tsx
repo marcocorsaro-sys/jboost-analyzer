@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useLocale } from '@/lib/i18n'
 import DomainAutocomplete from '@/components/ui/DomainAutocomplete'
+import { B } from '@/lib/brand'
 
 interface ClientFormProps {
   initialData?: {
@@ -30,10 +31,10 @@ const INDUSTRIES = [
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '10px 14px',
-  background: '#111318',
-  border: '1px solid #2a2d35',
+  background: B.bg,
+  border: `1px solid ${B.border}`,
   borderRadius: '8px',
-  color: '#ffffff',
+  color: B.ink,
   fontSize: '14px',
   outline: 'none',
   transition: 'border-color 0.2s',
@@ -43,9 +44,9 @@ const labelStyle: React.CSSProperties = {
   display: 'block',
   fontSize: '12px',
   fontWeight: 600,
-  color: '#a0a0a0',
+  color: B.muted,
   marginBottom: '6px',
-  fontFamily: "'JetBrains Mono', monospace",
+  fontFamily: B.fontMono,
   textTransform: 'uppercase' as const,
   letterSpacing: '0.5px',
 }
@@ -110,10 +111,10 @@ export default function ClientForm({ initialData, clientId, mode }: ClientFormPr
       {error && (
         <div style={{
           padding: '12px 16px',
-          background: '#ef444420',
-          border: '1px solid #ef4444',
+          background: `${B.error}20`,
+          border: `1px solid ${B.error}`,
           borderRadius: '8px',
-          color: '#ef4444',
+          color: B.error,
           fontSize: '13px',
           marginBottom: '20px',
         }}>
@@ -225,14 +226,14 @@ export default function ClientForm({ initialData, clientId, mode }: ClientFormPr
           disabled={loading}
           style={{
             padding: '10px 24px',
-            background: loading ? '#2a2d35' : '#c8e64a',
-            color: loading ? '#6b7280' : '#111318',
+            background: loading ? B.border : B.primary,
+            color: loading ? B.muted : B.bg,
             border: 'none',
             borderRadius: '8px',
             fontSize: '14px',
             fontWeight: 700,
             cursor: loading ? 'default' : 'pointer',
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
           }}
         >
           {loading
@@ -246,8 +247,8 @@ export default function ClientForm({ initialData, clientId, mode }: ClientFormPr
           style={{
             padding: '10px 24px',
             background: 'transparent',
-            color: '#6b7280',
-            border: '1px solid #2a2d35',
+            color: B.muted,
+            border: `1px solid ${B.border}`,
             borderRadius: '8px',
             fontSize: '14px',
             cursor: 'pointer',

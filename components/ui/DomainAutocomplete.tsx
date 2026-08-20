@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { B } from '@/lib/brand'
 
 interface DomainSuggestions {
   clients: string[]
@@ -161,8 +162,8 @@ export default function DomainAutocomplete({
             left: 0,
             right: 0,
             marginTop: '4px',
-            background: '#1a1c24',
-            border: '1px solid #2a2d35',
+            background: B.surface,
+            border: `1px solid ${B.border}`,
             borderRadius: '8px',
             maxHeight: '280px',
             overflowY: 'auto',
@@ -178,10 +179,10 @@ export default function DomainAutocomplete({
                   padding: '6px 12px',
                   fontSize: '10px',
                   fontWeight: 600,
-                  color: '#6b7280',
+                  color: B.muted,
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: B.fontMono,
                 }}
               >
                 Your domains
@@ -198,11 +199,11 @@ export default function DomainAutocomplete({
                     padding: '8px 12px',
                     textAlign: 'left',
                     fontSize: '13px',
-                    color: highlightIndex === idx ? '#c8e64a' : '#e0e0e0',
-                    background: highlightIndex === idx ? 'rgba(200, 230, 74, 0.08)' : 'transparent',
+                    color: highlightIndex === idx ? B.primary : B.ink,
+                    background: highlightIndex === idx ? B.primarySoft : 'transparent',
                     border: 'none',
                     cursor: 'pointer',
-                    fontFamily: "'JetBrains Mono', monospace",
+                    fontFamily: B.fontMono,
                   }}
                 >
                   {domain}
@@ -215,17 +216,17 @@ export default function DomainAutocomplete({
           {suggestions.suggestions.length > 0 && (
             <>
               {suggestions.clients.length > 0 && (
-                <div style={{ borderTop: '1px solid #2a2d35', margin: '4px 0' }} />
+                <div style={{ borderTop: `1px solid ${B.border}`, margin: '4px 0' }} />
               )}
               <div
                 style={{
                   padding: '6px 12px',
                   fontSize: '10px',
                   fontWeight: 600,
-                  color: '#6b7280',
+                  color: B.muted,
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: B.fontMono,
                 }}
               >
                 Suggestions
@@ -244,11 +245,11 @@ export default function DomainAutocomplete({
                       padding: '8px 12px',
                       textAlign: 'left',
                       fontSize: '13px',
-                      color: highlightIndex === absoluteIdx ? '#c8e64a' : '#a0a0a0',
-                      background: highlightIndex === absoluteIdx ? 'rgba(200, 230, 74, 0.08)' : 'transparent',
+                      color: highlightIndex === absoluteIdx ? B.primary : B.muted,
+                      background: highlightIndex === absoluteIdx ? B.primarySoft : 'transparent',
                       border: 'none',
                       cursor: 'pointer',
-                      fontFamily: "'JetBrains Mono', monospace",
+                      fontFamily: B.fontMono,
                     }}
                   >
                     {domain}
@@ -270,8 +271,8 @@ export default function DomainAutocomplete({
             transform: 'translateY(-50%)',
             width: '14px',
             height: '14px',
-            border: '2px solid #2a2d35',
-            borderTopColor: '#c8e64a',
+            border: `2px solid ${B.border}`,
+            borderTopColor: B.primary,
             borderRadius: '50%',
             animation: 'spin 0.6s linear infinite',
           }}

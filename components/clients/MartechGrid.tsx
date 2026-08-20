@@ -1,6 +1,7 @@
 'use client'
 
 import { MARTECH_CATEGORIES, CATEGORY_MAP, AREA_LABELS, type MartechCategoryDef } from '@/lib/martech/categories'
+import { B } from '@/lib/brand'
 
 interface MartechTool {
   id: string
@@ -17,18 +18,19 @@ interface MartechGridProps {
 }
 
 const CONFIDENCE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  high: { bg: '#22c55e10', text: '#22c55e', border: '#22c55e30' },
-  medium: { bg: '#f59e0b10', text: '#f59e0b', border: '#f59e0b30' },
-  low: { bg: '#ef444410', text: '#ef4444', border: '#ef444430' },
+  high: { bg: `${B.success}10`, text: B.success, border: `${B.success}30` },
+  medium: { bg: `${B.warning}10`, text: B.warning, border: `${B.warning}30` },
+  low: { bg: `${B.error}10`, text: B.error, border: `${B.error}30` },
 }
 
+// Area accents: navy declinations + AA-safe semantic hues on white.
 const AREA_COLORS: Record<string, { accent: string; bg: string }> = {
-  platform: { accent: '#818cf8', bg: '#818cf810' },
-  data: { accent: '#38bdf8', bg: '#38bdf810' },
-  acquisition: { accent: '#c8e64a', bg: '#c8e64a10' },
-  experience: { accent: '#fb923c', bg: '#fb923c10' },
-  infrastructure: { accent: '#a78bfa', bg: '#a78bfa10' },
-  governance: { accent: '#f472b6', bg: '#f472b610' },
+  platform: { accent: B.chartCompetitors[0], bg: `${B.chartCompetitors[0]}10` },
+  data: { accent: B.info, bg: `${B.info}10` },
+  acquisition: { accent: B.primary, bg: B.primarySoft },
+  experience: { accent: B.warning, bg: `${B.warning}10` },
+  infrastructure: { accent: B.primaryHover, bg: `${B.primaryHover}10` },
+  governance: { accent: B.teal, bg: `${B.teal}10` },
 }
 
 function getConfidenceLevel(c: number): 'high' | 'medium' | 'low' {
@@ -101,16 +103,16 @@ export default function MartechGrid({ tools }: MartechGridProps) {
                 fontSize: '20px',
                 fontWeight: 700,
                 color: areaColor.accent,
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: B.fontMono,
               }}>
                 {toolCount}
               </div>
               <div style={{
                 fontSize: '10px',
-                color: '#9ca3af',
+                color: B.muted,
                 textTransform: 'uppercase',
                 letterSpacing: '0.5px',
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: B.fontMono,
               }}>
                 {AREA_LABELS[area]?.split(' & ')[0] || area}
               </div>
@@ -141,7 +143,7 @@ export default function MartechGrid({ tools }: MartechGridProps) {
               justifyContent: 'space-between',
             }}>
               <div style={{
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: B.fontMono,
                 fontSize: '13px',
                 fontWeight: 700,
                 color: areaColor.accent,
@@ -151,9 +153,9 @@ export default function MartechGrid({ tools }: MartechGridProps) {
                 {AREA_LABELS[area] || area}
               </div>
               <div style={{
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: B.fontMono,
                 fontSize: '11px',
-                color: '#6b7280',
+                color: B.muted,
               }}>
                 {totalTools} tool · {areaCats.length} {areaCats.length === 1 ? 'categoria' : 'categorie'}
               </div>
@@ -166,36 +168,36 @@ export default function MartechGrid({ tools }: MartechGridProps) {
 
                 return (
                   <div key={catDef.key} style={{
-                    borderBottom: catIdx < areaCats.length - 1 ? '1px solid #1e2028' : 'none',
+                    borderBottom: catIdx < areaCats.length - 1 ? `1px solid ${B.surface2}` : 'none',
                   }}>
                     {/* Category sub-header */}
                     <div style={{
                       padding: '10px 20px',
-                      background: '#13151a',
+                      background: B.surface2,
                       display: 'flex',
                       alignItems: 'center',
                       gap: '8px',
-                      borderBottom: '1px solid #1a1c22',
+                      borderBottom: `1px solid ${B.surface2}`,
                     }}>
                       <span style={{ fontSize: '14px' }}>{catDef.icon}</span>
                       <span style={{
-                        fontFamily: "'JetBrains Mono', monospace",
+                        fontFamily: B.fontMono,
                         fontSize: '12px',
                         fontWeight: 600,
-                        color: '#e5e7eb',
+                        color: B.ink,
                       }}>
                         {catDef.label}
                       </span>
                       <span style={{
                         fontSize: '11px',
-                        color: '#4b5563',
+                        color: B.muted,
                         marginLeft: '4px',
                       }}>
                         {catDef.description}
                       </span>
                       <span style={{
                         marginLeft: 'auto',
-                        fontFamily: "'JetBrains Mono', monospace",
+                        fontFamily: B.fontMono,
                         fontSize: '11px',
                         color: areaColor.accent,
                         opacity: 0.7,
@@ -209,7 +211,7 @@ export default function MartechGrid({ tools }: MartechGridProps) {
                       display: 'grid',
                       gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
                       gap: '1px',
-                      background: '#1a1c22',
+                      background: B.surface2,
                     }}>
                       {catTools.map(tool => {
                         const level = getConfidenceLevel(tool.confidence)
@@ -219,7 +221,7 @@ export default function MartechGrid({ tools }: MartechGridProps) {
 
                         return (
                           <div key={tool.id} style={{
-                            background: '#111318',
+                            background: B.bg,
                             padding: '12px 16px',
                             display: 'flex',
                             alignItems: 'flex-start',
@@ -233,7 +235,7 @@ export default function MartechGrid({ tools }: MartechGridProps) {
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              fontFamily: "'JetBrains Mono', monospace",
+                              fontFamily: B.fontMono,
                               fontSize: '10px',
                               fontWeight: 700,
                               background: colors.bg,
@@ -255,7 +257,7 @@ export default function MartechGrid({ tools }: MartechGridProps) {
                                 <span style={{
                                   fontSize: '13px',
                                   fontWeight: 600,
-                                  color: '#ffffff',
+                                  color: B.ink,
                                   whiteSpace: 'nowrap',
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis',
@@ -265,8 +267,8 @@ export default function MartechGrid({ tools }: MartechGridProps) {
                                 {tool.tool_version && (
                                   <span style={{
                                     fontSize: '10px',
-                                    color: '#6b7280',
-                                    fontFamily: "'JetBrains Mono', monospace",
+                                    color: B.muted,
+                                    fontFamily: B.fontMono,
                                     flexShrink: 0,
                                   }}>
                                     v{tool.tool_version}
@@ -279,7 +281,7 @@ export default function MartechGrid({ tools }: MartechGridProps) {
                                   color: areaColor.accent,
                                   opacity: 0.7,
                                   marginBottom: '1px',
-                                  fontFamily: "'JetBrains Mono', monospace",
+                                  fontFamily: B.fontMono,
                                 }}>
                                   {subCategory}
                                 </div>
@@ -287,7 +289,7 @@ export default function MartechGrid({ tools }: MartechGridProps) {
                               {evidence && (
                                 <div style={{
                                   fontSize: '11px',
-                                  color: '#6b7280',
+                                  color: B.muted,
                                   whiteSpace: 'nowrap',
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis',
@@ -315,19 +317,19 @@ export default function MartechGrid({ tools }: MartechGridProps) {
       {unknownCategories.length > 0 && (
         <div style={{
           borderRadius: '14px',
-          border: '1px solid #2a2d3520',
+          border: `1px solid ${B.border}20`,
           overflow: 'hidden',
         }}>
           <div style={{
             padding: '14px 20px',
-            background: '#1a1c2410',
-            borderBottom: '1px solid #2a2d3515',
+            background: `${B.surface}10`,
+            borderBottom: `1px solid ${B.border}15`,
           }}>
             <span style={{
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: B.fontMono,
               fontSize: '13px',
               fontWeight: 700,
-              color: '#6b7280',
+              color: B.muted,
               textTransform: 'uppercase',
               letterSpacing: '1px',
             }}>
@@ -343,28 +345,28 @@ export default function MartechGrid({ tools }: MartechGridProps) {
 
               return (
                 <div key={tool.id} style={{
-                  background: '#111318',
+                  background: B.bg,
                   padding: '12px 16px',
                   display: 'flex',
                   alignItems: 'flex-start',
                   gap: '10px',
-                  borderBottom: '1px solid #1a1c22',
+                  borderBottom: `1px solid ${B.surface2}`,
                 }}>
                   <div style={{
                     width: 34, height: 34, borderRadius: '7px',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontFamily: "'JetBrains Mono', monospace", fontSize: '10px', fontWeight: 700,
+                    fontFamily: B.fontMono, fontSize: '10px', fontWeight: 700,
                     background: colors.bg, color: colors.text, border: `1px solid ${colors.border}`,
                     flexShrink: 0,
                   }}>
                     {Math.round(tool.confidence * 100)}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#ffffff', marginBottom: '2px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: B.ink, marginBottom: '2px' }}>
                       {tool.tool_name}
                     </div>
                     {evidence && (
-                      <div style={{ fontSize: '11px', color: '#6b7280' }} title={evidence}>{evidence}</div>
+                      <div style={{ fontSize: '11px', color: B.muted }} title={evidence}>{evidence}</div>
                     )}
                   </div>
                 </div>

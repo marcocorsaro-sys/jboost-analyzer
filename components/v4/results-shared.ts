@@ -9,6 +9,7 @@
 
 import type React from 'react'
 import type { TranslationKey } from '@/lib/i18n'
+import { B } from '@/lib/brand'
 
 // ---------------------------------------------------------------------------
 // Wire shapes
@@ -122,13 +123,16 @@ export const MEASURE_LABEL_KEY: Record<string, TranslationKey> = {
   authority: 'v4res.measure_authority',
 }
 
-/** Score band colour (UI only; 9a-style bands). null gets the muted grey. */
+/**
+ * Score band colour (UI only; 9a-style bands). null gets the muted grey.
+ * Tones picked to stay readable on the white JAKALA surfaces (AA).
+ */
 export function scoreColor(score: number | null | undefined): string {
-  if (score === null || score === undefined) return '#6b7280'
-  if (score >= 80) return '#c8e64a'
-  if (score >= 60) return '#14b8a6'
-  if (score >= 40) return '#f59e0b'
-  return '#ef4444'
+  if (score === null || score === undefined) return B.muted
+  if (score >= 80) return B.success
+  if (score >= 60) return B.teal
+  if (score >= 40) return B.warning
+  return B.error
 }
 
 export type BandKey = 'critical' | 'weak' | 'good' | 'excellent'
@@ -141,30 +145,29 @@ export function bandKey(score: number): BandKey {
 }
 
 export const PRIORITY_COLORS: Record<string, string> = {
-  alta: '#ef4444',
-  alto: '#ef4444',
-  media: '#f59e0b',
-  medio: '#f59e0b',
-  bassa: '#6b7280',
-  basso: '#6b7280',
+  alta: B.error,
+  alto: B.error,
+  media: B.warning,
+  medio: B.warning,
+  bassa: B.muted,
+  basso: B.muted,
 }
 
 // ---------------------------------------------------------------------------
-// Shared styles (dark V4 workspace theme, same tokens as RunProgress)
+// Shared styles (white JAKALA workspace theme, tokens from lib/brand.ts)
 // ---------------------------------------------------------------------------
 
 export const card: React.CSSProperties = {
-  background: '#1a1c24',
-  border: '1px solid #2a2d35',
-  borderRadius: '12px',
+  background: B.surface,
+  border: `1px solid ${B.border}`,
+  borderRadius: B.radiusLg,
   padding: '20px 22px',
 }
 
 export const sectionTitle: React.CSSProperties = {
-  fontFamily: "'JetBrains Mono', monospace",
   fontSize: '12px',
-  fontWeight: 600,
-  color: '#ffffff',
+  fontWeight: 700,
+  color: B.ink,
   textTransform: 'uppercase',
   letterSpacing: '0.5px',
   margin: '0 0 12px 0',
@@ -172,15 +175,15 @@ export const sectionTitle: React.CSSProperties = {
 
 export const mutedLabel: React.CSSProperties = {
   fontSize: '11px',
-  color: '#6b7280',
-  fontFamily: "'JetBrains Mono', monospace",
+  fontWeight: 600,
+  color: B.muted,
   textTransform: 'uppercase',
   letterSpacing: '0.5px',
 }
 
 export const pill = (color: string): React.CSSProperties => ({
   fontSize: '11px',
-  fontFamily: "'JetBrains Mono', monospace",
+  fontWeight: 600,
   color,
   border: `1px solid ${color}40`,
   borderRadius: '4px',
@@ -190,21 +193,20 @@ export const pill = (color: string): React.CSSProperties => ({
 
 export const primaryButton = (enabled: boolean): React.CSSProperties => ({
   padding: '10px 20px',
-  background: enabled ? '#c8e64a' : '#2a2d35',
-  color: enabled ? '#111318' : '#6b7280',
+  background: enabled ? B.primary : B.surface2,
+  color: enabled ? B.onPrimary : B.muted,
   border: 'none',
-  borderRadius: '8px',
+  borderRadius: B.radiusMd,
   fontWeight: 700,
-  fontFamily: "'JetBrains Mono', monospace",
   fontSize: '13px',
   cursor: enabled ? 'pointer' : 'default',
 })
 
 export const ghostButton: React.CSSProperties = {
-  background: 'transparent',
-  border: '1px solid #2a2d35',
-  borderRadius: '6px',
-  color: '#a0a0a0',
+  background: B.bg,
+  border: `1px solid ${B.border}`,
+  borderRadius: B.radiusSm,
+  color: B.muted,
   padding: '6px 14px',
   fontSize: '12px',
   cursor: 'pointer',

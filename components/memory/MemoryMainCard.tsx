@@ -5,18 +5,19 @@ import Link from 'next/link'
 import { useLocale } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import type { ClientMemory, ClientMemoryStatus, MemoryGap } from '@/lib/types/client'
+import { B } from '@/lib/brand'
 
 interface MemoryMainCardProps {
   clientId: string
 }
 
 const STATUS_COLORS: Record<ClientMemoryStatus, string> = {
-  empty:      '#6b7280',
-  building:   '#f59e0b',
-  refreshing: '#f59e0b',
-  ready:      '#c8e64a',
-  stale:      '#f59e0b',
-  failed:     '#ef4444',
+  empty:      B.muted,
+  building:   B.warning,
+  refreshing: B.warning,
+  ready:      B.primary,
+  stale:      B.warning,
+  failed:     B.error,
 }
 
 /**

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import MarkdownRenderer from '@/components/shared/MarkdownRenderer'
 import SaveToMemoryDialog from './SaveToMemoryDialog'
 import { useLocale } from '@/lib/i18n'
+import { B } from '@/lib/brand'
 
 interface ChatMessageProps {
   role: 'user' | 'assistant'
@@ -28,11 +29,11 @@ export default function ChatMessage({ role, content, messageId, clientId }: Chat
         <div style={{
           padding: '12px 16px',
           borderRadius: isUser ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-          background: isUser ? '#c8e64a' : '#1a1c24',
-          color: isUser ? '#111318' : '#e0e0e0',
+          background: isUser ? B.primary : B.surface,
+          color: isUser ? B.bg : B.ink,
           fontSize: '14px',
           lineHeight: '1.6',
-          border: isUser ? 'none' : '1px solid #2a2d35',
+          border: isUser ? 'none' : `1px solid ${B.border}`,
           wordBreak: 'break-word',
         }}>
           {isUser ? (
@@ -40,8 +41,8 @@ export default function ChatMessage({ role, content, messageId, clientId }: Chat
           ) : (
             <MarkdownRenderer
               content={content}
-              accentColor="#c8e64a"
-              textColor="#e0e0e0"
+              accentColor={B.primary}
+              textColor={B.ink}
             />
           )}
         </div>

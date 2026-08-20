@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import SetupWizard, { type WizardInitial } from '@/components/v4/SetupWizard'
 import { readAttachments } from '@/lib/v4/setup'
 import T from '@/components/ui/T'
+import { B } from '@/lib/brand'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,16 +33,16 @@ export default async function V4SetupPage({
     <div style={{ maxWidth: '900px' }}>
       <h1
         style={{
-          fontFamily: "'JetBrains Mono', monospace",
           fontSize: '24px',
           fontWeight: 700,
-          color: '#ffffff',
+          letterSpacing: '-0.01em',
+          color: B.ink,
           marginBottom: '8px',
         }}
       >
         <T k={initialDraft ? 'v4setup.resume_title' : 'v4setup.title'} />
       </h1>
-      <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '20px' }}>
+      <p style={{ fontSize: '14px', color: B.muted, marginBottom: '20px' }}>
         <T k="v4setup.subtitle" />
       </p>
 

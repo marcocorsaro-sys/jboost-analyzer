@@ -23,11 +23,14 @@
 import PptxGenJS from 'pptxgenjs'
 import type { ReportModel, ReportDriverSection } from './report-model'
 import { fmtScore } from './report-model'
+import { B } from '../../brand'
 
-// Light consultancy palette.
+// Light consultancy palette (accent = JAKALA navy from lib/brand.ts;
+// pptxgenjs wants hex without '#').
 const INK = '1F2328'
 const MUTED = '6B7280'
-const ACCENT = '0F766E' // restrained teal
+const ACCENT = B.primary.slice(1).toUpperCase()
+const ACCENT_SOFT = B.chartCompetitors[0].slice(1).toUpperCase()
 const HEADER_SHADE = 'EFF1F4'
 const RULE = 'D6D9DE'
 
@@ -173,7 +176,14 @@ export async function generatePptx(model: ReportModel): Promise<Buffer> {
 
   // ---- 1 · Cover -----------------------------------------------------------
   const cover = pptx.addSlide()
-  cover.addShape('rect', { x: 0, y: 0, w: PAGE_W, h: 0.18, fill: { color: ACCENT } })
+  // JAKALA cover: navy band with the "goccia" drop mark.
+  cover.addShape('rect', { x: 0, y: 0, w: PAGE_W, h: 0.9, fill: { color: ACCENT } })
+  cover.addShape('teardrop', {
+    x: PAGE_W - 1.15, y: 0.15, w: 0.6, h: 0.6,
+    fill: { color: ACCENT_SOFT, transparency: 25 },
+    line: { color: ACCENT_SOFT, transparency: 25 },
+    rotate: 135,
+  })
   cover.addText(model.cover.title, {
     x: MARGIN, y: 1.5, w: CONTENT_W, h: 0.9, fontSize: 40, bold: true, color: INK, fontFace: 'Calibri',
   })

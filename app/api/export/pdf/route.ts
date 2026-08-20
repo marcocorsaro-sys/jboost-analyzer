@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { DRIVERS, getScoreBand, SCORING_INFO } from '@/lib/constants'
+import { B } from '@/lib/brand'
 
 // This route reads Supabase auth cookies, which forces per-request rendering.
 // Marking it dynamic suppresses the build-time DYNAMIC_SERVER_USAGE warning.
@@ -64,11 +65,11 @@ function generatePdfHtml(
   const band = overallScore !== null ? getScoreBand(overallScore) : null
 
   const bandColor = (score: number | null) => {
-    if (score === null) return '#6b7280'
+    if (score === null) return B.muted
     const b = getScoreBand(score)
-    if (!b) return '#6b7280'
-    const colors: Record<string, string> = { red: '#ef4444', amber: '#f59e0b', teal: '#14b8a6', green: '#22c55e' }
-    return colors[b.color] || '#6b7280'
+    if (!b) return B.muted
+    const colors: Record<string, string> = { red: B.error, amber: B.warning, teal: B.teal, green: B.success }
+    return colors[b.color] || B.muted
   }
 
   const driversHtml = DRIVERS.map((d) => {
@@ -131,7 +132,7 @@ function generatePdfHtml(
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1a1a2e; background: #fff; padding: 40px; max-width: 900px; margin: 0 auto; }
     h1 { font-size: 28px; margin-bottom: 8px; }
-    h2 { font-size: 20px; margin: 32px 0 16px; color: #1a1a2e; border-bottom: 2px solid #c8e64a; padding-bottom: 8px; }
+    h2 { font-size: 20px; margin: 32px 0 16px; color: #1a1a2e; border-bottom: 2px solid ${B.primary}; padding-bottom: 8px; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; padding-bottom: 16px; border-bottom: 1px solid #e5e7eb; }
     .overall-score { font-size: 48px; font-weight: 800; }
     .meta { color: #6b7280; font-size: 13px; }

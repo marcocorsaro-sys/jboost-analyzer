@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { B } from '@/lib/brand'
 
 interface Solution {
   title: string
@@ -25,9 +26,9 @@ const TIMEFRAME_LABELS: Record<string, string> = {
 }
 
 const IMPACT_COLORS: Record<string, string> = {
-  high: '#22c55e',
-  medium: '#f59e0b',
-  low: '#6b7280',
+  high: B.success,
+  medium: B.warning,
+  low: B.muted,
 }
 
 type TimeFilter = 'all' | 'quick_win' | 'short_term' | 'medium_term' | 'long_term'
@@ -152,7 +153,7 @@ export default function RoadmapGantt({ solutions }: RoadmapGanttProps) {
                         {sol.driver && (
                           <span
                             className="text-[10px] font-medium px-2 py-0.5 rounded-full"
-                            style={{ background: 'rgba(200, 230, 74, 0.08)', color: 'var(--lime-dim)' }}
+                            style={{ background: B.primarySoft, color: 'var(--lime-dim)' }}
                           >
                             {sol.driver}
                           </span>

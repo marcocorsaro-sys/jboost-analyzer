@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { getV4Driver } from '@/lib/scoring/registry'
+import { B } from '@/lib/brand'
 
 export interface SiteScore {
   site_ref: string
@@ -57,11 +58,11 @@ export interface StatusResponse {
 }
 
 export const STATUS_STYLE: Record<DriverRow['status'], { label: string; color: string }> = {
-  queued: { label: 'IN CODA', color: '#6b7280' },
-  running: { label: 'IN CORSO', color: '#14b8a6' },
-  done: { label: 'COMPLETATO', color: '#c8e64a' },
-  error: { label: 'ERRORE', color: '#ef4444' },
-  needs_decision: { label: 'DECISIONE RICHIESTA', color: '#f59e0b' },
+  queued: { label: 'IN CODA', color: B.muted },
+  running: { label: 'IN CORSO', color: B.teal },
+  done: { label: 'COMPLETATO', color: B.primary },
+  error: { label: 'ERRORE', color: B.error },
+  needs_decision: { label: 'DECISIONE RICHIESTA', color: B.warning },
 }
 
 export default function RunProgress({ analysisId }: { analysisId: string }) {
@@ -141,10 +142,10 @@ export default function RunProgress({ analysisId }: { analysisId: string }) {
       <div
         style={{
           padding: '12px 16px',
-          background: '#ef444420',
-          border: '1px solid #ef4444',
+          background: `${B.error}20`,
+          border: `1px solid ${B.error}`,
           borderRadius: '8px',
-          color: '#ef4444',
+          color: B.error,
           fontSize: '13px',
         }}
       >
@@ -154,7 +155,7 @@ export default function RunProgress({ analysisId }: { analysisId: string }) {
   }
 
   if (!data) {
-    return <div style={{ color: '#6b7280', fontSize: '14px' }}>Carico…</div>
+    return <div style={{ color: B.muted, fontSize: '14px' }}>Carico…</div>
   }
 
   const { progress } = data
@@ -163,8 +164,8 @@ export default function RunProgress({ analysisId }: { analysisId: string }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div
         style={{
-          background: '#1a1c24',
-          border: '1px solid #2a2d35',
+          background: B.surface,
+          border: `1px solid ${B.border}`,
           borderRadius: '12px',
           padding: '20px 24px',
           display: 'flex',
@@ -174,15 +175,15 @@ export default function RunProgress({ analysisId }: { analysisId: string }) {
         }}
       >
         <Stat label="Driver" value={String(progress.total)} />
-        <Stat label="Completati" value={String(progress.done)} color="#c8e64a" />
-        <Stat label="In corso" value={String(progress.pending)} color="#14b8a6" />
-        <Stat label="Errori" value={String(progress.error)} color={progress.error ? '#ef4444' : undefined} />
+        <Stat label="Completati" value={String(progress.done)} color={B.primary} />
+        <Stat label="In corso" value={String(progress.pending)} color={B.teal} />
+        <Stat label="Errori" value={String(progress.error)} color={progress.error ? B.error : undefined} />
         <Stat
           label="Decisioni"
           value={String(progress.needs_decision)}
-          color={progress.needs_decision ? '#f59e0b' : undefined}
+          color={progress.needs_decision ? B.warning : undefined}
         />
-        <div style={{ marginLeft: 'auto', fontSize: '12px', color: '#6b7280' }}>
+        <div style={{ marginLeft: 'auto', fontSize: '12px', color: B.muted }}>
           REF_DATE {data.refDate ?? '—'}
         </div>
       </div>
@@ -191,10 +192,10 @@ export default function RunProgress({ analysisId }: { analysisId: string }) {
         <div
           style={{
             padding: '16px',
-            background: '#1a1c24',
-            border: '1px solid #2a2d35',
+            background: B.surface,
+            border: `1px solid ${B.border}`,
             borderRadius: '12px',
-            color: '#a0a0a0',
+            color: B.muted,
             fontSize: '14px',
           }}
         >
@@ -203,7 +204,7 @@ export default function RunProgress({ analysisId }: { analysisId: string }) {
       )}
 
       {progress.pending > 0 && (
-        <div style={{ fontSize: '12px', color: '#6b7280' }}>
+        <div style={{ fontSize: '12px', color: B.muted }}>
           Aggiornamento automatico ogni 5 secondi.
         </div>
       )}
@@ -216,12 +217,12 @@ export default function RunProgress({ analysisId }: { analysisId: string }) {
           style={{
             alignSelf: 'flex-start',
             padding: '10px 20px',
-            background: '#c8e64a',
-            color: '#111318',
+            background: B.primary,
+            color: B.bg,
             border: 'none',
             borderRadius: '8px',
             fontWeight: 700,
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
             cursor: 'pointer',
           }}
         >
@@ -237,8 +238,8 @@ export default function RunProgress({ analysisId }: { analysisId: string }) {
             gap: '14px',
             flexWrap: 'wrap',
             padding: '14px 18px',
-            background: '#1a1c24',
-            border: '1px solid #2a2d35',
+            background: B.surface,
+            border: `1px solid ${B.border}`,
             borderRadius: '12px',
           }}
         >
@@ -248,27 +249,27 @@ export default function RunProgress({ analysisId }: { analysisId: string }) {
             disabled={progress.pending > 0}
             style={{
               padding: '10px 20px',
-              background: progress.pending > 0 ? '#2a2d35' : '#c8e64a',
-              color: progress.pending > 0 ? '#6b7280' : '#111318',
+              background: progress.pending > 0 ? B.border : B.primary,
+              color: progress.pending > 0 ? B.muted : B.bg,
               border: 'none',
               borderRadius: '8px',
               fontWeight: 700,
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: B.fontMono,
               fontSize: '13px',
               cursor: progress.pending > 0 ? 'default' : 'pointer',
             }}
           >
             Save &amp; Publish
           </button>
-          <span style={{ fontSize: '13px', color: drafts > 0 ? '#f59e0b' : '#6b7280' }}>
+          <span style={{ fontSize: '13px', color: drafts > 0 ? B.warning : B.muted }}>
             {drafts > 0 ? `${drafts} modifiche in bozza` : 'nessuna modifica in bozza'}
           </span>
           {progress.pending > 0 && (
-            <span style={{ fontSize: '12px', color: '#6b7280' }}>
+            <span style={{ fontSize: '12px', color: B.muted }}>
               Non pubblicabile finché {progress.pending} driver sono ancora in corso.
             </span>
           )}
-          {publishState && <span style={{ fontSize: '12px', color: '#a0a0a0' }}>{publishState}</span>}
+          {publishState && <span style={{ fontSize: '12px', color: B.muted }}>{publishState}</span>}
         </div>
       )}
 
@@ -287,15 +288,15 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
       <div
         style={{
           fontSize: '11px',
-          color: '#6b7280',
-          fontFamily: "'JetBrains Mono', monospace",
+          color: B.muted,
+          fontFamily: B.fontMono,
           textTransform: 'uppercase',
           letterSpacing: '0.5px',
         }}
       >
         {label}
       </div>
-      <div style={{ fontSize: '22px', fontWeight: 700, color: color ?? '#ffffff' }}>{value}</div>
+      <div style={{ fontSize: '22px', fontWeight: 700, color: color ?? B.ink }}>{value}</div>
     </div>
   )
 }
@@ -316,20 +317,20 @@ function DriverCard({
   return (
     <div
       style={{
-        background: '#1a1c24',
-        border: `1px solid ${row.status === 'error' ? '#ef444440' : '#2a2d35'}`,
+        background: B.surface,
+        border: `1px solid ${row.status === 'error' ? `${B.error}40` : B.border}`,
         borderRadius: '12px',
         padding: '18px 22px',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '15px', fontWeight: 600, color: '#ffffff' }}>
+        <span style={{ fontSize: '15px', fontWeight: 600, color: B.ink }}>
           {def?.label ?? row.driver_key}
         </span>
         <span
           style={{
             fontSize: '11px',
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
             color: s.color,
             border: `1px solid ${s.color}40`,
             borderRadius: '4px',
@@ -339,11 +340,11 @@ function DriverCard({
           {s.label}
         </span>
         {row.attempts > 1 && (
-          <span style={{ fontSize: '11px', color: '#6b7280' }}>
+          <span style={{ fontSize: '11px', color: B.muted }}>
             tentativo {row.attempts}/{row.max_attempts}
           </span>
         )}
-        {row.edited && <span style={{ fontSize: '11px', color: '#f59e0b' }}>modificato a mano</span>}
+        {row.edited && <span style={{ fontSize: '11px', color: B.warning }}>modificato a mano</span>}
 
         <span style={{ marginLeft: 'auto', display: 'flex', gap: '20px' }}>
           {row.status === 'done' && (
@@ -357,7 +358,7 @@ function DriverCard({
       </div>
 
       {row.status === 'error' && row.error && (
-        <div style={{ marginTop: '10px', fontSize: '13px', color: '#ef4444', lineHeight: 1.5 }}>
+        <div style={{ marginTop: '10px', fontSize: '13px', color: B.error, lineHeight: 1.5 }}>
           {row.error}
         </div>
       )}
@@ -369,9 +370,9 @@ function DriverCard({
             onClick={() => setEditing(!editing)}
             style={{
               background: 'transparent',
-              border: '1px solid #2a2d35',
+              border: `1px solid ${B.border}`,
               borderRadius: '6px',
-              color: '#a0a0a0',
+              color: B.muted,
               padding: '4px 12px',
               fontSize: '12px',
               cursor: 'pointer',
@@ -397,7 +398,7 @@ function DriverCard({
       )}
 
       {(row.comment_relative || row.comment_absolute) && (
-        <div style={{ marginTop: '10px', fontSize: '13px', color: '#a0a0a0', lineHeight: 1.5 }}>
+        <div style={{ marginTop: '10px', fontSize: '13px', color: B.muted, lineHeight: 1.5 }}>
           {row.comment_relative && <div>Relativo: {row.comment_relative}</div>}
           {row.comment_absolute && <div>Assoluto: {row.comment_absolute}</div>}
         </div>
@@ -408,7 +409,7 @@ function DriverCard({
           {row.sites.map((site) => (
             <div
               key={site.site_ref}
-              style={{ display: 'flex', gap: '16px', fontSize: '12px', color: '#a0a0a0' }}
+              style={{ display: 'flex', gap: '16px', fontSize: '12px', color: B.muted }}
             >
               <span style={{ width: '160px' }}>{site.domain}</span>
               <span style={{ width: '90px' }}>raw {fmt(site.raw)}</span>
@@ -428,14 +429,14 @@ function Metric({ label, value }: { label: string; value: string }) {
         style={{
           display: 'block',
           fontSize: '10px',
-          color: '#6b7280',
-          fontFamily: "'JetBrains Mono', monospace",
+          color: B.muted,
+          fontFamily: B.fontMono,
           textTransform: 'uppercase',
         }}
       >
         {label}
       </span>
-      <span style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff' }}>{value}</span>
+      <span style={{ fontSize: '16px', fontWeight: 700, color: B.ink }}>{value}</span>
     </span>
   )
 }
@@ -506,8 +507,8 @@ export function DriverEditor({
       style={{
         marginTop: '12px',
         padding: '16px',
-        background: '#111318',
-        border: '1px solid #2a2d35',
+        background: B.bg,
+        border: `1px solid ${B.border}`,
         borderRadius: '8px',
         display: 'flex',
         flexDirection: 'column',
@@ -557,12 +558,12 @@ export function DriverEditor({
         </div>
       )}
 
-      <div style={{ fontSize: '12px', color: '#6b7280' }}>
+      <div style={{ fontSize: '12px', color: B.muted }}>
         Il raw non è modificabile: è la misura della fonte. Per cambiarlo si rilancia il driver.
         Una modifica salvata resta bozza finché non fai Save &amp; Publish.
       </div>
 
-      {error && <div style={{ fontSize: '12px', color: '#ef4444' }}>{error}</div>}
+      {error && <div style={{ fontSize: '12px', color: B.error }}>{error}</div>}
 
       <button
         type="button"
@@ -571,8 +572,8 @@ export function DriverEditor({
         style={{
           alignSelf: 'flex-start',
           padding: '8px 18px',
-          background: '#c8e64a',
-          color: '#111318',
+          background: B.primary,
+          color: B.bg,
           border: 'none',
           borderRadius: '6px',
           fontWeight: 700,
@@ -645,8 +646,8 @@ export function DecisionForm({
       style={{
         marginTop: '12px',
         padding: '16px',
-        background: '#f59e0b10',
-        border: '1px solid #f59e0b40',
+        background: `${B.warning}10`,
+        border: `1px solid ${B.warning}40`,
         borderRadius: '8px',
         display: 'flex',
         flexDirection: 'column',
@@ -654,7 +655,7 @@ export function DecisionForm({
       }}
     >
       {request.message && (
-        <div style={{ fontSize: '13px', color: '#f59e0b', lineHeight: 1.5 }}>{request.message}</div>
+        <div style={{ fontSize: '13px', color: B.warning, lineHeight: 1.5 }}>{request.message}</div>
       )}
 
       {request.reason === 'empty_tier' && (
@@ -743,7 +744,7 @@ export function DecisionForm({
         </>
       )}
 
-      {error && <div style={{ fontSize: '12px', color: '#ef4444' }}>{error}</div>}
+      {error && <div style={{ fontSize: '12px', color: B.error }}>{error}</div>}
     </div>
   )
 }
@@ -752,9 +753,9 @@ export const editLabel: React.CSSProperties = {
   display: 'block',
   fontSize: '11px',
   fontWeight: 600,
-  color: '#6b7280',
+  color: B.muted,
   marginBottom: '5px',
-  fontFamily: "'JetBrains Mono', monospace",
+  fontFamily: B.fontMono,
   textTransform: 'uppercase',
   letterSpacing: '0.5px',
 }
@@ -762,10 +763,10 @@ export const editLabel: React.CSSProperties = {
 export const editInput: React.CSSProperties = {
   width: '100%',
   padding: '8px 12px',
-  background: '#0d0f14',
-  border: '1px solid #2a2d35',
+  background: B.surface2,
+  border: `1px solid ${B.border}`,
   borderRadius: '6px',
-  color: '#ffffff',
+  color: B.ink,
   fontSize: '13px',
   outline: 'none',
   fontFamily: 'inherit',
@@ -773,8 +774,8 @@ export const editInput: React.CSSProperties = {
 
 const decisionButton: React.CSSProperties = {
   padding: '8px 16px',
-  background: '#f59e0b',
-  color: '#111318',
+  background: B.warning,
+  color: B.bg,
   border: 'none',
   borderRadius: '6px',
   fontSize: '13px',

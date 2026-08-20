@@ -9,14 +9,15 @@ import { formatLocalDate, isValidLocale, type Locale } from '@/lib/i18n'
 import T from '@/components/ui/T'
 import SwitchToClientButton from '@/components/audits/SwitchToClientButton'
 import ControllerBadge from '@/components/audits/ControllerBadge'
+import { B } from '@/lib/brand'
 
 export const dynamic = 'force-dynamic'
 
 const BAND_COLORS: Record<string, string> = {
-  green: '#22c55e',
-  teal: '#14b8a6',
-  amber: '#f59e0b',
-  red: '#ef4444',
+  green: B.success,
+  teal: B.teal,
+  amber: B.warning,
+  red: B.error,
 }
 
 /**
@@ -50,13 +51,13 @@ export default async function AuditsPage() {
   return (
     <div className="mx-auto max-w-5xl">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="font-mono text-xl font-bold text-foreground">
+        <h1 className="text-xl font-bold tracking-tight text-foreground">
           <T k="nav.audits" />
         </h1>
         <Link
           href="/analyzer/v4"
           className="rounded-lg px-4 py-2 text-[13px] font-bold text-white no-underline transition-opacity hover:opacity-90"
-          style={{ background: '#2563eb' }}
+          style={{ background: B.primary }}
         >
           <T k="home.start_new_audit" />
         </Link>
@@ -71,7 +72,7 @@ export default async function AuditsPage() {
           <Link
             href="/analyzer/v4"
             className="inline-block rounded-lg px-5 py-2.5 text-[13px] font-bold text-white no-underline transition-opacity hover:opacity-90"
-            style={{ background: '#2563eb' }}
+            style={{ background: B.primary }}
           >
             <T k="home.start_new_audit" />
           </Link>
@@ -106,7 +107,7 @@ export default async function AuditsPage() {
             <tbody>
               {audits.map((a) => {
                 const band = getScoreBand(a.overallScore)
-                const scoreColor = band ? BAND_COLORS[band.color] ?? '#6b7280' : '#6b7280'
+                const scoreColor = band ? BAND_COLORS[band.color] ?? B.muted : B.muted
                 const stateMeta = AUDIT_STATE_META[a.state]
                 return (
                   <tr key={a.id} className="border-b border-border last:border-b-0">
@@ -119,7 +120,7 @@ export default async function AuditsPage() {
                         {a.clientId && !a.started && (
                           <span
                             className="ml-2 inline-block rounded-full px-2 py-0.5 align-middle text-[10px] font-semibold"
-                            style={{ background: '#c8e64a18', color: '#c8e64a' }}
+                            style={{ background: B.primarySoft, color: B.primary }}
                           >
                             <T k="audits.client_badge" />
                           </span>
@@ -177,7 +178,7 @@ export default async function AuditsPage() {
                         <Link
                           href={`/analyzer/v4?resume=${a.id}`}
                           className="inline-block rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white no-underline transition-opacity hover:opacity-90"
-                          style={{ background: '#2563eb' }}
+                          style={{ background: B.primary }}
                         >
                           <T k="audits.resume_setup" />
                         </Link>

@@ -6,6 +6,7 @@ import MartechGrid from '@/components/clients/MartechGrid'
 import MartechEssentials from '@/components/clients/MartechEssentials'
 import { MARTECH_CATEGORIES, AREA_LABELS } from '@/lib/martech/categories'
 import { useLocale } from '@/lib/i18n'
+import { B } from '@/lib/brand'
 
 interface MartechTool {
   id: string
@@ -54,23 +55,23 @@ interface Recommendation {
 }
 
 const LEVEL_COLORS: Record<string, { bg: string; text: string; border: string; label: string }> = {
-  complete: { bg: '#22c55e10', text: '#22c55e', border: '#22c55e30', label: 'Complete' },
-  good: { bg: '#38bdf810', text: '#38bdf8', border: '#38bdf830', label: 'Good' },
-  partial: { bg: '#f59e0b10', text: '#f59e0b', border: '#f59e0b30', label: 'Partial' },
-  incomplete: { bg: '#ef444410', text: '#ef4444', border: '#ef444430', label: 'Incomplete' },
+  complete: { bg: `${B.success}10`, text: B.success, border: `${B.success}30`, label: 'Complete' },
+  good: { bg: `${B.info}10`, text: B.info, border: `${B.info}30`, label: 'Good' },
+  partial: { bg: `${B.warning}10`, text: B.warning, border: `${B.warning}30`, label: 'Partial' },
+  incomplete: { bg: `${B.error}10`, text: B.error, border: `${B.error}30`, label: 'Incomplete' },
 }
 
 const TIER_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  'Basic': { bg: '#ef444415', text: '#ef4444', border: '#ef444440' },
-  'Developing': { bg: '#f59e0b15', text: '#f59e0b', border: '#f59e0b40' },
-  'Advanced': { bg: '#38bdf815', text: '#38bdf8', border: '#38bdf840' },
-  'Best-in-Class': { bg: '#22c55e15', text: '#22c55e', border: '#22c55e40' },
+  'Basic': { bg: `${B.error}15`, text: B.error, border: `${B.error}40` },
+  'Developing': { bg: `${B.warning}15`, text: B.warning, border: `${B.warning}40` },
+  'Advanced': { bg: `${B.info}15`, text: B.info, border: `${B.info}40` },
+  'Best-in-Class': { bg: `${B.success}15`, text: B.success, border: `${B.success}40` },
 }
 
 const SEVERITY_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  high: { bg: '#ef444412', text: '#fca5a5', dot: '#ef4444' },
-  medium: { bg: '#f59e0b12', text: '#fcd34d', dot: '#f59e0b' },
-  low: { bg: '#6b728012', text: '#9ca3af', dot: '#6b7280' },
+  high: { bg: `${B.error}12`, text: B.error, dot: B.error },
+  medium: { bg: `${B.warning}12`, text: B.warning, dot: B.warning },
+  low: { bg: `${B.muted}12`, text: B.muted, dot: B.muted },
 }
 
 const DIAG_ICONS: Record<string, string> = {
@@ -81,10 +82,10 @@ const DIAG_ICONS: Record<string, string> = {
 }
 
 const DIAG_COLORS: Record<string, string> = {
-  success: '#22c55e',
-  warning: '#f59e0b',
-  error: '#ef4444',
-  info: '#6b7280',
+  success: B.success,
+  warning: B.warning,
+  error: B.error,
+  info: B.muted,
 }
 
 const CWV_SCORE_KEYS = ['performance_score', 'seo_score', 'accessibility_score', 'best_practices_score'] as const
@@ -230,32 +231,32 @@ export default function ClientMartechPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
         <div>
           <h3 style={{
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
             fontSize: '16px',
             fontWeight: 700,
-            color: '#ffffff',
+            color: B.ink,
             marginBottom: '4px',
           }}>
             {t('martech.title')}
           </h3>
-          <p style={{ fontSize: '13px', color: '#6b7280' }}>
+          <p style={{ fontSize: '13px', color: B.muted }}>
             {tools.length > 0
               ? <>
-                  <span style={{ color: '#c8e64a', fontWeight: 600 }}>{tools.length}</span> {t('martech.toolsDetected')}
+                  <span style={{ color: B.primary, fontWeight: 600 }}>{tools.length}</span> {t('martech.toolsDetected')}
                   {' · '}
                   <span>{uniqueCategories.size} {t('martech.categories')}</span>
                   {' · '}
                   <span>{uniqueAreas.size} {t('martech.strategicAreas')}</span>
                   {' · '}
                   <span>{t('martech.avgConfidence')} {Math.round(avgConfidence * 100)}%</span>
-                  {domain && <span style={{ color: '#4b5563' }}>{' · '}{domain}</span>}
+                  {domain && <span style={{ color: B.muted }}>{' · '}{domain}</span>}
                 </>
               : domain
                 ? `${t('martech.analyzeStack')} ${domain}`
                 : t('martech.configureDomain')
             }
             {lastDetected && (
-              <span style={{ display: 'block', marginTop: '2px', color: '#4b5563', fontSize: '11px' }}>
+              <span style={{ display: 'block', marginTop: '2px', color: B.muted, fontSize: '11px' }}>
                 {t('martech.lastScan')}: {lastDetected.toLocaleDateString('en-US', { day: '2-digit', month: 'long', year: 'numeric' })}
                 {' — '}
                 {lastDetected.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
@@ -268,13 +269,13 @@ export default function ClientMartechPage() {
           disabled={detecting || !domain}
           style={{
             padding: '8px 16px',
-            background: detecting || !domain ? '#2a2d35' : '#c8e64a',
-            color: detecting || !domain ? '#6b7280' : '#111318',
+            background: detecting || !domain ? B.border : B.primary,
+            color: detecting || !domain ? B.muted : B.bg,
             borderRadius: '8px',
             border: 'none',
             fontSize: '13px',
             fontWeight: 700,
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
             cursor: detecting || !domain ? 'not-allowed' : 'pointer',
             transition: 'all 0.2s',
             whiteSpace: 'nowrap',
@@ -293,8 +294,8 @@ export default function ClientMartechPage() {
           alignItems: 'center',
           gap: '12px',
           flexWrap: 'wrap',
-          background: '#1a1c24',
-          border: '1px solid #c8e64a40',
+          background: B.surface,
+          border: `1px solid ${B.primary}40`,
           borderRadius: '10px',
           padding: '12px 16px',
           marginBottom: '20px',
@@ -305,16 +306,16 @@ export default function ClientMartechPage() {
               width: 16,
               height: 16,
               borderRadius: '50%',
-              border: '2px solid #2a2d35',
-              borderTopColor: '#c8e64a',
+              border: `2px solid ${B.border}`,
+              borderTopColor: B.primary,
               display: 'inline-block',
               flexShrink: 0,
             }}
           />
-          <span style={{ fontSize: '13px', fontWeight: 600, color: '#c8e64a', fontFamily: "'JetBrains Mono', monospace" }}>
+          <span style={{ fontSize: '13px', fontWeight: 600, color: B.primary, fontFamily: B.fontMono }}>
             {t('martech.auditInProgress')}
           </span>
-          <span style={{ fontSize: '12px', color: '#6b7280' }}>
+          <span style={{ fontSize: '12px', color: B.muted }}>
             {t('martech.auditSteps')}
           </span>
         </div>
@@ -347,12 +348,12 @@ export default function ClientMartechPage() {
           onClick={() => setShowFullStack(s => !s)}
           style={{
             background: 'transparent',
-            border: '1px solid #2a2d35',
+            border: `1px solid ${B.border}`,
             borderRadius: '8px',
-            color: '#9ca3af',
+            color: B.muted,
             padding: '8px 14px',
             fontSize: '11px',
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
             cursor: 'pointer',
             marginBottom: '20px',
             textTransform: 'uppercase',
@@ -373,9 +374,9 @@ export default function ClientMartechPage() {
         }}>
           {/* Maturity Score Card */}
           <div style={{
-            background: '#1a1c24',
+            background: B.surface,
             borderRadius: '12px',
-            border: `1px solid ${tierStyle?.border || '#2a2d35'}`,
+            border: `1px solid ${tierStyle?.border || B.border}`,
             padding: '20px',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -387,22 +388,22 @@ export default function ClientMartechPage() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: B.fontMono,
                 fontSize: '20px',
                 fontWeight: 700,
-                background: tierStyle?.bg || '#2a2d35',
-                color: tierStyle?.text || '#6b7280',
-                border: `3px solid ${tierStyle?.border || '#2a2d35'}`,
+                background: tierStyle?.bg || B.border,
+                color: tierStyle?.text || B.muted,
+                border: `3px solid ${tierStyle?.border || B.border}`,
                 flexShrink: 0,
               }}>
                 {maturityScore}
               </div>
               <div>
                 <div style={{
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: B.fontMono,
                   fontSize: '14px',
                   fontWeight: 600,
-                  color: '#ffffff',
+                  color: B.ink,
                   marginBottom: '4px',
                 }}>
                   {t('martech.maturityScore')}
@@ -413,14 +414,14 @@ export default function ClientMartechPage() {
                   borderRadius: '12px',
                   fontSize: '12px',
                   fontWeight: 600,
-                  fontFamily: "'JetBrains Mono', monospace",
-                  background: tierStyle?.bg || '#2a2d35',
-                  color: tierStyle?.text || '#6b7280',
-                  border: `1px solid ${tierStyle?.border || '#2a2d35'}`,
+                  fontFamily: B.fontMono,
+                  background: tierStyle?.bg || B.border,
+                  color: tierStyle?.text || B.muted,
+                  border: `1px solid ${tierStyle?.border || B.border}`,
                 }}>
                   {maturityTier}
                 </div>
-                <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                <div style={{ fontSize: '11px', color: B.muted, marginTop: '4px' }}>
                   {maturityScore <= 25 && t('martech.tierBasicDesc')}
                   {maturityScore > 25 && maturityScore <= 50 && t('martech.tierDevelopingDesc')}
                   {maturityScore > 50 && maturityScore <= 75 && t('martech.tierAdvancedDesc')}
@@ -433,9 +434,9 @@ export default function ClientMartechPage() {
           {/* Completeness Card */}
           {completeness && (
             <div style={{
-              background: '#1a1c24',
+              background: B.surface,
               borderRadius: '12px',
-              border: `1px solid ${LEVEL_COLORS[completeness.level]?.border || '#2a2d35'}`,
+              border: `1px solid ${LEVEL_COLORS[completeness.level]?.border || B.border}`,
               padding: '20px',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -446,22 +447,22 @@ export default function ClientMartechPage() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: B.fontMono,
                   fontSize: '20px',
                   fontWeight: 700,
-                  background: LEVEL_COLORS[completeness.level]?.bg || '#2a2d35',
-                  color: LEVEL_COLORS[completeness.level]?.text || '#6b7280',
-                  border: `3px solid ${LEVEL_COLORS[completeness.level]?.border || '#2a2d35'}`,
+                  background: LEVEL_COLORS[completeness.level]?.bg || B.border,
+                  color: LEVEL_COLORS[completeness.level]?.text || B.muted,
+                  border: `3px solid ${LEVEL_COLORS[completeness.level]?.border || B.border}`,
                   flexShrink: 0,
                 }}>
                   {completeness.score}
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{
-                    fontFamily: "'JetBrains Mono', monospace",
+                    fontFamily: B.fontMono,
                     fontSize: '14px',
                     fontWeight: 600,
-                    color: '#ffffff',
+                    color: B.ink,
                     marginBottom: '4px',
                   }}>
                     {t('martech.completeness')}
@@ -472,14 +473,14 @@ export default function ClientMartechPage() {
                     borderRadius: '12px',
                     fontSize: '12px',
                     fontWeight: 600,
-                    fontFamily: "'JetBrains Mono', monospace",
-                    background: LEVEL_COLORS[completeness.level]?.bg || '#2a2d35',
-                    color: LEVEL_COLORS[completeness.level]?.text || '#6b7280',
-                    border: `1px solid ${LEVEL_COLORS[completeness.level]?.border || '#2a2d35'}`,
+                    fontFamily: B.fontMono,
+                    background: LEVEL_COLORS[completeness.level]?.bg || B.border,
+                    color: LEVEL_COLORS[completeness.level]?.text || B.muted,
+                    border: `1px solid ${LEVEL_COLORS[completeness.level]?.border || B.border}`,
                   }}>
                     {LEVEL_COLORS[completeness.level]?.label || completeness.level}
                   </div>
-                  <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                  <div style={{ fontSize: '11px', color: B.muted, marginTop: '4px' }}>
                     {completeness.pagesScanned} pages · {completeness.totalSignals} signals · {Math.round(completeness.signalQuality.htmlSize / 1024)}KB HTML
                   </div>
                 </div>
@@ -488,11 +489,11 @@ export default function ClientMartechPage() {
                   style={{
                     padding: '6px 10px',
                     background: 'transparent',
-                    border: '1px solid #2a2d35',
+                    border: `1px solid ${B.border}`,
                     borderRadius: '6px',
-                    color: '#9ca3af',
+                    color: B.muted,
                     fontSize: '10px',
-                    fontFamily: "'JetBrains Mono', monospace",
+                    fontFamily: B.fontMono,
                     cursor: 'pointer',
                     whiteSpace: 'nowrap',
                   }}
@@ -508,22 +509,22 @@ export default function ClientMartechPage() {
       {/* Diagnostics (collapsible) */}
       {showFullStack && showDiagnostics && completeness && completeness.diagnostics.length > 0 && (
         <div style={{
-          background: '#111318',
+          background: B.bg,
           borderRadius: '8px',
-          border: '1px solid #2a2d35',
+          border: `1px solid ${B.border}`,
           padding: '12px 16px',
           marginBottom: '20px',
           display: 'flex',
           flexDirection: 'column',
           gap: '6px',
         }}>
-          <div style={{ fontSize: '11px', color: '#6b7280', fontFamily: "'JetBrains Mono', monospace", marginBottom: '4px', fontWeight: 600 }}>
+          <div style={{ fontSize: '11px', color: B.muted, fontFamily: B.fontMono, marginBottom: '4px', fontWeight: 600 }}>
             {t('martech.showDiagnostics')}
           </div>
           {completeness.diagnostics.map((d, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '12px' }}>
               <span style={{
-                color: DIAG_COLORS[d.type] || '#6b7280',
+                color: DIAG_COLORS[d.type] || B.muted,
                 fontWeight: 700,
                 flexShrink: 0,
                 width: '14px',
@@ -531,7 +532,7 @@ export default function ClientMartechPage() {
               }}>
                 {DIAG_ICONS[d.type] || '·'}
               </span>
-              <span style={{ color: '#d1d5db', lineHeight: '1.4' }}>{d.message}</span>
+              <span style={{ color: B.ink, lineHeight: '1.4' }}>{d.message}</span>
             </div>
           ))}
         </div>
@@ -540,17 +541,17 @@ export default function ClientMartechPage() {
       {/* Gap Analysis */}
       {showFullStack && gapAnalysis.length > 0 && (
         <div style={{
-          background: '#1a1c24',
+          background: B.surface,
           borderRadius: '12px',
-          border: '1px solid #2a2d35',
+          border: `1px solid ${B.border}`,
           padding: '20px',
           marginBottom: '20px',
         }}>
           <h4 style={{
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
             fontSize: '14px',
             fontWeight: 700,
-            color: '#ffffff',
+            color: B.ink,
             marginBottom: '14px',
           }}>
             {t('martech.gapAnalysis')}
@@ -578,7 +579,7 @@ export default function ClientMartechPage() {
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                       <span style={{
-                        fontFamily: "'JetBrains Mono', monospace",
+                        fontFamily: B.fontMono,
                         fontSize: '13px',
                         fontWeight: 600,
                         color: sev.text,
@@ -589,15 +590,15 @@ export default function ClientMartechPage() {
                         fontSize: '10px',
                         padding: '1px 6px',
                         borderRadius: '4px',
-                        background: '#111318',
-                        color: '#6b7280',
-                        fontFamily: "'JetBrains Mono', monospace",
+                        background: B.bg,
+                        color: B.muted,
+                        fontFamily: B.fontMono,
                         textTransform: 'uppercase',
                       }}>
                         {gap.severity}
                       </span>
                     </div>
-                    <p style={{ fontSize: '12px', color: '#9ca3af', lineHeight: '1.5', margin: 0 }}>
+                    <p style={{ fontSize: '12px', color: B.muted, lineHeight: '1.5', margin: 0 }}>
                       {gap.description}
                     </p>
                   </div>
@@ -611,17 +612,17 @@ export default function ClientMartechPage() {
       {/* Recommendations */}
       {showFullStack && recommendations.length > 0 && (
         <div style={{
-          background: '#1a1c24',
+          background: B.surface,
           borderRadius: '12px',
-          border: '1px solid #2a2d35',
+          border: `1px solid ${B.border}`,
           padding: '20px',
           marginBottom: '20px',
         }}>
           <h4 style={{
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
             fontSize: '14px',
             fontWeight: 700,
-            color: '#ffffff',
+            color: B.ink,
             marginBottom: '14px',
           }}>
             {t('martech.recommendations')}
@@ -629,10 +630,10 @@ export default function ClientMartechPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {recommendations.map((rec, i) => (
               <div key={i} style={{
-                background: '#111318',
+                background: B.bg,
                 borderRadius: '8px',
                 padding: '14px 16px',
-                borderLeft: `3px solid ${rec.priority <= 2 ? '#c8e64a' : rec.priority <= 3 ? '#38bdf8' : '#6b7280'}`,
+                borderLeft: `3px solid ${rec.priority <= 2 ? B.primary : rec.priority <= 3 ? B.info : B.muted}`,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
                   <span style={{
@@ -642,25 +643,25 @@ export default function ClientMartechPage() {
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    background: rec.priority <= 2 ? '#c8e64a20' : rec.priority <= 3 ? '#38bdf820' : '#6b728020',
-                    color: rec.priority <= 2 ? '#c8e64a' : rec.priority <= 3 ? '#38bdf8' : '#6b7280',
+                    background: rec.priority <= 2 ? B.primarySoft : rec.priority <= 3 ? `${B.info}20` : `${B.muted}20`,
+                    color: rec.priority <= 2 ? B.primary : rec.priority <= 3 ? B.info : B.muted,
                     fontSize: '11px',
                     fontWeight: 700,
-                    fontFamily: "'JetBrains Mono', monospace",
+                    fontFamily: B.fontMono,
                     flexShrink: 0,
                   }}>
                     {rec.priority}
                   </span>
                   <span style={{
-                    fontFamily: "'JetBrains Mono', monospace",
+                    fontFamily: B.fontMono,
                     fontSize: '13px',
                     fontWeight: 600,
-                    color: '#ffffff',
+                    color: B.ink,
                   }}>
                     {rec.title}
                   </span>
                 </div>
-                <p style={{ fontSize: '12px', color: '#9ca3af', lineHeight: '1.5', margin: 0, paddingLeft: '32px' }}>
+                <p style={{ fontSize: '12px', color: B.muted, lineHeight: '1.5', margin: 0, paddingLeft: '32px' }}>
                   {rec.description}
                 </p>
               </div>
@@ -676,7 +677,7 @@ export default function ClientMartechPage() {
           background: 'rgba(239, 68, 68, 0.08)',
           border: '1px solid rgba(239, 68, 68, 0.2)',
           borderRadius: '8px',
-          color: '#ef4444',
+          color: B.error,
           fontSize: '13px',
           marginBottom: '20px',
         }}>
@@ -686,28 +687,28 @@ export default function ClientMartechPage() {
 
       {/* Content */}
       {loading ? (
-        <div style={{ color: '#6b7280', textAlign: 'center', padding: '60px 0' }}>
+        <div style={{ color: B.muted, textAlign: 'center', padding: '60px 0' }}>
           {t('common.loading')}...
         </div>
       ) : tools.length === 0 && !detecting ? (
         <div style={{
-          background: '#1a1c24',
+          background: B.surface,
           borderRadius: '12px',
-          border: '1px solid #2a2d35',
+          border: `1px solid ${B.border}`,
           padding: '40px',
           textAlign: 'center',
         }}>
           <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚡</div>
           <h4 style={{
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
             fontSize: '16px',
             fontWeight: 600,
-            color: '#c8e64a',
+            color: B.primary,
             marginBottom: '8px',
           }}>
             {t('martech.noTechDetected')}
           </h4>
-          <p style={{ fontSize: '13px', color: '#6b7280', maxWidth: '500px', margin: '0 auto 16px' }}>
+          <p style={{ fontSize: '13px', color: B.muted, maxWidth: '500px', margin: '0 auto 16px' }}>
             {domain ? t('martech.clickDetect') : t('martech.configureDomainFirst')}
           </p>
         </div>

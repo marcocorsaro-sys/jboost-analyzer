@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useLocale } from '@/lib/i18n'
 import type { ClientMemberRole, ClientMemberWithProfile } from '@/lib/types/client'
+import { B } from '@/lib/brand'
 
 interface TeamPanelProps {
   clientId: string
@@ -11,9 +12,9 @@ interface TeamPanelProps {
 }
 
 const ROLE_COLORS: Record<ClientMemberRole, { bg: string; fg: string }> = {
-  owner: { bg: '#c8e64a15', fg: '#c8e64a' },
-  editor: { bg: '#3b82f615', fg: '#3b82f6' },
-  viewer: { bg: '#6b728015', fg: '#9ca3af' },
+  owner: { bg: B.primarySoft, fg: B.primary },
+  editor: { bg: `${B.info}15`, fg: B.info },
+  viewer: { bg: `${B.muted}15`, fg: B.muted },
 }
 
 const VALID_ROLES: ClientMemberRole[] = ['owner', 'editor', 'viewer']
@@ -122,9 +123,9 @@ export default function TeamPanel({ clientId, currentUserId, isAdmin }: TeamPane
   return (
     <div
       style={{
-        background: '#1a1c24',
+        background: B.surface,
         borderRadius: '12px',
-        border: '1px solid #2a2d35',
+        border: `1px solid ${B.border}`,
         padding: '20px',
         marginBottom: '24px',
       }}
@@ -141,10 +142,10 @@ export default function TeamPanel({ clientId, currentUserId, isAdmin }: TeamPane
         <div>
           <h3
             style={{
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: B.fontMono,
               fontSize: '13px',
               fontWeight: 600,
-              color: '#c8e64a',
+              color: B.primary,
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
               margin: 0,
@@ -152,7 +153,7 @@ export default function TeamPanel({ clientId, currentUserId, isAdmin }: TeamPane
           >
             {t('clients.team_title')}
           </h3>
-          <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+          <div style={{ fontSize: '12px', color: B.muted, marginTop: '4px' }}>
             {t('clients.team_subtitle')}
           </div>
         </div>
@@ -162,14 +163,14 @@ export default function TeamPanel({ clientId, currentUserId, isAdmin }: TeamPane
             onClick={() => setAdding(true)}
             style={{
               padding: '8px 14px',
-              background: '#c8e64a',
-              color: '#111318',
+              background: B.primary,
+              color: B.bg,
               border: 'none',
               borderRadius: '6px',
               fontSize: '12px',
               fontWeight: 700,
               cursor: 'pointer',
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: B.fontMono,
             }}
           >
             {t('clients.team_add_member')}
@@ -186,8 +187,8 @@ export default function TeamPanel({ clientId, currentUserId, isAdmin }: TeamPane
             gap: '8px',
             alignItems: 'center',
             padding: '12px',
-            background: '#111318',
-            border: '1px solid #2a2d35',
+            background: B.bg,
+            border: `1px solid ${B.border}`,
             borderRadius: '8px',
             marginBottom: '12px',
           }}
@@ -202,10 +203,10 @@ export default function TeamPanel({ clientId, currentUserId, isAdmin }: TeamPane
             style={{
               flex: 1,
               padding: '8px 12px',
-              background: '#1a1c24',
-              border: '1px solid #2a2d35',
+              background: B.surface,
+              border: `1px solid ${B.border}`,
               borderRadius: '6px',
-              color: '#ffffff',
+              color: B.ink,
               fontSize: '13px',
               fontFamily: 'inherit',
             }}
@@ -216,10 +217,10 @@ export default function TeamPanel({ clientId, currentUserId, isAdmin }: TeamPane
             disabled={submitting}
             style={{
               padding: '8px 12px',
-              background: '#1a1c24',
-              border: '1px solid #2a2d35',
+              background: B.surface,
+              border: `1px solid ${B.border}`,
               borderRadius: '6px',
-              color: '#ffffff',
+              color: B.ink,
               fontSize: '13px',
               fontFamily: 'inherit',
             }}
@@ -235,14 +236,14 @@ export default function TeamPanel({ clientId, currentUserId, isAdmin }: TeamPane
             disabled={submitting || !addEmail.trim()}
             style={{
               padding: '8px 14px',
-              background: submitting ? '#2a2d35' : '#22c55e',
-              color: submitting ? '#6b7280' : '#111318',
+              background: submitting ? B.border : B.success,
+              color: submitting ? B.muted : B.bg,
               border: 'none',
               borderRadius: '6px',
               fontSize: '12px',
               fontWeight: 700,
               cursor: submitting ? 'default' : 'pointer',
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: B.fontMono,
             }}
           >
             {t('clients.team_invite_submit')}
@@ -257,8 +258,8 @@ export default function TeamPanel({ clientId, currentUserId, isAdmin }: TeamPane
             disabled={submitting}
             style={{
               padding: '8px 14px',
-              background: '#2a2d35',
-              color: '#a0a0a0',
+              background: B.border,
+              color: B.muted,
               border: 'none',
               borderRadius: '6px',
               fontSize: '12px',
@@ -275,10 +276,10 @@ export default function TeamPanel({ clientId, currentUserId, isAdmin }: TeamPane
         <div
           style={{
             padding: '8px 12px',
-            background: '#ef444415',
-            border: '1px solid #ef444440',
+            background: `${B.error}15`,
+            border: `1px solid ${B.error}40`,
             borderRadius: '6px',
-            color: '#ef4444',
+            color: B.error,
             fontSize: '12px',
             marginBottom: '12px',
           }}
@@ -289,9 +290,9 @@ export default function TeamPanel({ clientId, currentUserId, isAdmin }: TeamPane
 
       {/* Members list */}
       {loading ? (
-        <div style={{ color: '#6b7280', fontSize: '13px' }}>{t('clients.team_loading')}</div>
+        <div style={{ color: B.muted, fontSize: '13px' }}>{t('clients.team_loading')}</div>
       ) : members && members.length === 0 ? (
-        <div style={{ color: '#6b7280', fontSize: '13px' }}>{t('clients.team_empty')}</div>
+        <div style={{ color: B.muted, fontSize: '13px' }}>{t('clients.team_empty')}</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {members?.map(m => {
@@ -308,7 +309,7 @@ export default function TeamPanel({ clientId, currentUserId, isAdmin }: TeamPane
                   alignItems: 'center',
                   gap: '12px',
                   padding: '10px 14px',
-                  background: '#111318',
+                  background: B.bg,
                   borderRadius: '8px',
                 }}
               >
@@ -325,7 +326,7 @@ export default function TeamPanel({ clientId, currentUserId, isAdmin }: TeamPane
                     justifyContent: 'center',
                     fontSize: '14px',
                     fontWeight: 700,
-                    fontFamily: "'JetBrains Mono', monospace",
+                    fontFamily: B.fontMono,
                     flexShrink: 0,
                   }}
                 >
@@ -337,7 +338,7 @@ export default function TeamPanel({ clientId, currentUserId, isAdmin }: TeamPane
                     style={{
                       fontSize: '13px',
                       fontWeight: 600,
-                      color: '#ffffff',
+                      color: B.ink,
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -345,7 +346,7 @@ export default function TeamPanel({ clientId, currentUserId, isAdmin }: TeamPane
                   >
                     {displayName}
                     {isMe && (
-                      <span style={{ marginLeft: '6px', color: '#6b7280', fontWeight: 400 }}>
+                      <span style={{ marginLeft: '6px', color: B.muted, fontWeight: 400 }}>
                         {t('clients.team_you_label')}
                       </span>
                     )}
@@ -354,7 +355,7 @@ export default function TeamPanel({ clientId, currentUserId, isAdmin }: TeamPane
                     <div
                       style={{
                         fontSize: '11px',
-                        color: '#6b7280',
+                        color: B.muted,
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -378,7 +379,7 @@ export default function TeamPanel({ clientId, currentUserId, isAdmin }: TeamPane
                       fontSize: '11px',
                       fontWeight: 700,
                       textTransform: 'uppercase',
-                      fontFamily: "'JetBrains Mono', monospace",
+                      fontFamily: B.fontMono,
                       cursor: 'pointer',
                     }}
                   >
@@ -398,7 +399,7 @@ export default function TeamPanel({ clientId, currentUserId, isAdmin }: TeamPane
                       fontSize: '11px',
                       fontWeight: 700,
                       textTransform: 'uppercase',
-                      fontFamily: "'JetBrains Mono', monospace",
+                      fontFamily: B.fontMono,
                     }}
                   >
                     {t(`clients.team_role_${m.role}` as 'clients.team_role_owner')}
@@ -413,8 +414,8 @@ export default function TeamPanel({ clientId, currentUserId, isAdmin }: TeamPane
                     style={{
                       padding: '4px 8px',
                       background: 'transparent',
-                      color: '#6b7280',
-                      border: '1px solid #2a2d35',
+                      color: B.muted,
+                      border: `1px solid ${B.border}`,
                       borderRadius: '4px',
                       fontSize: '12px',
                       cursor: 'pointer',
@@ -430,7 +431,7 @@ export default function TeamPanel({ clientId, currentUserId, isAdmin }: TeamPane
       )}
 
       {!canManage && !loading && (
-        <div style={{ marginTop: '12px', fontSize: '11px', color: '#6b7280', fontStyle: 'italic' }}>
+        <div style={{ marginTop: '12px', fontSize: '11px', color: B.muted, fontStyle: 'italic' }}>
           {t('clients.team_only_owner_can_manage')}
         </div>
       )}

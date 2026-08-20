@@ -23,21 +23,22 @@ import {
   rankSitemapUrls,
   type SitemapUrlEntry,
 } from '@/lib/v4/url-autocomplete'
+import { B } from '@/lib/brand'
 
-// Same palette as SetupWizard (dark, #2a2d35 borders, lime highlight).
+// Same palette as SetupWizard (JAKALA light tokens from lib/brand.ts).
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '10px 14px',
-  background: '#111318',
-  border: '1px solid #2a2d35',
+  background: B.bg,
+  border: `1px solid ${B.border}`,
   borderRadius: '8px',
-  color: '#ffffff',
+  color: B.ink,
   fontSize: '14px',
   outline: 'none',
   fontFamily: 'inherit',
 }
 
-const invalidInputStyle: React.CSSProperties = { ...inputStyle, border: '1px solid #ef4444' }
+const invalidInputStyle: React.CSSProperties = { ...inputStyle, border: `1px solid ${B.error}` }
 
 const dropdownStyle: React.CSSProperties = {
   position: 'absolute',
@@ -45,8 +46,8 @@ const dropdownStyle: React.CSSProperties = {
   left: 0,
   right: 0,
   zIndex: 30,
-  background: '#111318',
-  border: '1px solid #2a2d35',
+  background: B.bg,
+  border: `1px solid ${B.border}`,
   borderRadius: '8px',
   boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)',
   maxHeight: '260px',
@@ -61,7 +62,7 @@ const optionStyle: React.CSSProperties = {
   padding: '8px 12px',
   background: 'transparent',
   border: 'none',
-  color: '#e5e7eb',
+  color: B.ink,
   fontSize: '13px',
   textAlign: 'left',
   cursor: 'pointer',
@@ -71,7 +72,7 @@ const optionStyle: React.CSSProperties = {
 const statusStyle: React.CSSProperties = {
   padding: '8px 12px',
   fontSize: '12px',
-  color: '#6b7280',
+  color: B.muted,
 }
 
 /** Bold-lime the typed substring inside a suggestion. */
@@ -83,7 +84,7 @@ function highlightMatch(url: string, query: string): React.ReactNode {
   return (
     <>
       {url.slice(0, i)}
-      <span style={{ color: '#c8e64a', fontWeight: 700 }}>{url.slice(i, i + q.length)}</span>
+      <span style={{ color: B.primary, fontWeight: 700 }}>{url.slice(i, i + q.length)}</span>
       {url.slice(i + q.length)}
     </>
   )
@@ -246,7 +247,7 @@ export default function UrlAutocompleteInput({
                 onMouseEnter={() => setActive(i)}
                 style={{
                   ...optionStyle,
-                  background: i === active ? '#c8e64a15' : 'transparent',
+                  background: i === active ? B.primarySoft : 'transparent',
                 }}
               >
                 <span
@@ -264,8 +265,8 @@ export default function UrlAutocompleteInput({
                 <span
                   style={{
                     fontSize: '11px',
-                    color: '#6b7280',
-                    fontFamily: "'JetBrains Mono', monospace",
+                    color: B.muted,
+                    fontFamily: B.fontMono,
                     flexShrink: 0,
                   }}
                 >

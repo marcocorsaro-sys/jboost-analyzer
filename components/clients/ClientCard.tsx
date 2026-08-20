@@ -6,6 +6,7 @@ import { getScoreBand } from '@/lib/constants'
 import type { ClientLifecycleStage } from '@/lib/types/client'
 import { useLocale, formatLocalDate } from '@/lib/i18n'
 import type { TranslationKey } from '@/lib/i18n'
+import { B } from '@/lib/brand'
 
 interface ClientCardProps {
   id: string
@@ -21,10 +22,10 @@ interface ClientCardProps {
 }
 
 const BAND_COLORS: Record<string, string> = {
-  green: '#22c55e',
-  teal: '#14b8a6',
-  amber: '#f59e0b',
-  red: '#ef4444',
+  green: B.success,
+  teal: B.teal,
+  amber: B.warning,
+  red: B.error,
 }
 
 // Stage badge styling — kept consistent with Tailwind tokens used elsewhere.
@@ -49,7 +50,7 @@ export default function ClientCard({
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const band = latest_score !== null ? getScoreBand(latest_score) : null
-  const color = band ? BAND_COLORS[band.color] ?? '#6b7280' : '#6b7280'
+  const color = band ? BAND_COLORS[band.color] ?? B.muted : B.muted
 
   const stage: ClientLifecycleStage = lifecycle_stage ?? 'active'
   const stageClass = STAGE_STYLES[stage]
@@ -118,7 +119,7 @@ export default function ClientCard({
           <div className="flex items-start justify-between gap-3 mb-3 pr-20">
             <div className="min-w-0 flex-1">
               <h3
-                className="font-semibold text-white text-[15px] truncate group-hover:text-[var(--lime)] transition-colors font-mono"
+                className="font-semibold text-foreground text-[15px] truncate group-hover:text-[var(--lime)] transition-colors font-mono"
               >
                 {name}
               </h3>

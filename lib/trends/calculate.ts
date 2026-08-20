@@ -1,3 +1,5 @@
+import { B } from '@/lib/brand'
+
 export interface TrendPoint {
   date: string          // ISO date
   overall_score: number | null
@@ -47,9 +49,9 @@ export function getTrendArrow(direction: TrendDelta['direction']): string {
  */
 export function getTrendColor(direction: TrendDelta['direction']): string {
   switch (direction) {
-    case 'up': return '#22c55e'
-    case 'down': return '#ef4444'
-    case 'stable': return '#6b7280'
-    default: return '#6b7280'
+    case 'up': return B.success
+    case 'down': return B.error
+    case 'stable': return B.muted
+    default: return B.muted
   }
 }

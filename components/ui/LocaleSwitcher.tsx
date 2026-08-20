@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useLocale, LOCALE_LABELS, type Locale } from '@/lib/i18n'
+import { B } from '@/lib/brand'
 
 const LOCALES: Locale[] = ['en', 'it', 'es', 'fr']
 
@@ -33,7 +34,7 @@ export default function LocaleSwitcher() {
           color: 'var(--gray)',
           fontSize: '11px',
           fontWeight: 600,
-          fontFamily: "'JetBrains Mono', monospace",
+          fontFamily: B.fontMono,
           cursor: 'pointer',
           textTransform: 'uppercase',
           letterSpacing: '0.5px',
@@ -58,8 +59,8 @@ export default function LocaleSwitcher() {
             top: '100%',
             right: 0,
             marginTop: '6px',
-            background: '#1a1c24',
-            border: '1px solid #2a2d35',
+            background: B.surface,
+            border: `1px solid ${B.border}`,
             borderRadius: '8px',
             overflow: 'hidden',
             zIndex: 50,
@@ -82,15 +83,15 @@ export default function LocaleSwitcher() {
                 padding: '8px 12px',
                 textAlign: 'left',
                 fontSize: '12px',
-                color: l === locale ? '#c8e64a' : '#a0a0a0',
-                background: l === locale ? 'rgba(200, 230, 74, 0.08)' : 'transparent',
+                color: l === locale ? B.primary : B.muted,
+                background: l === locale ? B.primarySoft : 'transparent',
                 border: 'none',
                 cursor: 'pointer',
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: B.fontMono,
                 transition: 'background 0.15s',
               }}
               onMouseEnter={e => {
-                if (l !== locale) e.currentTarget.style.background = '#2a2d35'
+                if (l !== locale) e.currentTarget.style.background = B.border
               }}
               onMouseLeave={e => {
                 if (l !== locale) e.currentTarget.style.background = 'transparent'

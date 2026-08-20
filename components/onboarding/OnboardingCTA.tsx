@@ -12,6 +12,7 @@ import Link from 'next/link'
 import { useCallback } from 'react'
 import { useLocale } from '@/lib/i18n'
 import type { TranslationKey } from '@/lib/i18n'
+import { B } from '@/lib/brand'
 
 interface OnboardingCTAProps {
   clientId: string
@@ -36,8 +37,8 @@ export default function OnboardingCTA({
 
   return (
     <div style={{
-      background: 'linear-gradient(135deg, #0f1115 0%, #1a1d25 100%)',
-      border: '1px solid #c8e64a60',
+      background: `linear-gradient(135deg, ${B.surface2} 0%, ${B.surface} 100%)`,
+      border: `1px solid ${B.primary}60`,
       borderRadius: '12px',
       padding: '24px',
       marginBottom: '24px',
@@ -49,14 +50,14 @@ export default function OnboardingCTA({
         width: '56px',
         height: '56px',
         borderRadius: '12px',
-        background: '#c8e64a',
-        color: '#111318',
+        background: B.primary,
+        color: B.bg,
         fontSize: '24px',
         fontWeight: 800,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        fontFamily: "'JetBrains Mono', monospace",
+        fontFamily: B.fontMono,
         flexShrink: 0,
       }}>
         1.
@@ -65,8 +66,8 @@ export default function OnboardingCTA({
       <div style={{ flex: 1 }}>
         <div style={{
           fontSize: '11px',
-          color: '#c8e64a',
-          fontFamily: "'JetBrains Mono', monospace",
+          color: B.primary,
+          fontFamily: B.fontMono,
           textTransform: 'uppercase',
           letterSpacing: '0.5px',
           marginBottom: '4px',
@@ -76,25 +77,25 @@ export default function OnboardingCTA({
         <div style={{
           fontSize: '18px',
           fontWeight: 700,
-          color: '#ffffff',
+          color: B.ink,
           marginBottom: '6px',
         }}>
           {isResume ? tr('onboarding.cta.resume_title') : tr('onboarding.cta.start_title')}
         </div>
-        <div style={{ fontSize: '13px', color: '#8a8e97', lineHeight: 1.6 }}>
+        <div style={{ fontSize: '13px', color: B.muted, lineHeight: 1.6 }}>
           {tr('onboarding.cta.description')}
         </div>
 
         {isResume && (
           <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ flex: 1, height: '4px', background: '#1a1d25', borderRadius: '2px', overflow: 'hidden' }}>
+            <div style={{ flex: 1, height: '4px', background: B.surface, borderRadius: '2px', overflow: 'hidden' }}>
               <div style={{
                 width: `${pct}%`,
                 height: '100%',
-                background: '#c8e64a',
+                background: B.primary,
               }} />
             </div>
-            <span style={{ fontSize: '11px', color: '#c8e64a', fontFamily: "'JetBrains Mono', monospace" }}>
+            <span style={{ fontSize: '11px', color: B.primary, fontFamily: B.fontMono }}>
               {completedSections}/{totalSections}
             </span>
           </div>
@@ -105,14 +106,14 @@ export default function OnboardingCTA({
         href={`/clients/${clientId}/onboarding`}
         style={{
           padding: '12px 24px',
-          background: '#c8e64a',
-          color: '#111318',
+          background: B.primary,
+          color: B.bg,
           border: 'none',
           borderRadius: '8px',
           fontSize: '13px',
           fontWeight: 700,
           textDecoration: 'none',
-          fontFamily: "'JetBrains Mono', monospace",
+          fontFamily: B.fontMono,
           textTransform: 'uppercase',
           letterSpacing: '0.5px',
           flexShrink: 0,

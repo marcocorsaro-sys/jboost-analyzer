@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { useCompletion } from 'ai/react'
 import MarkdownRenderer from '@/components/shared/MarkdownRenderer'
+import { B } from '@/lib/brand'
 
 interface PersistedSummary {
   id: string
@@ -76,19 +77,19 @@ export default function ClientExecutiveSummaryPage() {
       }}>
         <div>
           <h3 style={{
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
             fontSize: '16px',
             fontWeight: 700,
-            color: '#ffffff',
+            color: B.ink,
             marginBottom: '4px',
           }}>
             Executive Summary
           </h3>
-          <p style={{ fontSize: '13px', color: '#6b7280' }}>
+          <p style={{ fontSize: '13px', color: B.muted }}>
             {persisted
               ? <>
                   Generato il{' '}
-                  <span style={{ color: '#c8e64a' }}>
+                  <span style={{ color: B.primary }}>
                     {new Date(persisted.generated_at).toLocaleDateString('it-IT', {
                       day: '2-digit', month: 'long', year: 'numeric',
                     })}
@@ -98,7 +99,7 @@ export default function ClientExecutiveSummaryPage() {
                     hour: '2-digit', minute: '2-digit',
                   })}
                   {' — '}
-                  <span style={{ color: '#4b5563' }}>{persisted.model}</span>
+                  <span style={{ color: B.muted }}>{persisted.model}</span>
                 </>
               : 'Genera un Executive Summary basato sull\'ultima analisi del cliente'
             }
@@ -109,13 +110,13 @@ export default function ClientExecutiveSummaryPage() {
           disabled={isGenerating || hasNoAnalysis}
           style={{
             padding: '8px 16px',
-            background: isGenerating || hasNoAnalysis ? '#2a2d35' : '#c8e64a',
-            color: isGenerating || hasNoAnalysis ? '#6b7280' : '#111318',
+            background: isGenerating || hasNoAnalysis ? B.border : B.primary,
+            color: isGenerating || hasNoAnalysis ? B.muted : B.bg,
             borderRadius: '8px',
             border: 'none',
             fontSize: '13px',
             fontWeight: 700,
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
             cursor: isGenerating || hasNoAnalysis ? 'not-allowed' : 'pointer',
             transition: 'all 0.2s',
             whiteSpace: 'nowrap',
@@ -133,22 +134,22 @@ export default function ClientExecutiveSummaryPage() {
       {/* Generating indicator */}
       {isGenerating && !completion && (
         <div style={{
-          background: '#1a1c24',
+          background: B.surface,
           borderRadius: '12px',
-          border: '1px solid #2a2d35',
+          border: `1px solid ${B.border}`,
           padding: '40px',
           textAlign: 'center',
           marginBottom: '20px',
         }}>
           <div style={{
             fontSize: '14px',
-            color: '#c8e64a',
-            fontFamily: "'JetBrains Mono', monospace",
+            color: B.primary,
+            fontFamily: B.fontMono,
             marginBottom: '8px',
           }}>
             Generazione Executive Summary in corso...
           </div>
-          <p style={{ fontSize: '12px', color: '#6b7280', maxWidth: '500px', margin: '0 auto' }}>
+          <p style={{ fontSize: '12px', color: B.muted, maxWidth: '500px', margin: '0 auto' }}>
             Analisi di tutti i driver, benchmark competitivo, stack tecnologico e raccomandazioni prioritarie
           </p>
         </div>
@@ -161,7 +162,7 @@ export default function ClientExecutiveSummaryPage() {
           background: 'rgba(239, 68, 68, 0.08)',
           border: '1px solid rgba(239, 68, 68, 0.2)',
           borderRadius: '8px',
-          color: '#ef4444',
+          color: B.error,
           fontSize: '13px',
           marginBottom: '20px',
         }}>
@@ -171,14 +172,14 @@ export default function ClientExecutiveSummaryPage() {
 
       {/* Content */}
       {loading && !isGenerating ? (
-        <div style={{ color: '#6b7280', textAlign: 'center', padding: '60px 0' }}>
+        <div style={{ color: B.muted, textAlign: 'center', padding: '60px 0' }}>
           Caricamento...
         </div>
       ) : displayContent ? (
         <div style={{
-          background: '#1a1c24',
+          background: B.surface,
           borderRadius: '12px',
-          border: '1px solid #2a2d35',
+          border: `1px solid ${B.border}`,
           padding: '28px 32px',
         }}>
           <MarkdownRenderer content={displayContent} />
@@ -186,25 +187,25 @@ export default function ClientExecutiveSummaryPage() {
       ) : !isGenerating && !hasNoAnalysis ? (
         /* Empty state */
         <div style={{
-          background: '#1a1c24',
+          background: B.surface,
           borderRadius: '12px',
-          border: '1px solid #2a2d35',
+          border: `1px solid ${B.border}`,
           padding: '48px',
           textAlign: 'center',
         }}>
           <div style={{ fontSize: '48px', marginBottom: '16px' }}>◆</div>
           <h4 style={{
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
             fontSize: '16px',
             fontWeight: 600,
-            color: '#c8e64a',
+            color: B.primary,
             marginBottom: '8px',
           }}>
             Nessun Executive Summary
           </h4>
           <p style={{
             fontSize: '13px',
-            color: '#6b7280',
+            color: B.muted,
             maxWidth: '500px',
             margin: '0 auto 20px',
           }}>
@@ -215,13 +216,13 @@ export default function ClientExecutiveSummaryPage() {
             disabled={isGenerating}
             style={{
               padding: '10px 20px',
-              background: '#c8e64a',
-              color: '#111318',
+              background: B.primary,
+              color: B.bg,
               borderRadius: '8px',
               border: 'none',
               fontSize: '13px',
               fontWeight: 700,
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: B.fontMono,
               cursor: 'pointer',
             }}
           >
@@ -231,25 +232,25 @@ export default function ClientExecutiveSummaryPage() {
       ) : hasNoAnalysis ? (
         /* No analysis state */
         <div style={{
-          background: '#1a1c24',
+          background: B.surface,
           borderRadius: '12px',
-          border: '1px solid #2a2d35',
+          border: `1px solid ${B.border}`,
           padding: '48px',
           textAlign: 'center',
         }}>
           <div style={{ fontSize: '48px', marginBottom: '16px' }}>◎</div>
           <h4 style={{
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: B.fontMono,
             fontSize: '16px',
             fontWeight: 600,
-            color: '#f59e0b',
+            color: B.warning,
             marginBottom: '8px',
           }}>
             Nessuna Analisi Disponibile
           </h4>
           <p style={{
             fontSize: '13px',
-            color: '#6b7280',
+            color: B.muted,
             maxWidth: '500px',
             margin: '0 auto',
           }}>

@@ -2,6 +2,7 @@ import { getUser, getClientById } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import ClientTabs from '@/components/clients/ClientTabs'
+import { B } from '@/lib/brand'
 
 export default async function ClientDetailLayout({
   children,
@@ -20,12 +21,12 @@ export default async function ClientDetailLayout({
     <div>
       {/* Breadcrumb + Client header */}
       <div style={{ marginBottom: '20px' }}>
-        <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px' }}>
-          <Link href="/clients" style={{ color: '#6b7280', textDecoration: 'none' }}>
+        <div style={{ fontSize: '12px', color: B.muted, marginBottom: '8px' }}>
+          <Link href="/clients" style={{ color: B.muted, textDecoration: 'none' }}>
             Clienti
           </Link>
           <span style={{ margin: '0 8px' }}>/</span>
-          <span style={{ color: '#a0a0a0' }}>{client.name}</span>
+          <span style={{ color: B.muted }}>{client.name}</span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -34,14 +35,14 @@ export default async function ClientDetailLayout({
             width: 48,
             height: 48,
             borderRadius: '12px',
-            background: '#c8e64a15',
+            background: B.primarySoft,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             fontSize: '20px',
             fontWeight: 700,
-            color: '#c8e64a',
-            fontFamily: "'JetBrains Mono', monospace",
+            color: B.primary,
+            fontFamily: B.fontMono,
             flexShrink: 0,
           }}>
             {client.name.charAt(0).toUpperCase()}
@@ -49,14 +50,14 @@ export default async function ClientDetailLayout({
 
           <div style={{ flex: 1 }}>
             <h1 style={{
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: B.fontMono,
               fontSize: '22px',
               fontWeight: 700,
-              color: '#ffffff',
+              color: B.ink,
             }}>
               {client.name}
             </h1>
-            <div style={{ display: 'flex', gap: '12px', fontSize: '13px', color: '#6b7280', marginTop: '2px' }}>
+            <div style={{ display: 'flex', gap: '12px', fontSize: '13px', color: B.muted, marginTop: '2px' }}>
               {client.domain && <span>{client.domain}</span>}
               {client.industry && (
                 <>
@@ -67,7 +68,7 @@ export default async function ClientDetailLayout({
               {client.status === 'archived' && (
                 <>
                   <span>•</span>
-                  <span style={{ color: '#f59e0b' }}>Archiviato</span>
+                  <span style={{ color: B.warning }}>Archiviato</span>
                 </>
               )}
             </div>
