@@ -4,6 +4,7 @@ import Shell from "@/components/Shell";
 import { useOrg } from "@/lib/useOrg";
 import { supabase } from "@/lib/supabase";
 import { eur, num, staffAvailabilitySplit, buildOccupancy, occupiedMinutesFor, occupancyAlert, Occupancy } from "@/lib/gps";
+import { loadSchedule } from "@/lib/schedule";
 
 type Staff = { id: string; display_name: string; color: string | null; is_productive: boolean; active: boolean; operator_code: string | null; monthly_cost: number | null; monthly_target: number; user_id: string | null };
 const ROLES = ["operatore", "reception", "manager", "titolare"];
@@ -52,9 +53,10 @@ export default function Team() {
       const { data: cat } = await supabase.from("catalog_items").select("id,duration_min").eq("organization_id", ctx.orgId);
       const durByItem = Object.fromEntries((cat ?? []).map((c: any) => [c.id, Number(c.duration_min) || 0]));
       const o: Record<string, Occupancy> = {};
+      const schedule = await loadSchedule(ctx.orgId!);
       for (const row of (ps ?? []) as any[]) {
         if (!row.include_capacity) continue;
-        const split = staffAvailabilitySplit(row, plan.month);
+        const split = schedule.configured ? schedule.staffMonth(row.staff_id, plan.month) : staffAvailabilitySplit(row, plan.month);
         if (split.total <= 0) continue;
         const occupied = occupiedMinutesFor(row.staff_id, (sg ?? []) as any, (txi ?? []) as any, durByItem);
         o[row.staff_id] = buildOccupancy(split, occupied);

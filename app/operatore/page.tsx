@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { eur, num, SEGMENT_LABEL, staffAvailabilitySplit, buildOccupancy, occupiedMinutesFor, Occupancy } from "@/lib/gps";
 import { normKey } from "@/lib/importer";
 import { startAutoSync } from "@/lib/autosync";
+import { loadSchedule } from "@/lib/schedule";
 
 type Staff = { id: string; display_name: string; color: string | null; operator_code: string | null; monthly_target: number; active: boolean };
 type Appt = { id: string; starts_at: string; client_name: string | null; staff_id: string | null; current_staff_id: string | null; service_name: string | null; status: string };
@@ -116,7 +117,8 @@ export default function Operatore() {
     if (plan) {
       const { data: ps } = await supabase.from("plan_staff").select("*").eq("plan_id", plan.id).eq("staff_id", me.id).maybeSingle();
       if (ps) {
-        const split = staffAvailabilitySplit(ps as any, plan.month);
+        const schedule = await loadSchedule(ctx.orgId!);
+        const split = schedule.configured ? schedule.staffMonth(me.id, plan.month) : staffAvailabilitySplit(ps as any, plan.month);
         const { data: sg } = await supabase.from("visit_segments").select("staff_id,status,started_at,ended_at,active_minutes")
           .eq("organization_id", ctx.orgId).eq("staff_id", me.id).gte("started_at", month + "-01T00:00:00");
         const { data: txi } = await supabase.from("transactions").select("staff_id,catalog_item_id,kind")

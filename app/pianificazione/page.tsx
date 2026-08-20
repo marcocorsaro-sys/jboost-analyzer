@@ -4,6 +4,8 @@ import Shell from "@/components/Shell";
 import { useOrg } from "@/lib/useOrg";
 import { supabase } from "@/lib/supabase";
 import { planCapacity, eur, num, Plan, PlanStaff } from "@/lib/gps";
+import { loadSchedule, Schedule } from "@/lib/schedule";
+import OrariModule from "@/components/OrariModule";
 
 const DAYS: { k: keyof PlanStaff; l: string }[] = [
   { k: "hours_mon", l: "LUN" }, { k: "hours_tue", l: "MAR" }, { k: "hours_wed", l: "MER" },
@@ -18,6 +20,8 @@ export default function Pianificazione() {
   const [saved, setSaved] = useState<string | null>(null);
   const [costs, setCosts] = useState<any[]>([]);
   const [costDraft, setCostDraft] = useState({ name: "", amount: 0, cost_type: "fisso" });
+  const [sched, setSched] = useState<Schedule | null>(null);
+  const [staffList, setStaffList] = useState<{ id: string; display_name: string }[]>([]);
 
   useEffect(() => {
     if (!ctx.orgId) return;
@@ -30,12 +34,39 @@ export default function Pianificazione() {
       setRows((ps ?? []) as any);
       const { data: st } = await supabase.from("staff_members").select("id,display_name").eq("organization_id", ctx.orgId);
       setStaffNames(Object.fromEntries((st ?? []).map((s: any) => [s.id, s.display_name])));
+      setStaffList((st ?? []) as any);
+      setSched(await loadSchedule(ctx.orgId!));
       const { data: pc } = await supabase.from("plan_costs").select("*").eq("plan_id", p.id).order("created_at");
       setCosts(pc ?? []);
     })();
   }, [ctx.orgId]);
 
-  const cap = useMemo(() => (plan ? planCapacity(plan, rows) : null), [plan, rows]);
+  // Capacità: se il modulo Orari è configurato è LUI la fonte dei minuti (spec Dimitar);
+  // altrimenti si usa la vecchia griglia ore/giorno come fallback.
+  const cap = useMemo(() => {
+    if (!plan) return null;
+    if (sched?.configured) {
+      const coeff = Number(plan.productive_coefficient) || 1;
+      let raw = 0, weighted = 0;
+      for (const r of rows.filter(x => x.include_capacity)) {
+        const t = sched.staffMonth(r.staff_id, plan.month).total;
+        raw += t;
+        weighted += t * ((Number((r as any).capacity_pct ?? 100)) / 100);
+      }
+      const productiveMinutes = Math.round(weighted * coeff);
+      const cam = productiveMinutes > 0 ? Number(plan.monthly_total) / productiveMinutes : 0;
+      // giorni di apertura dal calendario del salone
+      const d = new Date(plan.month + "T00:00:00");
+      const days = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      let openDays = 0;
+      for (let i = 1; i <= days; i++) {
+        const iso = plan.month.slice(0, 8) + String(i).padStart(2, "0");
+        if (sched.salonDay(iso).length > 0) openDays++;
+      }
+      return { rawMinutes: Math.round(raw), productiveMinutes, cam, openDays, dailyAvg: openDays > 0 ? Number(plan.monthly_total) / openDays : 0, hourlyValue: cam * 60 };
+    }
+    return planCapacity(plan, rows);
+  }, [plan, rows, sched]);
 
   // Struttura costi (§12-13): personale automatico dalle righe piano, MAI in doppio conteggio
   const staffCost = rows.filter(r => r.include_cost).reduce((a, r) => a + Number(r.monthly_cost || 0), 0);
@@ -153,8 +184,10 @@ export default function Pianificazione() {
             </div>
           </div>
 
+          <OrariModule ctx={ctx} staff={staffList} />
+
           <div className="section">
-            <div className="section-title"><h2>Personale — capacità produttiva</h2><span className="sub">ore per giorno della settimana</span></div>
+            <div className="section-title"><h2>Personale — capacità produttiva</h2><span className="sub">{sched?.configured ? "i minuti arrivano dal modulo Orari qui sopra — la griglia ore/giorno resta solo come riferimento" : "ore per giorno della settimana (finché non configuri il modulo Orari)"}</span></div>
             {rows.map((r, i) => (
               <div className="card" key={r.id} style={{ marginBottom: 12 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
@@ -165,7 +198,7 @@ export default function Pianificazione() {
                     <label><input type="checkbox" checked={r.include_cost} onChange={e => setRows(rows.map((x, j) => j === i ? { ...x, include_cost: e.target.checked } : x))} /> costi</label>
                     <span>Partecipazione capacità <input type="number" min={0} max={100} value={(r as any).capacity_pct ?? 100} style={{ width: 62, padding: "5px 6px", textAlign: "right" }} onChange={e => setRows(rows.map((x, j) => j === i ? { ...x, capacity_pct: Number(e.target.value) } as any : x))} />%</span>
                     <span title="Occupazione Target individuale — l'OR reale la calcola GPS">OT <input type="number" min={0} max={100} value={(r as any).occupancy_target_pct ?? 75} style={{ width: 58, padding: "5px 6px", textAlign: "right" }} onChange={e => setRows(rows.map((x, j) => j === i ? { ...x, occupancy_target_pct: Number(e.target.value) } as any : x))} />%</span>
-                    <b>{num(Math.round((plan ? planCapacity(plan, [r]).productiveMinutes : 0)))} min prod./mese</b>
+                    <b>{num(Math.round(plan ? (sched?.configured ? sched.staffMonth(r.staff_id, plan.month).total * ((Number((r as any).capacity_pct ?? 100)) / 100) : planCapacity(plan, [r]).productiveMinutes) : 0))} min prod./mese</b>
                   </span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8, marginTop: 12 }}>

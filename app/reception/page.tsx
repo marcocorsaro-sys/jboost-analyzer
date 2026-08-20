@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { planCapacity, staffMonthlyMinutes, weekdayCounts, eur, num, Plan, PlanStaff, staffAvailabilitySplit, occupiedMinutesFor } from "@/lib/gps";
 import { normKey } from "@/lib/importer";
 import { startAutoSync } from "@/lib/autosync";
+import { loadSchedule, Schedule, freezePastDays } from "@/lib/schedule";
 
 type Appt = { id: string; starts_at: string; client_name: string | null; staff_id: string | null; service_name: string | null; status: string; services_done: any[] | null; tech_notes: string | null; personal_notes: string | null; suggested_products: string | null; rebook_note: string | null; booked_value?: number | null; commercial?: any; rebook_days?: number | null; rebook_status?: string | null; rebook_contact_by?: string | null };
 type Seg = { id: string; appointment_id: string; staff_id: string; status: string };
@@ -25,6 +26,7 @@ export default function Reception() {
   const [orData, setOrData] = useState<{ perStaff: Record<string, { or: number | null; ot: number }>; salonOr: number | null; totalWeighted: number } | null>(null);
   const [walkin, setWalkin] = useState(false);
   const [followups, setFollowups] = useState<any[]>([]);
+  const [sched, setSched] = useState<Schedule | null>(null);
   const today = new Date().toISOString().slice(0, 10);
   const month = today.slice(0, 7);
 
@@ -41,6 +43,10 @@ export default function Reception() {
       }
       const { data: st } = await supabase.from("staff_members").select("*").eq("organization_id", ctx.orgId).eq("active", true);
       setStaff(st ?? []);
+      // Modulo Orari: fonte unica di capacità disponibile/trascorsa; congela la fotografia dei giorni conclusi
+      const schedule = await loadSchedule(ctx.orgId!);
+      setSched(schedule);
+      freezePastDays(ctx.orgId!, schedule, (st ?? []).map((s: any) => s.id)).catch(() => {});
       const { data: ap } = await supabase.from("appointments").select("id,starts_at,client_name,staff_id,service_name,status,services_done,tech_notes,personal_notes,suggested_products,rebook_note,booked_value,commercial,rebook_days,rebook_status,rebook_contact_by")
         .eq("organization_id", ctx.orgId).gte("starts_at", today + "T00:00:00").lte("starts_at", today + "T23:59:59").order("starts_at");
       setAppts((ap ?? []) as any);
@@ -66,7 +72,8 @@ export default function Reception() {
         let occTot = 0, elapsedTot = 0, totalWeighted = 0;
         for (const row of (psRows ?? []) as any[]) {
           if (!row.include_capacity) continue;
-          const split = staffAvailabilitySplit(row, p.month);
+          // fonte capacità: modulo Orari se configurato (fasce reali, snapshot per i giorni chiusi), altrimenti griglia ore
+          const split = schedule.configured ? schedule.staffMonth(row.staff_id, p.month) : staffAvailabilitySplit(row, p.month);
           const w = (Number(row.capacity_pct ?? 100)) / 100;
           totalWeighted += split.total * w;
           if (split.total <= 0) continue;
@@ -121,7 +128,15 @@ export default function Reception() {
 
   const K = useMemo(() => {
     if (!plan) return null;
-    const cap = planCapacity(plan, planStaff);
+    let cap = planCapacity(plan, planStaff);
+    if (sched?.configured) {
+      // CAM allineato al modulo Orari (stessa fonte della Pianificazione)
+      const coeff = Number(plan.productive_coefficient) || 1;
+      const weighted = planStaff.filter(s => s.include_capacity)
+        .reduce((a, s) => a + sched.staffMonth(s.staff_id, plan.month).total * ((Number((s as any).capacity_pct ?? 100)) / 100), 0);
+      const pm = Math.round(weighted * coeff);
+      if (pm > 0) cap = { ...cap, productiveMinutes: pm, cam: Number(plan.monthly_total) / pm, hourlyValue: (Number(plan.monthly_total) / pm) * 60 };
+    }
     // minuti produttivi trascorsi oggi (Blueprint INV-13): per operatore, dall'apertura, max ore di oggi
     const now = new Date();
     const dow = now.getDay();
@@ -130,9 +145,17 @@ export default function Reception() {
     const open = new Date(now); open.setHours(oh || 8, om || 30, 0, 0);
     const elapsedClock = Math.max(0, (now.getTime() - open.getTime()) / 60000);
     let elapsedProductive = 0;
-    for (const s of planStaff.filter(s => s.include_capacity)) {
-      const todayHours = Number(s[DAY_KEYS[dow]]) || 0;
-      elapsedProductive += Math.min(elapsedClock, todayHours * 60);
+    if (sched?.configured) {
+      // spec Dimitar: il costo accumulato dipende dai MINUTI-OPERATORE davvero disponibili
+      // (fasce individuali ∩ apertura salone), non dai minuti dall'apertura del locale
+      for (const s of planStaff.filter(s => s.include_capacity)) {
+        elapsedProductive += sched.staffTodayElapsed(s.staff_id) * ((Number((s as any).capacity_pct ?? 100)) / 100);
+      }
+    } else {
+      for (const s of planStaff.filter(s => s.include_capacity)) {
+        const todayHours = Number(s[DAY_KEYS[dow]]) || 0;
+        elapsedProductive += Math.min(elapsedClock, todayHours * 60);
+      }
     }
     elapsedProductive *= Number(plan.productive_coefficient) || 1;
     const accrued = cap.cam * elapsedProductive;
@@ -150,7 +173,7 @@ export default function Reception() {
       cashNet: txToday.cash - accrued,          // Cassa netta oggi (non è un margine contabile)
       gap: txToday.cash - txToday.worked,
     };
-  }, [plan, planStaff, txToday, opening, orData]);
+  }, [plan, planStaff, txToday, opening, orData, sched]);
 
   const setStatus = async (id: string, status: string) => {
     // il no-show è valido solo su un appuntamento non ancora preso in carico (idempotenza KPI)
