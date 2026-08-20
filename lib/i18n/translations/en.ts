@@ -1034,6 +1034,9 @@ const en = {
   'v4setup.import_from_speed': 'Import from Speed',
   'v4setup.import_from_speed_hint': 'Copy the templates flagged on the Speed driver, to avoid manual repetition.',
   'v4setup.template_url_placeholder': 'https://… (1 example URL for this template)',
+  'v4setup.autocomplete_loading': 'Loading sitemap…',
+  'v4setup.autocomplete_empty': 'No URLs found in the sitemap (enter it manually)',
+  'v4setup.autocomplete_no_match': 'No sitemap URL matches what you typed',
   'v4setup.template_urls_shared': 'The example URLs are shared across Speed, Accessibility, Schema and Content.',
   'v4setup.content_questionnaire_note':
     'The per-template multiple-choice forms are filled in the Content tab of the results screen.',

@@ -1034,6 +1034,9 @@ const it = {
   'v4setup.import_from_speed': 'Importa da Speed',
   'v4setup.import_from_speed_hint': 'Copia i template flaggati sul driver Speed, per non ripetere a mano.',
   'v4setup.template_url_placeholder': 'https://… (1 URL di esempio per questo template)',
+  'v4setup.autocomplete_loading': 'Carico la sitemap…',
+  'v4setup.autocomplete_empty': 'Nessuna URL trovata nella sitemap (inserisci manualmente)',
+  'v4setup.autocomplete_no_match': 'Nessuna URL della sitemap corrisponde a quanto digitato',
   'v4setup.template_urls_shared': 'Le URL di esempio sono condivise tra Speed, Accessibility, Schema e Content.',
   'v4setup.content_questionnaire_note':
     'I form a scelta multipla per template si compilano nella tab Content della schermata risultati.',

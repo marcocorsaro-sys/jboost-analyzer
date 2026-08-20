@@ -20,11 +20,13 @@
  * The browser explains the rules; the server re-validates every one of them.
  */
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useLocale } from '@/lib/i18n'
 import type { TranslationKey } from '@/lib/i18n'
 import { driversInUiOrder } from '@/lib/scoring/registry'
+import UrlAutocompleteInput from '@/components/v4/UrlAutocompleteInput'
+import type { SitemapUrlEntry } from '@/lib/v4/url-autocomplete'
 import {
   ANALYSIS_COUNTRIES,
   CLUSTERS_MAX,
@@ -621,6 +623,29 @@ export default function SetupWizard({
   // Step-3 helpers
   // ---------------------------------------------------------------------
 
+  // Sitemap URLs for the template-URL autocomplete, memoized PER DOMAIN at
+  // wizard level: the promise goes into the cache before the first await, so
+  // 9 template fields focusing on the same site still cost 1 network fetch.
+  // A failed fetch is evicted (a later focus can retry); an empty sitemap is
+  // a valid, cached answer.
+  const sitemapCache = useRef(new Map<string, Promise<SitemapUrlEntry[]>>())
+  const fetchSitemapFor = useCallback((domain: string): Promise<SitemapUrlEntry[]> => {
+    const cached = sitemapCache.current.get(domain)
+    if (cached) return cached
+    const promise = fetch(`/api/v4/analyses/sitemap-urls?domain=${encodeURIComponent(domain)}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`sitemap-urls ${res.status}`)
+        const data = (await res.json()) as { urls?: SitemapUrlEntry[] }
+        return Array.isArray(data.urls) ? data.urls : []
+      })
+      .catch((err: unknown) => {
+        sitemapCache.current.delete(domain)
+        throw err
+      })
+    sitemapCache.current.set(domain, promise)
+    return promise
+  }, [])
+
   const setTemplateUrl = (siteRef: string, key: string, value: string) => {
     setTemplates((prev) => ({ ...prev, [siteRef]: { ...(prev[siteRef] ?? {}), [key]: value } }))
   }
@@ -733,11 +758,14 @@ export default function SetupWizard({
               <div key={key} style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '12px', alignItems: 'center' }}>
                 <span style={{ fontSize: '12px', color: '#a0a0a0' }}>{TEMPLATE_LABELS[key]}</span>
                 <div>
-                  <input
-                    style={urlInvalid(templates.client?.[key] ?? '') ? invalidInputStyle : inputStyle}
+                  <UrlAutocompleteInput
                     value={templates.client?.[key] ?? ''}
-                    onChange={(e) => setTemplateUrl('client', key, e.target.value)}
-                    onBlur={(e) => setTemplateUrl('client', key, normalizeUrlInput(e.target.value))}
+                    invalid={urlInvalid(templates.client?.[key] ?? '')}
+                    onChange={(v) => setTemplateUrl('client', key, v)}
+                    onCommit={(v) => setTemplateUrl('client', key, normalizeUrlInput(v))}
+                    domain={bareDomain(clientDomain)}
+                    templateKey={key}
+                    fetchSitemapFor={fetchSitemapFor}
                     placeholder={
                       key === 'homepage'
                         ? `https://${bareDomain(clientDomain)} (default)`
@@ -1178,11 +1206,14 @@ export default function SetupWizard({
                         >
                           <span style={{ fontSize: '12px', color: '#a0a0a0' }}>{TEMPLATE_LABELS[key]}</span>
                           <div>
-                            <input
-                              style={urlInvalid(templates[site.site_ref]?.[key] ?? '') ? invalidInputStyle : inputStyle}
+                            <UrlAutocompleteInput
                               value={templates[site.site_ref]?.[key] ?? ''}
-                              onChange={(e) => setTemplateUrl(site.site_ref, key, e.target.value)}
-                              onBlur={(e) => setTemplateUrl(site.site_ref, key, normalizeUrlInput(e.target.value))}
+                              invalid={urlInvalid(templates[site.site_ref]?.[key] ?? '')}
+                              onChange={(v) => setTemplateUrl(site.site_ref, key, v)}
+                              onCommit={(v) => setTemplateUrl(site.site_ref, key, normalizeUrlInput(v))}
+                              domain={site.domain}
+                              templateKey={key}
+                              fetchSitemapFor={fetchSitemapFor}
                               placeholder={
                                 key === 'homepage'
                                   ? `https://${site.domain} (default)`
