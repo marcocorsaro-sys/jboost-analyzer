@@ -55,21 +55,24 @@ export default function SalonCheck() {
     setStage("result");
   };
 
-  const G = "#1e5c38", GOLD = "#c9a227", BG = "#f7f4ec";
+  // Identità GPS blu (brief brand): blu #0D47A1, navy #0A1D3D, neutri freddi
+  const G = "#0D47A1", GOLD = "#0A1D3D", BG = "#F2F4F7";
   const box: React.CSSProperties = { maxWidth: 640, margin: "0 auto", padding: "0 18px" };
-  const card: React.CSSProperties = { background: "#fff", border: "1px solid #e3dcc8", borderRadius: 14, padding: 20, boxShadow: "0 2px 10px rgba(30,60,40,.06)" };
+  const card: React.CSSProperties = { background: "#fff", border: "1px solid #dfe4ec", borderRadius: 14, padding: 20, boxShadow: "0 2px 10px rgba(10,29,61,.07)" };
   const btn: React.CSSProperties = { background: G, color: "#fff", border: "none", borderRadius: 10, padding: "14px 22px", fontSize: 16, fontWeight: 700, cursor: "pointer", width: "100%" };
 
   return (
-    <div style={{ minHeight: "100vh", background: BG, fontFamily: "Georgia, 'Times New Roman', serif", color: "#22301f", paddingBottom: 60 }}>
-      <div style={{ background: G, color: "#f3ead0", padding: "14px 18px", textAlign: "center", letterSpacing: ".12em", fontSize: 13, fontWeight: 700 }}>
-        GPS · GROWTH PERFORMANCE SYSTEM
+    <div style={{ minHeight: "100vh", background: BG, fontFamily: "'Montserrat', Verdana, sans-serif", color: "#2B2F36", paddingBottom: 60 }}>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet" />
+      <div style={{ background: "#0A1D3D", color: "#dfe6f2", padding: "14px 18px", textAlign: "center", letterSpacing: ".12em", fontSize: 13, fontWeight: 700 }}>
+        <a href="/sito" style={{ color: "#dfe6f2", textDecoration: "none" }}>GPS · GROWTH PERFORMANCE SYSTEM</a>
       </div>
 
       {stage === "intro" && (
         <div style={{ ...box, paddingTop: 40, textAlign: "center" }}>
           <div style={{ fontSize: 44 }}>💈</div>
-          <h1 style={{ fontSize: 34, margin: "10px 0", color: G }}>GPS Salon Check</h1>
+          <h1 style={{ fontSize: 34, margin: "10px 0", color: "#0A1D3D", fontFamily: "'Cinzel', serif" }}>GPS Salon Check</h1>
           <p style={{ fontSize: 18, lineHeight: 1.5 }}>
             Il tuo salone lavora tanto — ma <b>dove</b> sta perdendo margine?<br />
             18 domande, 3 minuti: scopri quali aree della tua azienda-salone hanno più bisogno di attenzione, tra numeri, agenda, clienti, vendita, marketing e team.
@@ -89,7 +92,7 @@ export default function SalonCheck() {
         const done = answers.filter(a => a.q < qi).length;
         return (
           <div style={{ ...box, paddingTop: 26 }}>
-            <div style={{ background: "#e6e0cd", borderRadius: 6, height: 8, marginBottom: 6 }}>
+            <div style={{ background: "#dde3ec", borderRadius: 6, height: 8, marginBottom: 6 }}>
               <div style={{ width: ((qi) / QUESTIONS.length * 100) + "%", height: 8, background: GOLD, borderRadius: 6, transition: "width .3s" }} />
             </div>
             <p style={{ fontSize: 12.5, color: "#77826f", margin: "0 0 14px" }}>
@@ -99,7 +102,7 @@ export default function SalonCheck() {
               <h2 style={{ fontSize: 21, margin: "0 0 16px", color: "#22301f" }}>{q.text}</h2>
               {q.opts.map((o, i) => (
                 <button key={i} onClick={() => answer(i)}
-                  style={{ display: "block", width: "100%", textAlign: "left", margin: "8px 0", padding: "13px 14px", fontSize: 15.5, borderRadius: 10, border: "1.5px solid #d8d2bd", background: "#fbf9f2", cursor: "pointer" }}>
+                  style={{ display: "block", width: "100%", textAlign: "left", margin: "8px 0", padding: "13px 14px", fontSize: 15.5, borderRadius: 10, border: "1.5px solid #c7d0de", background: "#f7f9fc", cursor: "pointer" }}>
                   {o.t}
                 </button>
               ))}
@@ -125,7 +128,7 @@ export default function SalonCheck() {
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {f.opts.map(o => (
                     <button key={o} onClick={() => setQual({ ...qual, [f.k]: o })}
-                      style={{ padding: "9px 14px", borderRadius: 20, fontSize: 14, cursor: "pointer", border: "1.5px solid " + ((qual as any)[f.k] === o ? G : "#d8d2bd"), background: (qual as any)[f.k] === o ? "#e3efe6" : "#fbf9f2", fontWeight: (qual as any)[f.k] === o ? 700 : 400 }}>
+                      style={{ padding: "9px 14px", borderRadius: 20, fontSize: 14, cursor: "pointer", border: "1.5px solid " + ((qual as any)[f.k] === o ? G : "#c7d0de"), background: (qual as any)[f.k] === o ? "#e4ecf9" : "#f7f9fc", fontWeight: (qual as any)[f.k] === o ? 700 : 400 }}>
                       {o}
                     </button>
                   ))}
@@ -145,9 +148,9 @@ export default function SalonCheck() {
             <h2 style={{ color: G, margin: "8px 0" }}>La tua diagnosi è pronta</h2>
             <p style={{ fontSize: 15, color: "#4c5a48" }}>Abbiamo analizzato le 6 aree del tuo salone e individuato dove concentrare l'attenzione. Dicci dove inviarla e la vedi subito.</p>
             <input placeholder="Il tuo nome" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-              style={{ width: "100%", padding: "13px 14px", fontSize: 16, borderRadius: 10, border: "1.5px solid #d8d2bd", margin: "6px 0", boxSizing: "border-box" }} />
+              style={{ width: "100%", padding: "13px 14px", fontSize: 16, borderRadius: 10, border: "1.5px solid #c7d0de", margin: "6px 0", boxSizing: "border-box" }} />
             <input placeholder="La tua email" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
-              style={{ width: "100%", padding: "13px 14px", fontSize: 16, borderRadius: 10, border: "1.5px solid #d8d2bd", margin: "6px 0", boxSizing: "border-box" }} />
+              style={{ width: "100%", padding: "13px 14px", fontSize: 16, borderRadius: 10, border: "1.5px solid #c7d0de", margin: "6px 0", boxSizing: "border-box" }} />
             <label style={{ display: "block", fontSize: 12.5, color: "#5c6b58", textAlign: "left", margin: "8px 0 14px" }}>
               <input type="checkbox" checked={form.consent} onChange={e => setForm({ ...form, consent: e.target.checked })} />
               {" "}Acconsento al trattamento dei dati e a ricevere la diagnosi e i contenuti GPS su come far crescere il mio salone. Niente spam, disiscrizione quando vuoi.
@@ -178,7 +181,7 @@ export default function SalonCheck() {
                       <span>{a.icon} {a.label}{k === res.primary ? " ★" : ""}</span>
                       <b style={{ color: col(res.scores[k]) }}>{res.scores[k] > 66 ? "critica" : res.scores[k] >= 34 ? "da migliorare" : "solida"}</b>
                     </div>
-                    <div style={{ background: "#e6e0cd", borderRadius: 5, height: 9 }}>
+                    <div style={{ background: "#dde3ec", borderRadius: 5, height: 9 }}>
                       <div style={{ width: Math.max(4, res.scores[k]) + "%", height: 9, borderRadius: 5, background: col(res.scores[k]) }} />
                     </div>
                   </div>
@@ -190,14 +193,14 @@ export default function SalonCheck() {
               </p>
             </div>
 
-            <div style={{ ...card, marginTop: 16, textAlign: "center", background: "#1e5c38", color: "#f3ead0", border: "none" }}>
+            <div style={{ ...card, marginTop: 16, textAlign: "center", background: "#0A1D3D", color: "#dfe6f2", border: "none" }}>
               <p style={{ fontSize: 13, letterSpacing: ".1em", margin: 0, opacity: .8 }}>IL PRIMO PASSO DEL METODO GPS</p>
               <h3 style={{ fontSize: 22, margin: "8px 0" }}>📖 "L'azienda chiamata salone"</h3>
               <p style={{ fontSize: 15, lineHeight: 1.5, opacity: .95 }}>
                 GPS, il metodo dietro questa diagnosi: trasformare il salone in azienda, il titolare in imprenditore e i collaboratori in un vero team — partendo esattamente da aree come <b>{p.label}</b>.
               </p>
               <a href={BOOK_URL} target="_blank" rel="noreferrer" onClick={() => track("cta_book", leadId)}
-                style={{ display: "inline-block", background: GOLD, color: "#2a230a", fontWeight: 800, borderRadius: 10, padding: "14px 26px", fontSize: 16, textDecoration: "none", marginTop: 6 }}>
+                style={{ display: "inline-block", background: "#fff", color: "#0D47A1", fontWeight: 800, borderRadius: 10, padding: "14px 26px", fontSize: 16, textDecoration: "none", marginTop: 6 }}>
                 Scopri il libro →
               </a>
             </div>
