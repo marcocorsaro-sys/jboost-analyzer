@@ -45,7 +45,7 @@ import { B } from '@/lib/brand'
 const V4Histogram = nextDynamic(() => import('./charts/V4Histogram'), {
   ssr: false,
   loading: () => (
-    <div style={{ height: 300, background: B.surface, borderRadius: '12px', border: `1px solid ${B.border}` }} aria-hidden />
+    <div style={{ height: 300, background: B.surface, borderRadius: B.radius.card, border: `1px solid ${B.border}` }} aria-hidden />
   ),
 })
 
@@ -122,7 +122,7 @@ export default function DriverPanel({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* ------------------------------------------------ 1 · SCORE ------- */}
       <div style={card}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
@@ -173,7 +173,7 @@ export default function DriverPanel({
               flexWrap: 'wrap',
             }}
           >
-            <span style={{ fontSize: '13px', color: B.warning }}>{t('v4res.retry_driver_confirm')}</span>
+            <span style={{ fontSize: '15px', color: B.warning }}>{t('v4res.retry_driver_confirm')}</span>
             <button
               type="button"
               onClick={() => void retryThisDriver(true)}
@@ -188,11 +188,11 @@ export default function DriverPanel({
           </div>
         )}
         {retryNote && (
-          <div style={{ marginTop: '10px', fontSize: '12px', color: B.warning }}>{retryNote}</div>
+          <div style={{ marginTop: '10px', fontSize: '14px', color: B.warning }}>{retryNote}</div>
         )}
 
         {view === 'absolute' && !def?.hasAbsoluteView && (
-          <div style={{ marginTop: '10px', fontSize: '12px', color: B.warning }}>
+          <div style={{ marginTop: '10px', fontSize: '14px', color: B.warning }}>
             {t('v4res.relative_only_note')}
           </div>
         )}
@@ -208,10 +208,10 @@ export default function DriverPanel({
             }}
           >
             <div style={{ ...mutedLabel, color: B.error, marginBottom: '4px' }}>{t('v4res.driver_error')}</div>
-            <div style={{ fontSize: '13px', color: B.error, lineHeight: 1.5 }}>{row.error ?? '—'}</div>
+            <div style={{ fontSize: '15px', color: B.error, lineHeight: 1.5 }}>{row.error ?? '—'}</div>
           </div>
         ) : row.status === 'queued' || row.status === 'running' ? (
-          <div style={{ marginTop: '14px', fontSize: '13px', color: B.teal }}>{t('v4res.driver_pending')}</div>
+          <div style={{ marginTop: '14px', fontSize: '15px', color: B.teal }}>{t('v4res.driver_pending')}</div>
         ) : (
           <div style={{ marginTop: '16px', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
             {/* Client headline: the big score NEVER without its view label —
@@ -260,9 +260,9 @@ export default function DriverPanel({
           >
             <div style={{ ...mutedLabel, marginBottom: '6px' }}>{t('v4res.attachments')}</div>
             {row.attachments!.map((a) => (
-              <div key={a.path ?? a.name} style={{ fontSize: '13px', color: B.ink, lineHeight: 1.7 }}>
+              <div key={a.path ?? a.name} style={{ fontSize: '15px', color: B.ink, lineHeight: 1.7 }}>
                 {a.name}
-                <span style={{ color: B.muted, marginLeft: '8px', fontSize: '12px' }}>
+                <span style={{ color: B.muted, marginLeft: '8px', fontSize: '14px' }}>
                   {t('v4res.attachment_pending')}
                 </span>
               </div>
@@ -308,7 +308,7 @@ export default function DriverPanel({
       </div>
 
       {/* ------------------------------------------------ 3 · DATA -------- */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {row.driver_key === 'content' && (
           <ContentQuestionnaire
             analysisId={analysisId}
@@ -413,20 +413,21 @@ function ScoreHeadline({
   return (
     <div
       style={{
-        border: `1px solid ${B.primary}55`,
-        borderRadius: '10px',
-        padding: '12px 18px',
-        minWidth: '260px',
+        border: `1px solid ${B.primary}33`,
+        borderRadius: B.radius.card,
+        padding: '24px 28px',
+        minWidth: '300px',
         background: B.primarySoft,
+        boxShadow: B.shadow.card,
       }}
     >
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'baseline' }}>
-        <span style={{ fontSize: '12px', color: B.primary }}>{label}</span>
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ ...B.type.label, color: B.primary }}>{label}</span>
         {rank === 1 && <span style={pill(B.primary)}>{t('v4res.leader')}</span>}
       </div>
-      <div style={{ display: 'flex', gap: '10px', alignItems: 'baseline', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '30px', fontWeight: 700, color: scoreColor(score) }}>{fmt(score)}</span>
-        <span style={{ fontSize: '12px', color: B.muted }}>
+      <div style={{ display: 'flex', gap: '14px', alignItems: 'baseline', flexWrap: 'wrap', marginTop: '10px' }}>
+        <span style={{ ...B.type.display, ...B.type.num, color: scoreColor(score) }}>{fmt(score)}</span>
+        <span style={{ fontSize: '15px', fontWeight: 600, color: B.muted }}>
           {viewLabel}{' '}
           <span
             title={t('v4res.formula_note')}
@@ -437,7 +438,7 @@ function ScoreHeadline({
           </span>
         </span>
       </div>
-      <div style={{ fontSize: '12px', color: B.ink, marginTop: '2px' }}>{subLine}</div>
+      <div style={{ fontSize: '15px', color: B.ink, lineHeight: 1.5, marginTop: '10px' }}>{subLine}</div>
     </div>
   )
 }
@@ -462,19 +463,22 @@ function ScoreChip({
   return (
     <div
       style={{
-        border: `1px solid ${isClient ? `${B.primary}55` : B.border}`,
-        borderRadius: '10px',
-        padding: '12px 18px',
-        minWidth: '140px',
-        background: isClient ? B.primarySoft : 'transparent',
+        border: `1px solid ${isClient ? `${B.primary}33` : B.border}`,
+        borderRadius: B.radius.card,
+        padding: '20px 24px',
+        minWidth: '170px',
+        background: isClient ? B.primarySoft : B.bg,
+        boxShadow: B.shadow.card,
       }}
     >
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'baseline' }}>
-        <span style={{ fontSize: '12px', color: isClient ? B.primary : B.muted }}>{label}</span>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ ...B.type.label, color: isClient ? B.primary : B.muted }}>{label}</span>
         {rank === 1 && <span style={pill(B.primary)}>{leaderLabel}</span>}
       </div>
-      <div style={{ fontSize: '30px', fontWeight: 700, color: scoreColor(score) }}>{fmt(score)}</div>
-      <div style={{ fontSize: '11px', color: B.muted }}>
+      <div style={{ ...B.type.displaySm, ...B.type.num, color: scoreColor(score), marginTop: '8px' }}>
+        {fmt(score)}
+      </div>
+      <div style={{ fontSize: '14px', color: B.muted, marginTop: '4px' }}>
         {rawLabel} {fmt(raw ?? null)}
       </div>
     </div>
@@ -503,7 +507,7 @@ function CriteriaCaption({ row, clientSite }: { row: DriverRow; clientSite: Site
             return tier ? { pos: tier.pos, vol: tier.vol } : null
           })()
     return (
-      <div style={{ marginTop: '12px', fontSize: '12px', color: B.muted }}>
+      <div style={{ marginTop: '12px', fontSize: '14px', color: B.muted }}>
         {rule ? fill(t('v4res.disco_criteria'), { pos: rule.pos, vol: rule.vol }) : ''}
         {' · '}
         {t('v4res.tier_label')}: <span style={{ color: B.primary }}>{tierKey}</span>
@@ -514,7 +518,7 @@ function CriteriaCaption({ row, clientSite }: { row: DriverRow; clientSite: Site
   if (row.driver_key === 'awareness') {
     const ev = (clientSite?.evidence ?? {}) as { brand_terms?: string[] }
     return (
-      <div style={{ marginTop: '12px', fontSize: '12px', color: B.muted }}>
+      <div style={{ marginTop: '12px', fontSize: '14px', color: B.muted }}>
         {t('v4res.awareness_criteria')}
         {Array.isArray(ev.brand_terms) && ev.brand_terms.length > 0 && (
           <>
@@ -571,7 +575,7 @@ function SummaryBody({
 
   if (insight?.status === 'error') {
     return (
-      <div style={{ fontSize: '13px', color: B.error, lineHeight: 1.5 }}>
+      <div style={{ fontSize: '15px', color: B.error, lineHeight: 1.5 }}>
         {t('v4res.insights_error')}: {insight.error}
       </div>
     )
@@ -580,12 +584,12 @@ function SummaryBody({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
       {comment ? (
-        <div style={{ fontSize: '14px', color: B.ink, lineHeight: 1.6 }}>{comment}</div>
+        <div style={{ fontSize: '16px', color: B.ink, lineHeight: 1.6 }}>{comment}</div>
       ) : (
-        <div style={{ fontSize: '13px', color: B.muted }}>{t('v4res.insights_placeholder')}</div>
+        <div style={{ fontSize: '15px', color: B.muted }}>{t('v4res.insights_placeholder')}</div>
       )}
       {extras.map((x, i) => (
-        <div key={i} style={{ fontSize: '12px', color: B.muted, lineHeight: 1.5 }}>
+        <div key={i} style={{ fontSize: '14px', color: B.muted, lineHeight: 1.5 }}>
           {x}
         </div>
       ))}
@@ -608,15 +612,15 @@ function IssuesList({ output, family }: { output: Record<string, unknown> | null
   const items = readItems(output, family, t('v4res.priority'), t('v4res.relevance'))
 
   if (items.length === 0) {
-    return <div style={{ fontSize: '13px', color: B.muted }}>{t('v4res.no_issues')}</div>
+    return <div style={{ fontSize: '15px', color: B.muted }}>{t('v4res.no_issues')}</div>
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       {items.map((item, i) => (
-        <div key={i} style={{ borderLeft: `2px solid ${B.border}`, paddingLeft: '14px' }}>
+        <div key={i} style={{ borderLeft: `3px solid ${B.border}`, paddingLeft: '18px' }}>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'baseline', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: B.ink }}>{item.titolo ?? '—'}</span>
+            <span style={{ fontSize: '17px', fontWeight: 650, color: B.ink }}>{item.titolo ?? '—'}</span>
             {item.badge && (
               <span style={pill(PRIORITY_COLORS[item.badge] ?? B.muted)}>
                 {item.badgeLabel}: {item.badge}
@@ -624,7 +628,7 @@ function IssuesList({ output, family }: { output: Record<string, unknown> | null
             )}
           </div>
           {item.spiegazione && (
-            <div style={{ fontSize: '13px', color: B.muted, lineHeight: 1.6, marginTop: '4px' }}>
+            <div style={{ fontSize: '15px', color: B.muted, lineHeight: 1.6, marginTop: '4px' }}>
               {item.spiegazione}
             </div>
           )}
@@ -640,7 +644,7 @@ function SolutionsList({ output, family }: { output: Record<string, unknown> | n
   if (family === 'business') {
     // Sheet 15 business schema has no per-item solution: the strategic
     // solutions are synthesised in the Executive Summary (sheet 16 C).
-    return <div style={{ fontSize: '13px', color: B.muted, lineHeight: 1.6 }}>{t('v4res.solutions_business_note')}</div>
+    return <div style={{ fontSize: '15px', color: B.muted, lineHeight: 1.6 }}>{t('v4res.solutions_business_note')}</div>
   }
 
   const items = (Array.isArray(output?.items) ? (output!.items as DevInsightItem[]) : []).filter(
@@ -648,22 +652,22 @@ function SolutionsList({ output, family }: { output: Record<string, unknown> | n
   )
 
   if (items.length === 0) {
-    return <div style={{ fontSize: '13px', color: B.muted }}>{t('v4res.no_issues')}</div>
+    return <div style={{ fontSize: '15px', color: B.muted }}>{t('v4res.no_issues')}</div>
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       {items.map((item, i) => (
-        <div key={i} style={{ borderLeft: `2px solid ${B.primary}55`, paddingLeft: '14px' }}>
+        <div key={i} style={{ borderLeft: `3px solid ${B.primary}55`, paddingLeft: '18px' }}>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'baseline', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: B.ink }}>{item.titolo ?? '—'}</span>
+            <span style={{ fontSize: '17px', fontWeight: 650, color: B.ink }}>{item.titolo ?? '—'}</span>
             {item.priorita && (
               <span style={pill(PRIORITY_COLORS[item.priorita] ?? B.muted)}>
                 {t('v4res.priority')}: {item.priorita}
               </span>
             )}
           </div>
-          <div style={{ fontSize: '13px', color: B.muted, lineHeight: 1.6, marginTop: '4px' }}>
+          <div style={{ fontSize: '15px', color: B.muted, lineHeight: 1.6, marginTop: '4px' }}>
             {item.soluzione_proposta}
           </div>
         </div>
@@ -755,7 +759,7 @@ function EvidenceBlock({ evidence, noValueLabel }: { evidence: Record<string, un
       {scalars.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '8px' }}>
           {scalars.map(([k, v]) => (
-            <div key={k} style={{ fontSize: '12px' }}>
+            <div key={k} style={{ fontSize: '14px' }}>
               <span style={{ color: B.muted }}>{k}: </span>
               <span style={{ color: B.ink }}>{v === null ? noValueLabel : String(v)}</span>
             </div>
@@ -764,7 +768,7 @@ function EvidenceBlock({ evidence, noValueLabel }: { evidence: Record<string, un
       )}
 
       {objects.map(([k, v]) => (
-        <div key={k} style={{ fontSize: '12px' }}>
+        <div key={k} style={{ fontSize: '14px' }}>
           <span style={{ color: B.muted }}>{k}: </span>
           <span style={{ color: B.ink, fontFamily: B.fontMono }}>
             {clip(JSON.stringify(v), 300)}
@@ -785,7 +789,7 @@ function EvidenceArray({ name, list, noValueLabel }: { name: string; list: unkno
   const first = list[0]
   if (first === null || typeof first !== 'object') {
     return (
-      <div style={{ fontSize: '12px' }}>
+      <div style={{ fontSize: '14px' }}>
         <span style={{ color: B.muted }}>{name}: </span>
         <span style={{ color: B.ink }}>{list.slice(0, 12).map(String).join(', ')}{list.length > 12 ? '…' : ''}</span>
       </div>
@@ -799,7 +803,7 @@ function EvidenceArray({ name, list, noValueLabel }: { name: string; list: unkno
     <div>
       <div style={{ ...mutedLabel, marginBottom: '6px' }}>{name}</div>
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
           <thead>
             <tr>
               {columns.map((c) => (
@@ -807,10 +811,13 @@ function EvidenceArray({ name, list, noValueLabel }: { name: string; list: unkno
                   key={c}
                   style={{
                     textAlign: 'left',
-                    padding: '6px 10px',
+                    padding: '12px 14px',
                     color: B.muted,
                     borderBottom: `1px solid ${B.border}`,
+                    fontSize: '13px',
                     fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
                     whiteSpace: 'nowrap',
                   }}
                 >
@@ -827,7 +834,7 @@ function EvidenceArray({ name, list, noValueLabel }: { name: string; list: unkno
                   return (
                     <td
                       key={c}
-                      style={{ padding: '6px 10px', color: B.ink, borderBottom: `1px solid ${B.surface2}` }}
+                      style={{ padding: '14px', color: B.ink, borderBottom: `1px solid ${B.surface2}` }}
                     >
                       {v === null || v === undefined
                         ? noValueLabel
@@ -843,7 +850,7 @@ function EvidenceArray({ name, list, noValueLabel }: { name: string; list: unkno
         </table>
       </div>
       {list.length > 10 && (
-        <div style={{ fontSize: '11px', color: B.muted, marginTop: '4px' }}>+{list.length - 10}</div>
+        <div style={{ fontSize: '13px', color: B.muted, marginTop: '4px' }}>+{list.length - 10}</div>
       )}
     </div>
   )

@@ -5,10 +5,10 @@ import './globals.css'
 import { ThemeProvider } from '@/components/theme-provider'
 import { isValidLocale } from '@/lib/i18n'
 
-/** JAKALA UI font — Source Sans 3, weights 400/600/700, system-ui fallback. */
+/** JAKALA UI font — Source Sans 3 on its full variable weight axis (200-900),
+ *  so the design-system weights 450/600/650/700/750/800 all render true. */
 const sourceSans = Source_Sans_3({
   subsets: ['latin'],
-  weight: ['400', '600', '700'],
   variable: '--font-sans',
   display: 'swap',
 })

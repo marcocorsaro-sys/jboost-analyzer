@@ -63,7 +63,7 @@ export default function Sidebar({
         key={item.href}
         href={item.href}
         className={cn(
-          'flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all',
+          'flex items-center gap-3 px-4 py-2.5 rounded-lg text-[15px] font-medium transition-all',
           active
             ? 'text-[var(--lime)]'
             : 'text-[var(--gray)] hover:text-[var(--white)] hover:bg-[var(--card2)]'
@@ -99,7 +99,7 @@ export default function Sidebar({
         {/* Main */}
         <div className="space-y-0.5">
           <div
-            className="text-[10px] uppercase tracking-widest px-4 mb-2 font-mono"
+            className="text-[13px] uppercase tracking-[0.08em] px-4 mb-2 font-mono"
             style={{ color: 'var(--gray)' }}
           >
             {t('nav.navigation')}
@@ -110,7 +110,7 @@ export default function Sidebar({
         {/* Tools */}
         <div className="space-y-0.5">
           <div
-            className="text-[10px] uppercase tracking-widest px-4 mb-2 font-mono"
+            className="text-[13px] uppercase tracking-[0.08em] px-4 mb-2 font-mono"
             style={{ color: 'var(--gray)' }}
           >
             {t('nav.tools')}
@@ -121,7 +121,7 @@ export default function Sidebar({
         {/* System */}
         <div className="space-y-0.5">
           <div
-            className="text-[10px] uppercase tracking-widest px-4 mb-2 font-mono"
+            className="text-[13px] uppercase tracking-[0.08em] px-4 mb-2 font-mono"
             style={{ color: 'var(--gray)' }}
           >
             {t('nav.system')}
@@ -136,7 +136,7 @@ export default function Sidebar({
         <div className="space-y-3">
           <div className="flex items-baseline justify-between gap-2">
             <div>
-              <div className="text-[10px] uppercase tracking-wider font-mono" style={{ color: 'var(--gray)' }}>
+              <div className="text-[13px] uppercase tracking-[0.08em] font-mono" style={{ color: 'var(--gray)' }}>
                 {t('sidebar.prospects')}
               </div>
               <div className="text-xl font-bold" style={{ color: B.warning }}>
@@ -144,7 +144,7 @@ export default function Sidebar({
               </div>
             </div>
             <div className="text-right">
-              <div className="text-[10px] uppercase tracking-wider font-mono" style={{ color: 'var(--gray)' }}>
+              <div className="text-[13px] uppercase tracking-[0.08em] font-mono" style={{ color: 'var(--gray)' }}>
                 {t('dashboard.activeClients')}
               </div>
               <div className="text-xl font-bold" style={{ color: 'var(--lime)' }}>

@@ -146,7 +146,7 @@ export default function RunProgress({ analysisId }: { analysisId: string }) {
           border: `1px solid ${B.error}`,
           borderRadius: '8px',
           color: B.error,
-          fontSize: '13px',
+          fontSize: '15px',
         }}
       >
         {loadError}
@@ -164,12 +164,13 @@ export default function RunProgress({ analysisId }: { analysisId: string }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div
         style={{
-          background: B.surface,
+          background: B.bg,
           border: `1px solid ${B.border}`,
-          borderRadius: '12px',
-          padding: '20px 24px',
+          borderRadius: B.radius.card,
+          padding: '28px 32px',
+          boxShadow: B.shadow.card,
           display: 'flex',
-          gap: '32px',
+          gap: '40px',
           alignItems: 'center',
           flexWrap: 'wrap',
         }}
@@ -183,7 +184,7 @@ export default function RunProgress({ analysisId }: { analysisId: string }) {
           value={String(progress.needs_decision)}
           color={progress.needs_decision ? B.warning : undefined}
         />
-        <div style={{ marginLeft: 'auto', fontSize: '12px', color: B.muted }}>
+        <div style={{ marginLeft: 'auto', fontSize: '14px', color: B.muted }}>
           REF_DATE {data.refDate ?? '—'}
         </div>
       </div>
@@ -191,12 +192,13 @@ export default function RunProgress({ analysisId }: { analysisId: string }) {
       {progress.total === 0 && (
         <div
           style={{
-            padding: '16px',
-            background: B.surface,
+            padding: '28px 32px',
+            background: B.bg,
             border: `1px solid ${B.border}`,
-            borderRadius: '12px',
+            borderRadius: B.radius.card,
+            boxShadow: B.shadow.card,
             color: B.muted,
-            fontSize: '14px',
+            fontSize: '16px',
           }}
         >
           Nessun job creato per questa analisi. È stata creata senza avviarla.
@@ -204,7 +206,7 @@ export default function RunProgress({ analysisId }: { analysisId: string }) {
       )}
 
       {progress.pending > 0 && (
-        <div style={{ fontSize: '12px', color: B.muted }}>
+        <div style={{ fontSize: '14px', color: B.muted }}>
           Aggiornamento automatico ogni 5 secondi.
         </div>
       )}
@@ -216,14 +218,15 @@ export default function RunProgress({ analysisId }: { analysisId: string }) {
           disabled={starting}
           style={{
             alignSelf: 'flex-start',
-            padding: '10px 20px',
+            padding: '12px 20px',
             background: B.primary,
-            color: B.bg,
+            color: B.onPrimary,
             border: 'none',
-            borderRadius: '8px',
-            fontWeight: 700,
-            fontFamily: B.fontMono,
+            borderRadius: B.radius.control,
+            fontWeight: 650,
+            fontSize: '15px',
             cursor: 'pointer',
+            transition: B.transition,
           }}
         >
           {starting ? 'Avvio…' : 'Avvia i driver in coda'}
@@ -235,12 +238,13 @@ export default function RunProgress({ analysisId }: { analysisId: string }) {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '14px',
+            gap: '16px',
             flexWrap: 'wrap',
-            padding: '14px 18px',
-            background: B.surface,
+            padding: '20px 28px',
+            background: B.bg,
             border: `1px solid ${B.border}`,
-            borderRadius: '12px',
+            borderRadius: B.radius.card,
+            boxShadow: B.shadow.card,
           }}
         >
           <button
@@ -248,28 +252,28 @@ export default function RunProgress({ analysisId }: { analysisId: string }) {
             onClick={publish}
             disabled={progress.pending > 0}
             style={{
-              padding: '10px 20px',
-              background: progress.pending > 0 ? B.border : B.primary,
-              color: progress.pending > 0 ? B.muted : B.bg,
+              padding: '12px 20px',
+              background: progress.pending > 0 ? B.surface2 : B.primary,
+              color: progress.pending > 0 ? B.muted : B.onPrimary,
               border: 'none',
-              borderRadius: '8px',
-              fontWeight: 700,
-              fontFamily: B.fontMono,
-              fontSize: '13px',
+              borderRadius: B.radius.control,
+              fontWeight: 650,
+              fontSize: '15px',
               cursor: progress.pending > 0 ? 'default' : 'pointer',
+              transition: B.transition,
             }}
           >
             Save &amp; Publish
           </button>
-          <span style={{ fontSize: '13px', color: drafts > 0 ? B.warning : B.muted }}>
+          <span style={{ fontSize: '15px', color: drafts > 0 ? B.warning : B.muted }}>
             {drafts > 0 ? `${drafts} modifiche in bozza` : 'nessuna modifica in bozza'}
           </span>
           {progress.pending > 0 && (
-            <span style={{ fontSize: '12px', color: B.muted }}>
+            <span style={{ fontSize: '14px', color: B.muted }}>
               Non pubblicabile finché {progress.pending} driver sono ancora in corso.
             </span>
           )}
-          {publishState && <span style={{ fontSize: '12px', color: B.muted }}>{publishState}</span>}
+          {publishState && <span style={{ fontSize: '14px', color: B.muted }}>{publishState}</span>}
         </div>
       )}
 
@@ -285,18 +289,10 @@ export default function RunProgress({ analysisId }: { analysisId: string }) {
 function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
     <div>
-      <div
-        style={{
-          fontSize: '11px',
-          color: B.muted,
-          fontFamily: B.fontMono,
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px',
-        }}
-      >
-        {label}
+      <div style={{ ...B.type.label, color: B.muted }}>{label}</div>
+      <div style={{ ...B.type.displaySm, ...B.type.num, color: color ?? B.ink, marginTop: '6px' }}>
+        {value}
       </div>
-      <div style={{ fontSize: '22px', fontWeight: 700, color: color ?? B.ink }}>{value}</div>
     </div>
   )
 }
@@ -316,35 +312,38 @@ function DriverCard({
 
   return (
     <div
+      className="jk-card-hover"
       style={{
-        background: B.surface,
+        background: B.bg,
         border: `1px solid ${row.status === 'error' ? `${B.error}40` : B.border}`,
-        borderRadius: '12px',
-        padding: '18px 22px',
+        borderRadius: B.radius.card,
+        padding: '24px 28px',
+        boxShadow: B.shadow.card,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '15px', fontWeight: 600, color: B.ink }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '17px', fontWeight: 650, color: B.ink }}>
           {def?.label ?? row.driver_key}
         </span>
         <span
           style={{
-            fontSize: '11px',
-            fontFamily: B.fontMono,
+            fontSize: '13px',
+            fontWeight: 600,
             color: s.color,
-            border: `1px solid ${s.color}40`,
-            borderRadius: '4px',
-            padding: '2px 8px',
+            background: `${s.color}14`,
+            border: `1px solid ${s.color}26`,
+            borderRadius: '999px',
+            padding: '5px 12px',
           }}
         >
           {s.label}
         </span>
         {row.attempts > 1 && (
-          <span style={{ fontSize: '11px', color: B.muted }}>
+          <span style={{ fontSize: '13px', color: B.muted }}>
             tentativo {row.attempts}/{row.max_attempts}
           </span>
         )}
-        {row.edited && <span style={{ fontSize: '11px', color: B.warning }}>modificato a mano</span>}
+        {row.edited && <span style={{ fontSize: '13px', color: B.warning }}>modificato a mano</span>}
 
         <span style={{ marginLeft: 'auto', display: 'flex', gap: '20px' }}>
           {row.status === 'done' && (
@@ -358,7 +357,7 @@ function DriverCard({
       </div>
 
       {row.status === 'error' && row.error && (
-        <div style={{ marginTop: '10px', fontSize: '13px', color: B.error, lineHeight: 1.5 }}>
+        <div style={{ marginTop: '10px', fontSize: '15px', color: B.error, lineHeight: 1.5 }}>
           {row.error}
         </div>
       )}
@@ -371,11 +370,13 @@ function DriverCard({
             style={{
               background: 'transparent',
               border: `1px solid ${B.border}`,
-              borderRadius: '6px',
+              borderRadius: B.radius.control,
               color: B.muted,
-              padding: '4px 12px',
-              fontSize: '12px',
+              padding: '10px 16px',
+              fontSize: '14px',
+              fontWeight: 600,
               cursor: 'pointer',
+              transition: B.transition,
             }}
           >
             {editing ? 'Chiudi' : 'Modifica punteggio e commento'}
@@ -398,7 +399,7 @@ function DriverCard({
       )}
 
       {(row.comment_relative || row.comment_absolute) && (
-        <div style={{ marginTop: '10px', fontSize: '13px', color: B.muted, lineHeight: 1.5 }}>
+        <div style={{ marginTop: '10px', fontSize: '15px', color: B.muted, lineHeight: 1.5 }}>
           {row.comment_relative && <div>Relativo: {row.comment_relative}</div>}
           {row.comment_absolute && <div>Assoluto: {row.comment_absolute}</div>}
         </div>
@@ -409,7 +410,7 @@ function DriverCard({
           {row.sites.map((site) => (
             <div
               key={site.site_ref}
-              style={{ display: 'flex', gap: '16px', fontSize: '12px', color: B.muted }}
+              style={{ display: 'flex', gap: '16px', fontSize: '14px', color: B.muted }}
             >
               <span style={{ width: '160px' }}>{site.domain}</span>
               <span style={{ width: '90px' }}>raw {fmt(site.raw)}</span>
@@ -425,18 +426,8 @@ function DriverCard({
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <span style={{ textAlign: 'right' }}>
-      <span
-        style={{
-          display: 'block',
-          fontSize: '10px',
-          color: B.muted,
-          fontFamily: B.fontMono,
-          textTransform: 'uppercase',
-        }}
-      >
-        {label}
-      </span>
-      <span style={{ fontSize: '16px', fontWeight: 700, color: B.ink }}>{value}</span>
+      <span style={{ ...B.type.label, display: 'block', color: B.muted }}>{label}</span>
+      <span style={{ fontSize: '24px', fontWeight: 750, ...B.type.num, color: B.ink }}>{value}</span>
     </span>
   )
 }
@@ -505,11 +496,11 @@ export function DriverEditor({
   return (
     <div
       style={{
-        marginTop: '12px',
-        padding: '16px',
-        background: B.bg,
+        marginTop: '16px',
+        padding: '20px',
+        background: B.surface,
         border: `1px solid ${B.border}`,
-        borderRadius: '8px',
+        borderRadius: B.radius.control,
         display: 'flex',
         flexDirection: 'column',
         gap: '12px',
@@ -558,12 +549,12 @@ export function DriverEditor({
         </div>
       )}
 
-      <div style={{ fontSize: '12px', color: B.muted }}>
+      <div style={{ fontSize: '14px', color: B.muted }}>
         Il raw non è modificabile: è la misura della fonte. Per cambiarlo si rilancia il driver.
         Una modifica salvata resta bozza finché non fai Save &amp; Publish.
       </div>
 
-      {error && <div style={{ fontSize: '12px', color: B.error }}>{error}</div>}
+      {error && <div style={{ fontSize: '14px', color: B.error }}>{error}</div>}
 
       <button
         type="button"
@@ -571,14 +562,15 @@ export function DriverEditor({
         disabled={saving}
         style={{
           alignSelf: 'flex-start',
-          padding: '8px 18px',
+          padding: '12px 20px',
           background: B.primary,
-          color: B.bg,
+          color: B.onPrimary,
           border: 'none',
-          borderRadius: '6px',
-          fontWeight: 700,
-          fontSize: '13px',
+          borderRadius: B.radius.control,
+          fontWeight: 650,
+          fontSize: '15px',
           cursor: 'pointer',
+          transition: B.transition,
         }}
       >
         {saving ? 'Salvo…' : 'Salva modifica'}
@@ -644,18 +636,18 @@ export function DecisionForm({
   return (
     <div
       style={{
-        marginTop: '12px',
-        padding: '16px',
+        marginTop: '16px',
+        padding: '20px',
         background: `${B.warning}10`,
         border: `1px solid ${B.warning}40`,
-        borderRadius: '8px',
+        borderRadius: B.radius.control,
         display: 'flex',
         flexDirection: 'column',
         gap: '12px',
       }}
     >
       {request.message && (
-        <div style={{ fontSize: '13px', color: B.warning, lineHeight: 1.5 }}>{request.message}</div>
+        <div style={{ fontSize: '15px', color: B.warning, lineHeight: 1.5 }}>{request.message}</div>
       )}
 
       {request.reason === 'empty_tier' && (
@@ -744,41 +736,39 @@ export function DecisionForm({
         </>
       )}
 
-      {error && <div style={{ fontSize: '12px', color: B.error }}>{error}</div>}
+      {error && <div style={{ fontSize: '14px', color: B.error }}>{error}</div>}
     </div>
   )
 }
 
 export const editLabel: React.CSSProperties = {
+  ...B.type.label,
   display: 'block',
-  fontSize: '11px',
-  fontWeight: 600,
   color: B.muted,
-  marginBottom: '5px',
-  fontFamily: B.fontMono,
-  textTransform: 'uppercase',
-  letterSpacing: '0.5px',
+  marginBottom: '8px',
 }
 
 export const editInput: React.CSSProperties = {
   width: '100%',
-  padding: '8px 12px',
-  background: B.surface2,
+  padding: '12px 16px',
+  background: B.bg,
   border: `1px solid ${B.border}`,
-  borderRadius: '6px',
+  borderRadius: B.radius.input,
   color: B.ink,
-  fontSize: '13px',
+  fontSize: '16px',
+  lineHeight: 1.4,
   outline: 'none',
   fontFamily: 'inherit',
 }
 
 const decisionButton: React.CSSProperties = {
-  padding: '8px 16px',
+  padding: '12px 20px',
   background: B.warning,
   color: B.bg,
   border: 'none',
-  borderRadius: '6px',
-  fontSize: '13px',
-  fontWeight: 700,
+  borderRadius: B.radius.control,
+  fontSize: '15px',
+  fontWeight: 650,
   cursor: 'pointer',
+  transition: B.transition,
 }

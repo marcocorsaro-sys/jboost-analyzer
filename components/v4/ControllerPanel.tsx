@@ -91,8 +91,10 @@ export function ControllerPanel({
     <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: '12px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
         <div>
-          <div style={{ fontSize: '14px', fontWeight: 700, color: B.ink }}>{t('v4ctrl.title')}</div>
-          <div style={{ fontSize: '12px', color: B.muted }}>{t('v4ctrl.subtitle')}</div>
+          <div style={{ fontSize: '20px', fontWeight: 700, letterSpacing: '-0.01em', color: B.ink }}>
+            {t('v4ctrl.title')}
+          </div>
+          <div style={{ fontSize: '14px', color: B.muted, marginTop: '2px' }}>{t('v4ctrl.subtitle')}</div>
         </div>
         <button
           type="button"
@@ -105,15 +107,15 @@ export function ControllerPanel({
       </div>
 
       {error && (
-        <div style={{ fontSize: '12px', color: B.error }}>
+        <div style={{ fontSize: '14px', color: B.error }}>
           {t('v4ctrl.load_error')}: {error}
         </div>
       )}
 
-      {!error && !data && <div style={{ fontSize: '13px', color: B.muted }}>{t('v4ctrl.loading')}</div>}
+      {!error && !data && <div style={{ fontSize: '15px', color: B.muted }}>{t('v4ctrl.loading')}</div>}
 
       {data && data.findings.length === 0 && (
-        <div style={{ fontSize: '13px', color: B.success }}>{t('v4ctrl.clean')}</div>
+        <div style={{ fontSize: '15px', color: B.success }}>{t('v4ctrl.clean')}</div>
       )}
 
       {data && data.findings.length > 0 && (
@@ -124,9 +126,9 @@ export function ControllerPanel({
               style={{
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '4px',
-                padding: '10px 12px',
-                borderRadius: '8px',
+                gap: '6px',
+                padding: '16px 18px',
+                borderRadius: B.radius.control,
                 border: `1px solid ${SEVERITY_COLOR[f.severity]}40`,
                 background: `${SEVERITY_COLOR[f.severity]}0d`,
               }}
@@ -142,17 +144,17 @@ export function ControllerPanel({
                   )}
                 </span>
                 {f.driver_key && (
-                  <span style={{ fontSize: '12px', fontWeight: 600, color: B.ink }}>
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: B.ink }}>
                     {getV4Driver(f.driver_key)?.label ?? f.driver_key}
                   </span>
                 )}
-                <span style={{ fontSize: '11px', color: B.muted, fontFamily: B.fontMono }}>
+                <span style={{ fontSize: '13px', color: B.muted, fontFamily: B.fontMono }}>
                   {f.check}
                 </span>
               </div>
-              <div style={{ fontSize: '13px', color: B.ink, lineHeight: 1.5 }}>{f.message}</div>
+              <div style={{ fontSize: '15px', color: B.ink, lineHeight: 1.5 }}>{f.message}</div>
               {f.suggestion && (
-                <div style={{ fontSize: '12px', color: B.primary }}>
+                <div style={{ fontSize: '14px', color: B.primary }}>
                   {t('v4ctrl.suggestion')}: {f.suggestion}
                 </div>
               )}
@@ -162,7 +164,7 @@ export function ControllerPanel({
       )}
 
       {data && (
-        <div style={{ fontSize: '11px', color: B.muted }}>
+        <div style={{ fontSize: '13px', color: B.muted }}>
           {t('v4ctrl.checked_at')} {new Date(data.checked_at).toLocaleTimeString()}
         </div>
       )}

@@ -69,14 +69,14 @@ export default function SwitchToClientButton({
     return (
       <span className="inline-flex items-center gap-1.5">
         {justCreated && (
-          <span className="text-[11px]" style={{ color: B.success }}>
+          <span className="text-[13px]" style={{ color: B.success }}>
             {t('audits.switch_done')}
           </span>
         )}
         <Link
           href={`/clients/${linkedId}`}
           title={t('audits.client_badge_tooltip')}
-          className="inline-block rounded-full px-2.5 py-1 text-[11px] font-semibold no-underline"
+          className="inline-block rounded-full px-2.5 py-1 text-[13px] font-semibold no-underline"
           style={{ background: B.primarySoft, color: B.primary }}
         >
           {t('audits.client_badge')}
@@ -88,14 +88,14 @@ export default function SwitchToClientButton({
   if (confirming) {
     return (
       <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-[13px] text-muted-foreground">
           {t('audits.switch_confirm').replace('{name}', auditName)}
         </span>
         <button
           type="button"
           onClick={promote}
           disabled={promoting}
-          className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+          className="rounded-lg px-4 py-2 text-[14px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
           style={{ background: B.primary }}
         >
           {promoting ? t('audits.switch_working') : t('audits.switch_confirm_yes')}
@@ -107,12 +107,12 @@ export default function SwitchToClientButton({
             setError(null)
           }}
           disabled={promoting}
-          className="rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground disabled:opacity-60"
+          className="rounded-lg border border-border px-4 py-2 text-[14px] font-semibold text-muted-foreground disabled:opacity-60"
         >
           {t('audits.switch_cancel')}
         </button>
         {error && (
-          <span className="text-[11px]" style={{ color: B.error }}>
+          <span className="text-[13px]" style={{ color: B.error }}>
             {error}
           </span>
         )}
@@ -125,7 +125,7 @@ export default function SwitchToClientButton({
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="inline-block rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold text-foreground transition-colors hover:bg-accent"
+        className="inline-block rounded-lg border border-border px-4 py-2 text-[14px] font-semibold text-foreground transition-colors hover:bg-accent"
       >
         {t('audits.switch_to_client')}
       </button>

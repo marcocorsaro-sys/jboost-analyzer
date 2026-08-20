@@ -198,7 +198,7 @@ export default function ContentQuestionnaire({
     <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: '18px' }}>
       <div>
         <h4 style={sectionTitle}>{t('v4content.title')}</h4>
-        <div style={{ fontSize: '12px', color: B.muted }}>{t('v4content.subtitle')}</div>
+        <div style={{ fontSize: '14px', color: B.muted }}>{t('v4content.subtitle')}</div>
       </div>
 
       {/* Template selector — the 9 templates of the bank. */}
@@ -232,14 +232,14 @@ export default function ContentQuestionnaire({
               minWidth: '150px',
             }}
           >
-            <div style={{ fontSize: '11px', color: B.muted }}>
+            <div style={{ fontSize: '13px', color: B.muted }}>
               {site.is_client ? `${site.name} · ${t('v4content.client_required')}` : site.name}
             </div>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'baseline' }}>
-              <span style={{ fontSize: '18px', fontWeight: 700, color: scoreColor(score) }}>
+              <span style={{ fontSize: '28px', fontWeight: 750, fontVariantNumeric: 'tabular-nums', color: scoreColor(score) }}>
                 {score === null ? '—' : score}
               </span>
-              <span style={{ fontSize: '11px', color: B.muted }}>
+              <span style={{ fontSize: '13px', color: B.muted }}>
                 {score === null
                   ? `${answered}/${total} ${t('v4content.answered')}`
                   : b
@@ -249,17 +249,17 @@ export default function ContentQuestionnaire({
             </div>
           </div>
         ))}
-        <div style={{ alignSelf: 'center', fontSize: '11px', color: B.muted }}>
+        <div style={{ alignSelf: 'center', fontSize: '13px', color: B.muted }}>
           {t('v4content.client_required')} · {t('v4content.competitor_optional')}
         </div>
       </div>
 
       {template.description && (
-        <div style={{ fontSize: '12px', color: B.muted, lineHeight: 1.5 }}>{template.description}</div>
+        <div style={{ fontSize: '14px', color: B.muted, lineHeight: 1.5 }}>{template.description}</div>
       )}
 
       {!loaded ? (
-        <div style={{ color: B.muted, fontSize: '13px' }}>{t('v4res.loading')}</div>
+        <div style={{ color: B.muted, fontSize: '15px' }}>{t('v4res.loading')}</div>
       ) : (
         template.questions.map((q) => (
           <QuestionBlock
@@ -289,12 +289,12 @@ export default function ContentQuestionnaire({
             >
               {resuming ? t('v4content.resuming') : t('v4content.resume_driver')}
             </button>
-            <span style={{ fontSize: '12px', color: B.warning, maxWidth: '420px' }}>
+            <span style={{ fontSize: '14px', color: B.warning, maxWidth: '420px' }}>
               {t('v4content.resume_hint')}
             </span>
           </>
         )}
-        {message && <span style={{ fontSize: '12px', color: B.muted }}>{message}</span>}
+        {message && <span style={{ fontSize: '14px', color: B.muted }}>{message}</span>}
       </div>
     </div>
   )
@@ -328,7 +328,7 @@ function QuestionBlock({
           Q{question.id} · {question.area} (w {question.weight})
         </span>
       </div>
-      <div style={{ fontSize: '14px', color: B.ink, margin: '8px 0 12px 0', lineHeight: 1.5 }}>
+      <div style={{ fontSize: '16px', color: B.ink, margin: '8px 0 12px 0', lineHeight: 1.5 }}>
         {question.question}
       </div>
 
@@ -386,11 +386,11 @@ function QuestionBlock({
                   >
                     {opt.key} · {ANSWER_LABELS[opt.key]}
                   </span>
-                  <span style={{ fontSize: '11px', color: B.muted }}>
+                  <span style={{ fontSize: '13px', color: B.muted }}>
                     {opt.points} {ptsLabel}
                   </span>
                 </div>
-                <div style={{ fontSize: '12px', lineHeight: 1.5 }}>{opt.description}</div>
+                <div style={{ fontSize: '14px', lineHeight: 1.5 }}>{opt.description}</div>
               </button>
             )
           })}

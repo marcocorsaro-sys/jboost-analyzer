@@ -53,9 +53,56 @@ export const brand = {
   fontMono: "ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace",
 
   // ── Spacing / radii used by inline-styled components ─────────────────────
-  radiusSm: '6px',
-  radiusMd: '8px',
-  radiusLg: '12px',
+  radiusSm: '8px',
+  radiusMd: '10px',
+  radiusLg: '16px',
+
+  // ── Radius scale (premium SaaS: generous card radius, pill chips) ────────
+  radius: {
+    card: '16px',
+    control: '12px',
+    input: '10px',
+    pill: '999px',
+  },
+
+  // ── Elevation (subtle navy-tinted shadows; hover lifts the card) ─────────
+  shadow: {
+    card: '0 1px 2px rgba(4, 0, 102, 0.05)',
+    cardHover: '0 8px 24px rgba(4, 0, 102, 0.10)',
+    dialog: '0 24px 64px rgba(4, 0, 102, 0.18)',
+  },
+
+  // ── Motion ───────────────────────────────────────────────────────────────
+  transition: 'all 150ms ease',
+
+  // ── Typographic scale (big numbers, strong hierarchy, air) ───────────────
+  // Read these from components instead of hardcoding px sizes.
+  type: {
+    /** Hero numbers — driver scores, LEADER-INDEX. */
+    display: { fontSize: '64px', lineHeight: 1.05, fontWeight: 800, letterSpacing: '-0.02em' },
+    /** Secondary big numbers — competitor chips, stat tiles. */
+    displaySm: { fontSize: '40px', lineHeight: 1.1, fontWeight: 750, letterSpacing: '-0.02em' },
+    /** Page title — one per page. */
+    h1: { fontSize: '34px', lineHeight: 1.15, fontWeight: 750, letterSpacing: '-0.02em' },
+    /** Section title. */
+    h2: { fontSize: '22px', lineHeight: 1.2, fontWeight: 700, letterSpacing: '-0.01em' },
+    /** Card / sub-section title. */
+    h3: { fontSize: '18px', lineHeight: 1.3, fontWeight: 700, letterSpacing: '-0.01em' },
+    /** Body copy. */
+    body: { fontSize: '16px', lineHeight: 1.55, fontWeight: 400 },
+    /** Secondary body (muted text — never smaller than this). */
+    bodySm: { fontSize: '14px', lineHeight: 1.5, fontWeight: 400 },
+    /** Micro-label — the ONLY sub-14px size allowed: uppercase, wide tracking. */
+    label: {
+      fontSize: '13px',
+      lineHeight: 1.3,
+      fontWeight: 600,
+      letterSpacing: '0.08em',
+      textTransform: 'uppercase' as const,
+    },
+    /** Numeric alignment for scores and table numbers. */
+    num: { fontVariantNumeric: 'tabular-nums' as const },
+  },
 } as const
 
 /** Short alias used pervasively in inline styles. */

@@ -35,7 +35,7 @@ import { B } from '@/lib/brand'
 const SpiderChart = nextDynamic(() => import('@/components/analyzer/SpiderChart'), {
   ssr: false,
   loading: () => (
-    <div style={{ height: 444, background: B.surface, borderRadius: '12px', border: `1px solid ${B.border}` }} aria-hidden />
+    <div style={{ height: 444, background: B.surface, borderRadius: B.radius.card, border: `1px solid ${B.border}` }} aria-hidden />
   ),
 })
 
@@ -244,7 +244,7 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
           border: `1px solid ${B.error}`,
           borderRadius: '8px',
           color: B.error,
-          fontSize: '13px',
+          fontSize: '15px',
         }}
       >
         {loadError}
@@ -253,7 +253,7 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
   }
 
   if (!status) {
-    return <div style={{ color: B.muted, fontSize: '14px' }}>{t('v4res.loading')}</div>
+    return <div style={{ color: B.muted, fontSize: '16px' }}>{t('v4res.loading')}</div>
   }
 
   const { progress } = status
@@ -268,12 +268,12 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
   ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* ------------------------------------------------------- header --- */}
       <div style={{ ...card, display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
         <div>
           <div style={mutedLabel}>{t('v4res.title')}</div>
-          <div style={{ fontSize: '17px', fontWeight: 700, color: B.ink }}>{status.domain ?? analysisId}</div>
+          <h1 style={{ ...B.type.h1, color: B.ink, margin: '4px 0 0 0' }}>{status.domain ?? analysisId}</h1>
         </div>
         <span style={pill(auditState.color)}>
           {t(auditState.key as Parameters<typeof t>[0])}
@@ -306,7 +306,7 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
             {retrying ? t('v4res.retrying') : t('v4res.retry')}
           </button>
         )}
-        {retryNote && <span style={{ fontSize: '12px', color: B.warning }}>{retryNote}</span>}
+        {retryNote && <span style={{ fontSize: '14px', color: B.warning }}>{retryNote}</span>}
 
         {/* Absolute / Relative toggle (default Relative — sheet 6 v5). */}
         <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
@@ -335,10 +335,10 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
         >
           {t('v4res.save_publish')}
         </button>
-        <span style={{ fontSize: '12px', color: drafts > 0 ? B.warning : B.muted }}>
+        <span style={{ fontSize: '14px', color: drafts > 0 ? B.warning : B.muted }}>
           {drafts > 0 ? `${drafts} ${t('v4res.drafts_pending')}` : t('v4res.no_drafts')}
         </span>
-        <span style={{ fontSize: '11px', color: B.muted }}>
+        <span style={{ fontSize: '13px', color: B.muted }}>
           {t('v4res.refdate')} {status.refDate ?? '—'}
         </span>
       </div>
@@ -354,7 +354,7 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
       )}
 
       {/* ------------------------------------------------------- tab bar -- */}
-      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
         {tabs.map((tab) => {
           const row = enabledRows.find((d) => d.driver_key === tab.key)
           const statusColor = row ? STATUS_STYLE[row.status].color : null
@@ -366,9 +366,11 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
               onClick={() => setActiveTab(tab.key)}
               style={{
                 ...ghostButton,
-                padding: '8px 16px',
-                fontFamily: B.fontMono,
-                borderColor: active ? B.primary : B.border,
+                padding: '10px 18px',
+                fontSize: '15px',
+                fontWeight: active ? 650 : 600,
+                background: active ? B.primarySoft : B.bg,
+                borderColor: active ? `${B.primary}55` : B.border,
                 color: active ? B.primary : B.muted,
                 display: 'flex',
                 gap: '8px',
@@ -377,7 +379,7 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
             >
               {tab.label}
               {row && row.status !== 'done' && (
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: statusColor ?? B.muted }} />
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: statusColor ?? B.muted }} />
               )}
               {row?.edited && <span style={{ color: B.warning }}>✎</span>}
             </button>
@@ -386,12 +388,12 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
       </div>
 
       {genError && (
-        <div style={{ fontSize: '12px', color: B.error }}>
+        <div style={{ fontSize: '14px', color: B.error }}>
           {t('v4res.insights_error')}: {genError}
         </div>
       )}
       {insights?.insightsError && !insightsRunning && (
-        <div style={{ fontSize: '12px', color: B.warning }}>{insights.insightsError}</div>
+        <div style={{ fontSize: '14px', color: B.warning }}>{insights.insightsError}</div>
       )}
 
       {/* ------------------------------------------------------- content -- */}
@@ -513,9 +515,9 @@ function OverviewTab({
   const anyScore = Object.values(clientScores).some((v) => v !== null && v !== undefined)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {progress.total === 0 && (
-        <div style={{ ...card, color: B.muted, fontSize: '14px' }}>{t('v4res.no_jobs')}</div>
+        <div style={{ ...card, color: B.muted, fontSize: '16px' }}>{t('v4res.no_jobs')}</div>
       )}
 
       {progress.total > 0 && progress.pending === 0 && !progress.complete && (
@@ -530,7 +532,7 @@ function OverviewTab({
       )}
 
       {progress.pending > 0 && (
-        <div style={{ fontSize: '12px', color: B.muted }}>{t('v4res.autorefresh')}</div>
+        <div style={{ fontSize: '14px', color: B.muted }}>{t('v4res.autorefresh')}</div>
       )}
 
       {/* Panoramic radar. */}
@@ -545,12 +547,12 @@ function OverviewTab({
             primaryName={sites.find((s) => s.is_client)?.name ?? t('v4res.radar_client')}
           />
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <label style={{ display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer', fontSize: '12px', color: B.muted }}>
+            <label style={{ display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer', fontSize: '14px', color: B.muted }}>
               <input type="checkbox" checked={overlay} onChange={(e) => onOverlay(e.target.checked)} />
               {t('v4res.overlay_competitors')}
             </label>
             {excluded.length > 0 && (
-              <span style={{ fontSize: '12px', color: B.muted }}>
+              <span style={{ fontSize: '14px', color: B.muted }}>
                 {t('v4res.radar_absolute_note')}{' '}
                 {excluded.map((r) => getV4Driver(r.driver_key)?.label ?? r.driver_key).join(', ')}
               </span>
@@ -558,11 +560,11 @@ function OverviewTab({
           </div>
         </div>
       ) : (
-        <div style={{ ...card, color: B.muted, fontSize: '13px' }}>{t('v4res.no_radar_data')}</div>
+        <div style={{ ...card, color: B.muted, fontSize: '15px' }}>{t('v4res.no_radar_data')}</div>
       )}
 
       {/* Score cards / quick anchors, one per driver. */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
         {rows.map((row) => (
           <OverviewCard
             key={row.driver_key}
@@ -632,24 +634,30 @@ function OverviewCard({
 
   return (
     <div
+      className="jk-card-hover"
       style={{
         ...card,
-        padding: '16px 18px',
         borderColor: row.status === 'error' ? `${B.error}40` : row.status === 'needs_decision' ? `${B.warning}60` : B.border,
         display: 'flex',
         flexDirection: 'column',
-        gap: '8px',
+        gap: '12px',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '14px', fontWeight: 600, color: B.ink }}>{def?.label ?? row.driver_key}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '17px', fontWeight: 650, color: B.ink }}>{def?.label ?? row.driver_key}</span>
         <span style={pill(s.color)}>{s.label}</span>
         {row.edited && <span style={pill(B.warning)}>{t('v4res.edited_badge')}</span>}
       </div>
 
-      <div style={{ display: 'flex', gap: '14px', alignItems: 'baseline', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '16px', alignItems: 'baseline', flexWrap: 'wrap' }}>
         <span
-          style={{ fontSize: '28px', fontWeight: 700, color: scoreColor(score ?? null), cursor: 'help' }}
+          style={{
+            ...B.type.display,
+            ...B.type.num,
+            fontSize: '56px',
+            color: scoreColor(score ?? null),
+            cursor: 'help',
+          }}
           title={t('v4res.formula_note')}
         >
           {fmt(score)}
@@ -659,19 +667,19 @@ function OverviewCard({
         </span>
       </div>
       {/* One explicit line under the number: what it is, and the real measure. */}
-      <div style={{ fontSize: '11px', color: B.muted }} title={t('v4res.formula_note')}>
+      <div style={{ fontSize: '14px', color: B.muted, lineHeight: 1.5 }} title={t('v4res.formula_note')}>
         {scoreLine}
       </div>
 
       {row.status === 'error' && row.error && (
-        <div style={{ fontSize: '12px', color: B.error, lineHeight: 1.5 }}>{clipText(row.error, 160)}</div>
+        <div style={{ fontSize: '14px', color: B.error, lineHeight: 1.5 }}>{clipText(row.error, 160)}</div>
       )}
 
       {summarySnippet && row.status === 'done' && (
-        <div style={{ fontSize: '12px', color: B.muted, lineHeight: 1.5 }}>{summarySnippet}</div>
+        <div style={{ fontSize: '15px', color: B.muted, lineHeight: 1.55 }}>{summarySnippet}</div>
       )}
 
-      <button type="button" onClick={onOpen} style={{ ...ghostButton, alignSelf: 'flex-start' }}>
+      <button type="button" onClick={onOpen} style={{ ...ghostButton, alignSelf: 'flex-start', marginTop: 'auto' }}>
         {row.status === 'needs_decision' ? t('v4res.resolve') : t('v4res.open_tab')}
       </button>
     </div>

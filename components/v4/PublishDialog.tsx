@@ -89,16 +89,16 @@ export default function PublishDialog({ analysisId, editsInfo, onClose, onPublis
       onClick={onClose}
     >
       <div
-        style={{ ...card, width: 'min(680px, 100%)', maxHeight: '85vh', overflowY: 'auto' }}
+        style={{ ...card, width: 'min(680px, 100%)', maxHeight: '85vh', overflowY: 'auto', boxShadow: B.shadow.dialog }}
         onClick={(e) => e.stopPropagation()}
       >
         <h3 style={sectionTitle}>{t('v4res.pub_title')}</h3>
-        <div style={{ fontSize: '13px', color: B.muted, lineHeight: 1.6, marginBottom: '16px' }}>
+        <div style={{ fontSize: '15px', color: B.muted, lineHeight: 1.6, marginBottom: '16px' }}>
           {t('v4res.pub_intro')}
         </div>
 
         {drafts.length === 0 ? (
-          <div style={{ fontSize: '13px', color: B.muted, marginBottom: '16px' }}>{t('v4res.pub_nothing')}</div>
+          <div style={{ fontSize: '15px', color: B.muted, marginBottom: '16px' }}>{t('v4res.pub_nothing')}</div>
         ) : (
           <>
             {/* Drivers that will re-run. */}
@@ -113,10 +113,10 @@ export default function PublishDialog({ analysisId, editsInfo, onClose, onPublis
                   ))}
                 </div>
               ) : (
-                <div style={{ fontSize: '13px', color: B.muted }}>{t('v4res.pub_no_rerun')}</div>
+                <div style={{ fontSize: '15px', color: B.muted }}>{t('v4res.pub_no_rerun')}</div>
               )}
               {rerun && selection.ineligible.length > 0 && (
-                <div style={{ marginTop: '8px', fontSize: '12px', color: B.warning }}>
+                <div style={{ marginTop: '8px', fontSize: '14px', color: B.warning }}>
                   {t('v4res.pub_ineligible')}:{' '}
                   {selection.ineligible.map((i) => `${label(i.driver_key)} (${i.reason})`).join('; ')}
                 </div>
@@ -128,7 +128,7 @@ export default function PublishDialog({ analysisId, editsInfo, onClose, onPublis
               <div style={{ ...mutedLabel, marginBottom: '8px' }}>{t('v4res.pub_kept_edits')}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {drafts.map((e) => (
-                  <div key={e.id} style={{ fontSize: '12px', color: B.muted, display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <div key={e.id} style={{ fontSize: '14px', color: B.muted, display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                     <span style={{ color: B.ink, fontWeight: 600 }}>
                       {e.driver_key ? label(e.driver_key) : '—'}
                     </span>
@@ -143,13 +143,13 @@ export default function PublishDialog({ analysisId, editsInfo, onClose, onPublis
 
             <label style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '16px', cursor: 'pointer' }}>
               <input type="checkbox" checked={rerun} onChange={(e) => setRerun(e.target.checked)} />
-              <span style={{ fontSize: '13px', color: B.ink }}>{t('v4res.pub_rerun_toggle')}</span>
+              <span style={{ fontSize: '15px', color: B.ink }}>{t('v4res.pub_rerun_toggle')}</span>
             </label>
           </>
         )}
 
-        {error && <div style={{ fontSize: '12px', color: B.error, marginBottom: '12px' }}>{error}</div>}
-        {result && <div style={{ fontSize: '12px', color: B.primary, marginBottom: '12px' }}>{result}</div>}
+        {error && <div style={{ fontSize: '14px', color: B.error, marginBottom: '12px' }}>{error}</div>}
+        {result && <div style={{ fontSize: '14px', color: B.primary, marginBottom: '12px' }}>{result}</div>}
 
         <div style={{ display: 'flex', gap: '12px' }}>
           {!result && (

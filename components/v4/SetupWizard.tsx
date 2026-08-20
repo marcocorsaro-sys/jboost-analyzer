@@ -51,69 +51,67 @@ const MAX_COMPETITORS = 4
 // Shared styles (same palette as the rest of the V4 components)
 // ---------------------------------------------------------------------------
 
+/** Tall input: 48px total height (12+16+12+2 borders), 16px text. */
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  padding: '10px 14px',
+  padding: '12px 16px',
   background: B.bg,
   border: `1px solid ${B.border}`,
-  borderRadius: '8px',
+  borderRadius: B.radius.input,
   color: B.ink,
-  fontSize: '14px',
+  fontSize: '16px',
+  lineHeight: 1.4,
   outline: 'none',
   fontFamily: 'inherit',
 }
 
 const labelStyle: React.CSSProperties = {
+  ...B.type.label,
   display: 'block',
-  fontSize: '12px',
-  fontWeight: 600,
   color: B.muted,
-  marginBottom: '6px',
-  fontFamily: B.fontMono,
-  textTransform: 'uppercase',
-  letterSpacing: '0.5px',
+  marginBottom: '8px',
 }
 
 const sectionStyle: React.CSSProperties = {
-  background: B.surface,
-  borderRadius: '12px',
+  background: B.bg,
+  borderRadius: B.radius.card,
   border: `1px solid ${B.border}`,
-  padding: '24px',
+  padding: '32px',
+  boxShadow: B.shadow.card,
 }
 
 const sectionTitleStyle: React.CSSProperties = {
-  fontFamily: B.fontMono,
-  fontSize: '14px',
-  fontWeight: 700,
+  ...B.type.h2,
   color: B.ink,
-  textTransform: 'uppercase',
-  letterSpacing: '0.5px',
-  marginBottom: '4px',
+  marginBottom: '6px',
 }
 
-const hintStyle: React.CSSProperties = { fontSize: '12px', color: B.muted, marginBottom: '18px' }
-const smallHint: React.CSSProperties = { fontSize: '12px', color: B.muted, marginTop: '6px' }
+const hintStyle: React.CSSProperties = { fontSize: '15px', color: B.muted, lineHeight: 1.5, marginBottom: '24px' }
+const smallHint: React.CSSProperties = { fontSize: '14px', color: B.muted, lineHeight: 1.5, marginTop: '8px' }
 
 const ghostButton: React.CSSProperties = {
   background: 'transparent',
   border: `1px solid ${B.border}`,
-  borderRadius: '8px',
+  borderRadius: B.radius.control,
   color: B.muted,
-  padding: '8px 16px',
-  fontSize: '13px',
+  padding: '10px 16px',
+  fontSize: '14px',
+  fontWeight: 600,
   cursor: 'pointer',
+  transition: B.transition,
 }
 
 const chipStyle: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: '6px',
-  padding: '4px 10px',
-  background: B.bg,
-  border: `1px solid ${B.border}`,
+  padding: '6px 12px',
+  background: B.primarySoft,
+  border: `1px solid ${B.primary}22`,
   borderRadius: '999px',
-  fontSize: '12px',
-  color: B.ink,
+  fontSize: '13px',
+  fontWeight: 600,
+  color: B.primary,
 }
 
 interface CompetitorRow {
@@ -200,7 +198,7 @@ function brandFromDomain(raw: string): string {
 }
 
 const invalidInputStyle: React.CSSProperties = { ...inputStyle, border: `1px solid ${B.error}` }
-const fieldErrorStyle: React.CSSProperties = { fontSize: '12px', color: B.error, marginTop: '4px' }
+const fieldErrorStyle: React.CSSProperties = { fontSize: '14px', color: B.error, marginTop: '4px' }
 
 // ---------------------------------------------------------------------------
 // Small reusable pieces
@@ -691,7 +689,7 @@ export default function SetupWizard({
           <button
             type="button"
             onClick={() => removeFile(a.path)}
-            style={{ ...ghostButton, padding: '2px 10px', fontSize: '12px' }}
+            style={{ ...ghostButton, padding: '2px 10px', fontSize: '14px' }}
           >
             {t('v4setup.remove')}
           </button>
@@ -706,7 +704,7 @@ export default function SetupWizard({
           if (file) void uploadFile(kind, file)
           e.target.value = ''
         }}
-        style={{ fontSize: '13px', color: B.muted }}
+        style={{ fontSize: '15px', color: B.muted }}
       />
       <div style={smallHint}>
         {uploading === kind ? t('v4setup.uploading') : hint} {t('v4setup.upload_parse_note')}
@@ -728,7 +726,7 @@ export default function SetupWizard({
               style={{
                 ...ghostButton,
                 padding: '4px 12px',
-                fontSize: '12px',
+                fontSize: '14px',
                 opacity: (driverTemplates.speed ?? []).length === 0 ? 0.5 : 1,
               }}
               title={t('v4setup.import_from_speed_hint')}
@@ -741,7 +739,7 @@ export default function SetupWizard({
           {TEMPLATE_KEYS.map((key) => (
             <label
               key={key}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: B.ink, cursor: 'pointer' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px', color: B.ink, cursor: 'pointer' }}
             >
               <input
                 type="checkbox"
@@ -757,7 +755,7 @@ export default function SetupWizard({
           <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {TEMPLATE_KEYS.filter((k) => selected.includes(k)).map((key) => (
               <div key={key} style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '12px', alignItems: 'center' }}>
-                <span style={{ fontSize: '12px', color: B.muted }}>{TEMPLATE_LABELS[key]}</span>
+                <span style={{ fontSize: '14px', color: B.muted }}>{TEMPLATE_LABELS[key]}</span>
                 <div>
                   <UrlAutocompleteInput
                     value={templates.client?.[key] ?? ''}
@@ -815,7 +813,7 @@ export default function SetupWizard({
             />
             <div style={smallHint}>{t('v4setup.clusters_hint')}</div>
             {clusters.length > 0 && (clusters.length < CLUSTERS_MIN || clusters.length > CLUSTERS_MAX) && (
-              <div style={{ fontSize: '12px', color: B.warning, marginTop: '4px' }}>
+              <div style={{ fontSize: '14px', color: B.warning, marginTop: '4px' }}>
                 {t('v4setup.req_clusters')}
               </div>
             )}
@@ -901,13 +899,13 @@ export default function SetupWizard({
         >
           {suggesting ? `↻ ${t('v4setup.ai_suggesting')}` : `✨ ${t('v4setup.ai_suggest')}`}
         </button>
-        <span style={{ fontSize: '12px', color: B.muted, flex: 1, minWidth: '260px' }}>
+        <span style={{ fontSize: '14px', color: B.muted, flex: 1, minWidth: '260px' }}>
           {t('v4setup.ai_suggest_hint')}
         </span>
       </div>
-      {suggestNote && <div style={{ marginTop: '8px', fontSize: '12px', color: B.primary }}>{suggestNote}</div>}
+      {suggestNote && <div style={{ marginTop: '8px', fontSize: '14px', color: B.primary }}>{suggestNote}</div>}
       {suggestWarnings.length > 0 && (
-        <div style={{ marginTop: '4px', fontSize: '12px', color: B.warning }}>{suggestWarnings.join(' · ')}</div>
+        <div style={{ marginTop: '4px', fontSize: '14px', color: B.warning }}>{suggestWarnings.join(' · ')}</div>
       )}
 
       <div style={{ marginTop: '16px' }}>
@@ -927,7 +925,7 @@ export default function SetupWizard({
           {ANALYSIS_COUNTRIES.map((c) => (
             <label
               key={c.code}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: B.ink, cursor: 'pointer' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px', color: B.ink, cursor: 'pointer' }}
             >
               <input
                 type="checkbox"
@@ -1004,7 +1002,7 @@ export default function SetupWizard({
                 style={{
                   ...ghostButton,
                   padding: '6px 14px',
-                  fontSize: '12px',
+                  fontSize: '14px',
                   color: targetAudienceMode === m ? B.bg : B.muted,
                   background: targetAudienceMode === m ? B.primary : 'transparent',
                   fontWeight: targetAudienceMode === m ? 700 : 400,
@@ -1144,26 +1142,29 @@ export default function SetupWizard({
                   style={{ marginTop: '3px' }}
                 />
                 <span style={{ flex: 1 }}>
-                  <span style={{ display: 'block', fontSize: '14px', color: B.ink }}>
+                  <span style={{ display: 'block', fontSize: '16px', color: B.ink }}>
                     {dr.label}
                     {isBusiness && (
                       <span
                         style={{
                           marginLeft: '10px',
-                          fontSize: '11px',
+                          fontSize: '13px',
+                          fontWeight: 600,
                           color: B.primary,
-                          fontFamily: B.fontMono,
+                          background: B.primarySoft,
+                          borderRadius: B.radius.pill,
+                          padding: '4px 10px',
                         }}
                       >
                         {t('v4setup.mandatory_badge')}
                       </span>
                     )}
                   </span>
-                  <span style={{ display: 'block', fontSize: '12px', color: B.muted }}>
+                  <span style={{ display: 'block', fontSize: '14px', color: B.muted }}>
                     {isBusiness ? 'Business' : 'Development'} · {t('v4setup.data_source')}: {dr.source}
                   </span>
                   {isBusiness && !hasCompetitor && (
-                    <span style={{ display: 'block', fontSize: '12px', color: B.warning, marginTop: '4px' }}>
+                    <span style={{ display: 'block', fontSize: '14px', color: B.warning, marginTop: '4px' }}>
                       {t('v4setup.needs_competitor')}
                     </span>
                   )}
@@ -1190,11 +1191,10 @@ export default function SetupWizard({
                   <div key={site.site_ref}>
                     <div
                       style={{
-                        fontSize: '13px',
-                        fontWeight: 600,
+                        fontSize: '16px',
+                        fontWeight: 650,
                         color: B.primary,
                         marginBottom: '10px',
-                        fontFamily: B.fontMono,
                       }}
                     >
                       {site.label}
@@ -1205,7 +1205,7 @@ export default function SetupWizard({
                           key={key}
                           style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '12px', alignItems: 'center' }}
                         >
-                          <span style={{ fontSize: '12px', color: B.muted }}>{TEMPLATE_LABELS[key]}</span>
+                          <span style={{ fontSize: '14px', color: B.muted }}>{TEMPLATE_LABELS[key]}</span>
                           <div>
                             <UrlAutocompleteInput
                               value={templates[site.site_ref]?.[key] ?? ''}
@@ -1253,15 +1253,15 @@ export default function SetupWizard({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '14px', color: B.ink }}>{t('v4setup.ga_gsc')}</span>
+          <span style={{ fontSize: '16px', color: B.ink }}>{t('v4setup.ga_gsc')}</span>
           <span
             style={{
-              fontSize: '11px',
-              padding: '2px 8px',
+              fontSize: '13px',
+              fontWeight: 600,
+              padding: '4px 10px',
               borderRadius: '999px',
               background: `${B.muted}20`,
               color: B.muted,
-              fontFamily: B.fontMono,
             }}
           >
             {t('v4setup.future_badge')}
@@ -1328,7 +1328,7 @@ export default function SetupWizard({
       <h2 style={sectionTitleStyle}>5 · {t('v4setup.step5')}</h2>
       <p style={hintStyle}>{t('v4setup.step5_hint')}</p>
 
-      <div style={{ fontSize: '13px', color: B.ink, lineHeight: 2 }}>
+      <div style={{ fontSize: '15px', color: B.ink, lineHeight: 2 }}>
         <div>
           {t('v4setup.summary_site')}: <strong>{bareDomain(clientDomain) || '—'}</strong>
           {clientBrand ? ` (${clientBrand})` : ''} · {countries.join(', ') || '—'}
@@ -1362,7 +1362,7 @@ export default function SetupWizard({
             border: `1px solid ${B.warning}40`,
             borderRadius: '8px',
             color: B.warning,
-            fontSize: '13px',
+            fontSize: '15px',
           }}
         >
           <div style={{ fontWeight: 700, marginBottom: '4px' }}>{t('v4setup.missing_title')}</div>
@@ -1374,7 +1374,7 @@ export default function SetupWizard({
         </div>
       )}
 
-      <div style={{ marginTop: '20px', fontSize: '12px', color: B.muted }}>
+      <div style={{ marginTop: '20px', fontSize: '14px', color: B.muted }}>
         {t('v4setup.launch_note')}
       </div>
 
@@ -1383,16 +1383,16 @@ export default function SetupWizard({
         onClick={launch}
         disabled={!canLaunch}
         style={{
-          marginTop: '16px',
-          padding: '12px 26px',
-          background: canLaunch ? B.primary : B.border,
+          marginTop: '20px',
+          padding: '14px 28px',
+          background: canLaunch ? B.primary : B.surface2,
           color: canLaunch ? B.onPrimary : B.muted,
           border: 'none',
-          borderRadius: '8px',
-          fontSize: '14px',
-          fontWeight: 700,
-          fontFamily: B.fontMono,
+          borderRadius: B.radius.control,
+          fontSize: '16px',
+          fontWeight: 650,
           cursor: canLaunch ? 'pointer' : 'default',
+          transition: B.transition,
         }}
       >
         {launching ? t('v4setup.launching') : t('v4setup.launch_cta')}
@@ -1403,9 +1403,9 @@ export default function SetupWizard({
   const steps = [step1, step2, step3, step4, step5]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* Stepper */}
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* Stepper — large, readable steps */}
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
         {stepLabels.map((k, i) => {
           const n = i + 1
           const active = step === n
@@ -1415,17 +1415,37 @@ export default function SetupWizard({
               type="button"
               onClick={() => setStep(n)}
               style={{
-                padding: '8px 14px',
-                borderRadius: '8px',
-                border: `1px solid ${active ? B.primary : B.border}`,
-                background: active ? B.primarySoft : 'transparent',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '12px 20px',
+                borderRadius: B.radius.pill,
+                border: `1px solid ${active ? `${B.primary}55` : B.border}`,
+                background: active ? B.primarySoft : B.bg,
                 color: active ? B.primary : B.muted,
-                fontSize: '12px',
-                fontFamily: B.fontMono,
+                fontSize: '15px',
+                fontWeight: active ? 650 : 600,
                 cursor: 'pointer',
+                transition: B.transition,
               }}
             >
-              {n} · {t(k)}
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '26px',
+                  height: '26px',
+                  borderRadius: '50%',
+                  background: active ? B.primary : B.surface2,
+                  color: active ? B.onPrimary : B.muted,
+                  fontSize: '14px',
+                  fontWeight: 700,
+                }}
+              >
+                {n}
+              </span>
+              {t(k)}
             </button>
           )
         })}
@@ -1441,7 +1461,7 @@ export default function SetupWizard({
             border: `1px solid ${B.error}`,
             borderRadius: '8px',
             color: B.error,
-            fontSize: '13px',
+            fontSize: '15px',
           }}
         >
           <ul style={{ margin: 0, paddingLeft: '18px' }}>
@@ -1470,7 +1490,7 @@ export default function SetupWizard({
         )}
         <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
           {savedAt && (
-            <span style={{ fontSize: '12px', color: B.muted }}>
+            <span style={{ fontSize: '14px', color: B.muted }}>
               {t('v4setup.draft_saved')} {savedAt}
             </span>
           )}

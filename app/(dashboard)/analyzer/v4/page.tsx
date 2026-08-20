@@ -30,19 +30,20 @@ export default async function V4SetupPage({
   }
 
   return (
-    <div style={{ maxWidth: '900px' }}>
+    <div style={{ maxWidth: '960px', margin: '0 auto' }}>
       <h1
         style={{
-          fontSize: '24px',
-          fontWeight: 700,
-          letterSpacing: '-0.01em',
+          fontSize: '34px',
+          fontWeight: 750,
+          lineHeight: 1.15,
+          letterSpacing: '-0.02em',
           color: B.ink,
-          marginBottom: '8px',
+          marginBottom: '10px',
         }}
       >
         <T k={initialDraft ? 'v4setup.resume_title' : 'v4setup.title'} />
       </h1>
-      <p style={{ fontSize: '14px', color: B.muted, marginBottom: '20px' }}>
+      <p style={{ fontSize: '16px', lineHeight: 1.55, color: B.muted, marginBottom: '28px' }}>
         <T k="v4setup.subtitle" />
       </p>
 

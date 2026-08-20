@@ -14,7 +14,7 @@ export default async function V4ResultsPage({ params }: { params: Promise<{ id: 
   const { id } = await params
 
   return (
-    <div style={{ maxWidth: '1280px' }}>
+    <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
       <ResultsView analysisId={id} />
     </div>
   )

@@ -157,57 +157,82 @@ export const PRIORITY_COLORS: Record<string, string> = {
 // Shared styles (white JAKALA workspace theme, tokens from lib/brand.ts)
 // ---------------------------------------------------------------------------
 
+/** Premium card: white surface, hairline border, generous padding, soft lift. */
 export const card: React.CSSProperties = {
-  background: B.surface,
+  background: B.bg,
   border: `1px solid ${B.border}`,
-  borderRadius: B.radiusLg,
-  padding: '20px 22px',
+  borderRadius: B.radius.card,
+  padding: '28px 32px',
+  boxShadow: B.shadow.card,
 }
 
+/** Section heading inside a card — a real title, not a micro-label. */
 export const sectionTitle: React.CSSProperties = {
-  fontSize: '12px',
-  fontWeight: 700,
+  ...B.type.h2,
   color: B.ink,
-  textTransform: 'uppercase',
-  letterSpacing: '0.5px',
-  margin: '0 0 12px 0',
+  margin: '0 0 16px 0',
 }
 
+/** Micro-label: the ONLY sub-14px text allowed. Uppercase, wide tracking. */
 export const mutedLabel: React.CSSProperties = {
-  fontSize: '11px',
-  fontWeight: 600,
+  ...B.type.label,
   color: B.muted,
-  textTransform: 'uppercase',
-  letterSpacing: '0.5px',
 }
 
+/** Soft pill badge: tinted background, readable 13px/600, full radius. */
 export const pill = (color: string): React.CSSProperties => ({
-  fontSize: '11px',
+  fontSize: '13px',
   fontWeight: 600,
+  lineHeight: 1.3,
   color,
-  border: `1px solid ${color}40`,
-  borderRadius: '4px',
-  padding: '2px 8px',
+  background: `${color}14`,
+  border: `1px solid ${color}26`,
+  borderRadius: B.radius.pill,
+  padding: '5px 12px',
   whiteSpace: 'nowrap',
 })
 
 export const primaryButton = (enabled: boolean): React.CSSProperties => ({
-  padding: '10px 20px',
+  padding: '12px 20px',
   background: enabled ? B.primary : B.surface2,
   color: enabled ? B.onPrimary : B.muted,
   border: 'none',
-  borderRadius: B.radiusMd,
-  fontWeight: 700,
-  fontSize: '13px',
+  borderRadius: B.radius.control,
+  fontWeight: 650,
+  fontSize: '15px',
+  lineHeight: 1.3,
   cursor: enabled ? 'pointer' : 'default',
+  transition: B.transition,
 })
 
 export const ghostButton: React.CSSProperties = {
   background: B.bg,
   border: `1px solid ${B.border}`,
-  borderRadius: B.radiusSm,
+  borderRadius: B.radius.control,
   color: B.muted,
-  padding: '6px 14px',
-  fontSize: '12px',
+  padding: '10px 16px',
+  fontSize: '14px',
+  fontWeight: 600,
+  lineHeight: 1.3,
   cursor: 'pointer',
+  transition: B.transition,
+}
+
+/** Hero score number — the protagonist of every score card. */
+export const displayNum: React.CSSProperties = {
+  ...B.type.display,
+  ...B.type.num,
+}
+
+/** Secondary big number — competitor chips, stat tiles, table numbers. */
+export const displayNumSm: React.CSSProperties = {
+  ...B.type.displaySm,
+  ...B.type.num,
+}
+
+/** Page H1 — one per page. */
+export const pageTitle: React.CSSProperties = {
+  ...B.type.h1,
+  color: B.ink,
+  margin: 0,
 }

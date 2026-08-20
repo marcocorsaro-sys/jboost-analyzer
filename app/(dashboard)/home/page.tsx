@@ -54,16 +54,17 @@ export default async function HomePage() {
   const topClients = clients ?? []
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-5xl">
       {/* Headliner — JAKALA BrandHero band + primary CTA */}
       <BrandHero
-        className="mb-10 mt-4"
+        className="mb-12 mt-4"
+        height={300}
         title="J·Boost Analyzer"
         subtitle="SEO/GEO Analysis Platform"
       >
         <Link
           href="/analyzer/v4"
-          className="inline-block rounded-lg px-6 py-3 text-sm font-bold no-underline transition-opacity hover:opacity-90"
+          className="inline-block rounded-xl px-7 py-3.5 text-[15px] font-bold no-underline transition-opacity hover:opacity-90"
           style={{ background: B.bg, color: B.primary }}
         >
           <T k="home.start_new_audit" />
@@ -72,18 +73,18 @@ export default async function HomePage() {
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Audits widget — first 3, link to All audits */}
-        <div className="rounded-xl border border-border bg-card p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-mono text-[13px] font-semibold uppercase tracking-wide text-primary">
+        <div className="rounded-2xl border border-border bg-card p-7 shadow-[0_1px_2px_rgba(4,0,102,0.05)]">
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
               <T k="nav.audits" />
             </h2>
-            <Link href="/audits" className="text-xs text-muted-foreground no-underline hover:text-foreground">
+            <Link href="/audits" className="text-[14px] font-semibold text-muted-foreground no-underline hover:text-foreground">
               <T k="home.all_audits" />
             </Link>
           </div>
 
           {audits.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">
+            <div className="py-10 text-center text-[15px] text-muted-foreground">
               <T k="home.no_audits" />
             </div>
           ) : (
@@ -99,31 +100,31 @@ export default async function HomePage() {
                     href={a.started ? `/results/v4/${a.id}` : `/analyzer/v4?resume=${a.id}`}
                     className="no-underline"
                   >
-                    <div className="flex items-center gap-3 rounded-lg bg-background px-3.5 py-2.5 transition-colors hover:bg-accent">
+                    <div className="flex items-center gap-4 rounded-xl bg-background px-4 py-3.5 transition-colors hover:bg-accent">
                       <div
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md font-mono text-sm font-bold"
+                        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-xl font-bold tabular-nums"
                         style={{ background: `${color}15`, color }}
                       >
                         {a.overallScore ?? '—'}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-semibold text-foreground">
+                        <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-semibold text-foreground">
                           {a.name}
                           {/* Promoted audit → discreet client marker. */}
                           {a.clientId && (
                             <span
-                              className="ml-2 inline-block rounded-full px-2 py-0.5 align-middle text-[10px] font-semibold"
+                              className="ml-2 inline-block rounded-full px-2.5 py-0.5 align-middle text-[13px] font-semibold"
                               style={{ background: B.primarySoft, color: B.primary }}
                             >
                               <T k="audits.client_badge" />
                             </span>
                           )}
                         </div>
-                        <div className="text-[11px]" style={{ color: stateMeta.color }}>
+                        <div className="mt-0.5 text-[13px] font-medium" style={{ color: stateMeta.color }}>
                           <T k={stateMeta.labelKey} />
                         </div>
                       </div>
-                      <div className="shrink-0 text-[11px] text-muted-foreground">
+                      <div className="shrink-0 text-[13px] text-muted-foreground">
                         {formatLocalDate(a.createdAt, locale, { day: '2-digit', month: 'short' })}
                       </div>
                     </div>
@@ -135,30 +136,30 @@ export default async function HomePage() {
         </div>
 
         {/* Clients widget — first 3 active, link to All clients */}
-        <div className="rounded-xl border border-border bg-card p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-mono text-[13px] font-semibold uppercase tracking-wide text-primary">
+        <div className="rounded-2xl border border-border bg-card p-7 shadow-[0_1px_2px_rgba(4,0,102,0.05)]">
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-primary">
               <T k="nav.clients" />
             </h2>
-            <Link href="/clients" className="text-xs text-muted-foreground no-underline hover:text-foreground">
+            <Link href="/clients" className="text-[14px] font-semibold text-muted-foreground no-underline hover:text-foreground">
               <T k="home.all_clients" />
             </Link>
           </div>
 
           {topClients.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">
+            <div className="py-10 text-center text-[15px] text-muted-foreground">
               <T k="home.no_clients" />
             </div>
           ) : (
             <div className="flex flex-col gap-2">
               {topClients.map((c) => (
                 <Link key={c.id} href={`/clients/${c.id}`} className="no-underline">
-                  <div className="flex items-center gap-3 rounded-lg bg-background px-3.5 py-2.5 transition-colors hover:bg-accent">
+                  <div className="flex items-center gap-4 rounded-xl bg-background px-4 py-3.5 transition-colors hover:bg-accent">
                     <div className="min-w-0 flex-1">
-                      <div className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-semibold text-foreground">
+                      <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-semibold text-foreground">
                         {c.name}
                       </div>
-                      <div className="text-[11px] text-muted-foreground">
+                      <div className="mt-0.5 text-[13px] text-muted-foreground">
                         {c.domain || c.industry || '—'}
                       </div>
                     </div>

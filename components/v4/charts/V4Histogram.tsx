@@ -17,6 +17,7 @@ import {
   BarChart,
   Bar,
   Cell,
+  LabelList,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -58,52 +59,50 @@ export default function V4Histogram({
   return (
     <div
       style={{
-        background: B.surface,
-        borderRadius: '12px',
+        background: B.bg,
+        borderRadius: B.radius.card,
         border: `1px solid ${B.border}`,
-        padding: '20px',
+        padding: '28px 32px',
+        boxShadow: B.shadow.card,
       }}
     >
       <h4
         style={{
-          fontFamily: B.fontMono,
-          fontSize: '12px',
-          fontWeight: 600,
+          ...B.type.h3,
           color: B.ink,
-          margin: '0 0 14px 0',
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px',
+          margin: '0 0 20px 0',
         }}
       >
         {title}
       </h4>
       {measured.length === 0 ? (
-        <div style={{ color: B.muted, fontSize: '13px' }}>—</div>
+        <div style={{ color: B.muted, fontSize: '15px' }}>—</div>
       ) : (
-        <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={measured} margin={{ top: 8, right: 8, bottom: 4, left: -16 }}>
-            <CartesianGrid stroke={B.border} vertical={false} />
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={measured} margin={{ top: 28, right: 8, bottom: 4, left: -8 }}>
+            <CartesianGrid stroke={B.chartGrid} vertical={false} />
             <XAxis
               dataKey="name"
-              tick={{ fill: B.muted, fontSize: 11 }}
+              tick={{ fill: B.muted, fontSize: 14, fontWeight: 600 }}
               interval={0}
               tickLine={false}
               axisLine={{ stroke: B.border }}
             />
             <YAxis
               domain={[0, maxValue]}
-              tick={{ fill: B.muted, fontSize: 10 }}
+              tick={{ fill: B.muted, fontSize: 13 }}
               tickLine={false}
               axisLine={false}
             />
             <Tooltip
               cursor={{ fill: `${B.border}40` }}
               contentStyle={{
-                background: B.surface2,
+                background: B.bg,
                 border: `1px solid ${B.border}`,
-                borderRadius: '8px',
+                borderRadius: '12px',
+                boxShadow: B.shadow.cardHover,
                 color: B.ink,
-                fontSize: '12px',
+                fontSize: '14px',
               }}
               formatter={(value: number, _name, entry) => {
                 const raw = (entry?.payload as HistogramSite | undefined)?.raw
@@ -112,7 +111,13 @@ export default function V4Histogram({
                   : [String(value), '']
               }}
             />
-            <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={64}>
+            <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={72}>
+              {/* Value above every bar — the number must be readable at a glance. */}
+              <LabelList
+                dataKey="value"
+                position="top"
+                style={{ fill: B.ink, fontSize: '16px', fontWeight: 700 }}
+              />
               {measured.map((s) => (
                 <Cell key={s.name} fill={s.isClient ? CLIENT_COLOR : COMPETITOR_COLOR} />
               ))}
@@ -121,7 +126,7 @@ export default function V4Histogram({
         </ResponsiveContainer>
       )}
       {unmeasured.length > 0 && (
-        <div style={{ marginTop: '10px', fontSize: '11px', color: B.muted }}>
+        <div style={{ marginTop: '12px', fontSize: '14px', color: B.muted }}>
           {notMeasuredLabel}: {unmeasured.map((s) => s.name).join(', ')}
         </div>
       )}

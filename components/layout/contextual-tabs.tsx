@@ -58,7 +58,7 @@ export function ContextualTabs({ tabs, className }: ContextualTabsProps) {
               aria-selected={active}
               aria-current={active ? 'page' : undefined}
               className={cn(
-                'relative whitespace-nowrap px-3 py-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground',
+                'relative whitespace-nowrap px-4 py-3.5 text-[15px] font-medium text-muted-foreground transition-colors hover:text-foreground',
                 active && 'text-foreground'
               )}
             >

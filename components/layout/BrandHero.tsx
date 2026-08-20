@@ -107,14 +107,14 @@ export function BrandHero({
         <circle cx="420" cy="210" r="26" fill="#b7bdff" fillOpacity="0.25" />
       </svg>
 
-      <div style={{ position: 'relative', padding: '28px 32px', maxWidth: '720px' }}>
+      <div style={{ position: 'relative', padding: '36px 40px', maxWidth: '760px' }}>
         <div
           style={{
             color: B.onPrimary,
-            fontSize: '30px',
-            fontWeight: 700,
+            fontSize: 'clamp(40px, 5vw, 64px)',
+            fontWeight: 800,
             letterSpacing: '-0.02em',
-            lineHeight: 1.15,
+            lineHeight: 1.05,
           }}
         >
           {title}
@@ -122,16 +122,17 @@ export function BrandHero({
         {subtitle && (
           <div
             style={{
-              color: 'rgba(255, 255, 255, 0.82)',
-              fontSize: '15px',
-              marginTop: '8px',
+              color: 'rgba(255, 255, 255, 0.85)',
+              fontSize: '18px',
+              lineHeight: 1.5,
+              marginTop: '12px',
               fontWeight: 400,
             }}
           >
             {subtitle}
           </div>
         )}
-        {children && <div style={{ marginTop: '18px' }}>{children}</div>}
+        {children && <div style={{ marginTop: '24px' }}>{children}</div>}
       </div>
     </div>
   )

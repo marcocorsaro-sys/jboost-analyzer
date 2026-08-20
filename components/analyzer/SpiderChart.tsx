@@ -79,19 +79,18 @@ export default function SpiderChart({
 
   return (
     <div style={{
-      background: B.surface,
-      borderRadius: '12px',
+      background: B.bg,
+      borderRadius: B.radius.card,
       border: `1px solid ${B.border}`,
-      padding: '24px',
+      padding: '28px 32px',
+      boxShadow: B.shadow.card,
     }}>
       <h3 style={{
-        fontFamily: B.fontMono,
-        fontSize: '14px',
-        fontWeight: 600,
+        fontSize: '18px',
+        fontWeight: 700,
         color: B.ink,
-        marginBottom: '16px',
-        textTransform: 'uppercase',
-        letterSpacing: '0.5px',
+        marginBottom: '20px',
+        letterSpacing: '-0.01em',
       }}>
         {title ?? 'Driver Radar'}
       </h3>
@@ -100,12 +99,12 @@ export default function SpiderChart({
           <PolarGrid stroke={B.border} />
           <PolarAngleAxis
             dataKey="driver"
-            tick={{ fill: B.muted, fontSize: 11 }}
+            tick={{ fill: B.muted, fontSize: 14, fontWeight: 600 }}
           />
           <PolarRadiusAxis
             angle={90}
             domain={[0, 100]}
-            tick={{ fill: B.muted, fontSize: 10 }}
+            tick={{ fill: B.muted, fontSize: 13 }}
           />
           <Radar
             name={primaryName ?? 'Your Score'}
@@ -129,16 +128,17 @@ export default function SpiderChart({
           ))}
           <Tooltip
             contentStyle={{
-              background: B.surface2,
+              background: B.bg,
               border: `1px solid ${B.border}`,
-              borderRadius: '8px',
+              borderRadius: '12px',
+              boxShadow: B.shadow.cardHover,
               color: B.ink,
-              fontSize: '12px',
+              fontSize: '14px',
             }}
           />
           {competitorScores.length > 0 && (
             <Legend
-              wrapperStyle={{ fontSize: '12px', color: B.muted }}
+              wrapperStyle={{ fontSize: '14px', color: B.muted }}
             />
           )}
         </RadarChart>

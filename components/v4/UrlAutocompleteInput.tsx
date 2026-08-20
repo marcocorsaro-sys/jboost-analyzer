@@ -28,12 +28,13 @@ import { B } from '@/lib/brand'
 // Same palette as SetupWizard (JAKALA light tokens from lib/brand.ts).
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  padding: '10px 14px',
+  padding: '12px 16px',
   background: B.bg,
   border: `1px solid ${B.border}`,
-  borderRadius: '8px',
+  borderRadius: B.radius.input,
   color: B.ink,
-  fontSize: '14px',
+  fontSize: '16px',
+  lineHeight: 1.4,
   outline: 'none',
   fontFamily: 'inherit',
 }
@@ -63,7 +64,7 @@ const optionStyle: React.CSSProperties = {
   background: 'transparent',
   border: 'none',
   color: B.ink,
-  fontSize: '13px',
+  fontSize: '15px',
   textAlign: 'left',
   cursor: 'pointer',
   fontFamily: 'inherit',
@@ -71,7 +72,7 @@ const optionStyle: React.CSSProperties = {
 
 const statusStyle: React.CSSProperties = {
   padding: '8px 12px',
-  fontSize: '12px',
+  fontSize: '14px',
   color: B.muted,
 }
 
@@ -264,7 +265,7 @@ export default function UrlAutocompleteInput({
                 </span>
                 <span
                   style={{
-                    fontSize: '11px',
+                    fontSize: '13px',
                     color: B.muted,
                     fontFamily: B.fontMono,
                     flexShrink: 0,

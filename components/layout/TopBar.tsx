@@ -43,7 +43,7 @@ export default function TopBar({ userEmail }: TopBarProps) {
         <LocaleSwitcher />
         <button
           onClick={handleLogout}
-          className="text-xs px-3 py-1.5 rounded-md transition-colors"
+          className="text-[13px] px-3.5 py-2 rounded-lg transition-colors"
           style={{
             color: 'var(--gray)',
             border: '1px solid hsl(var(--border))',

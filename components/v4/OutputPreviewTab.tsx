@@ -109,12 +109,12 @@ export default function OutputPreviewTab({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* ---------------------------------------------- format selector --- */}
       <div style={card}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <h3 style={{ ...sectionTitle, margin: 0 }}>{t('v4export.title')}</h3>
-          <span style={{ fontSize: '12px', color: B.muted }}>{t('v4export.no_pdf_note')}</span>
+          <span style={{ fontSize: '14px', color: B.muted }}>{t('v4export.no_pdf_note')}</span>
         </div>
 
         <div
@@ -132,26 +132,26 @@ export default function OutputPreviewTab({
                 key={f.key}
                 type="button"
                 onClick={() => setFormat(f.key)}
+                className="jk-card-hover"
                 style={{
                   textAlign: 'left',
-                  background: active ? B.primarySoft : 'transparent',
-                  border: `1px solid ${active ? B.primary : B.border}`,
-                  borderRadius: '10px',
-                  padding: '14px 16px',
+                  background: active ? B.primarySoft : B.bg,
+                  border: `1px solid ${active ? `${B.primary}55` : B.border}`,
+                  borderRadius: B.radius.card,
+                  padding: '20px 22px',
                   cursor: 'pointer',
                 }}
               >
                 <div
                   style={{
-                    fontFamily: B.fontMono,
-                    fontSize: '14px',
-                    fontWeight: 700,
+                    fontSize: '17px',
+                    fontWeight: 650,
                     color: active ? B.primary : B.ink,
                   }}
                 >
                   {f.name}
                 </div>
-                <div style={{ fontSize: '12px', color: B.muted, lineHeight: 1.5, marginTop: '6px' }}>
+                <div style={{ fontSize: '14px', color: B.muted, lineHeight: 1.5, marginTop: '8px' }}>
                   {t(f.descKey)}
                 </div>
               </button>
@@ -170,7 +170,7 @@ export default function OutputPreviewTab({
             {generating ? t('v4export.generating') : t('v4export.generate')}
           </button>
           {!anyDriverDone && (
-            <span style={{ fontSize: '12px', color: B.warning }}>{t('v4export.need_driver')}</span>
+            <span style={{ fontSize: '14px', color: B.warning }}>{t('v4export.need_driver')}</span>
           )}
           {/* Switch to client — spec: promotion hook only, ongoing phase not built. */}
           <button
@@ -184,7 +184,7 @@ export default function OutputPreviewTab({
         </div>
 
         {error && (
-          <div style={{ marginTop: '12px', fontSize: '12px', color: B.error }}>
+          <div style={{ marginTop: '12px', fontSize: '14px', color: B.error }}>
             {t('v4export.error')}: {error}
           </div>
         )}
@@ -194,15 +194,15 @@ export default function OutputPreviewTab({
       <div style={card}>
         <h3 style={sectionTitle}>{t('v4export.history')}</h3>
         {history === null ? (
-          <div style={{ fontSize: '13px', color: B.muted }}>…</div>
+          <div style={{ fontSize: '15px', color: B.muted }}>…</div>
         ) : history.length === 0 ? (
-          <div style={{ fontSize: '13px', color: B.muted }}>{t('v4export.history_empty')}</div>
+          <div style={{ fontSize: '15px', color: B.muted }}>{t('v4export.history_empty')}</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {history.map((h) => (
               <div key={h.id} style={{ display: 'flex', gap: '12px', alignItems: 'baseline', flexWrap: 'wrap' }}>
                 <span style={pill(B.teal)}>{h.format}</span>
-                <span style={{ fontSize: '13px', color: B.ink }}>{h.file_ref ?? '—'}</span>
+                <span style={{ fontSize: '15px', color: B.ink }}>{h.file_ref ?? '—'}</span>
                 <span style={{ ...mutedLabel, textTransform: 'none' }}>{formatDate(h.generated_at)}</span>
               </div>
             ))}

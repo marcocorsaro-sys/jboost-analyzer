@@ -49,47 +49,47 @@ function LoginForm() {
         <LocaleSwitcher />
       </div>
 
-      <div className="w-full max-w-md p-8">
+      <div className="w-full max-w-lg p-8">
         {/* JAKALA hero band as the login masthead */}
         <BrandHero
-          className="mb-8"
-          height={170}
+          className="mb-10"
+          height={210}
           title="J·Boost Analyzer"
           subtitle="SEO/GEO Analysis Platform"
         />
 
         {/* Form */}
-        <form onSubmit={handleLogin} className="space-y-5">
+        <form onSubmit={handleLogin} className="space-y-6">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-2"
+            <label className="block text-[13px] font-semibold uppercase tracking-[0.08em] mb-2"
               style={{ color: B.primary }}>{t('auth.email')}</label>
             <input
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
               required
-              className="w-full px-4 py-3 rounded-lg text-sm outline-none focus:ring-2 focus:ring-ring"
+              className="w-full px-4 py-3 rounded-[10px] text-base outline-none"
               style={{ background: B.bg, border: `1px solid ${B.border}`, color: B.ink }}
               placeholder="you@company.com"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-2"
+            <label className="block text-[13px] font-semibold uppercase tracking-[0.08em] mb-2"
               style={{ color: B.primary }}>{t('auth.password')}</label>
             <input
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
-              className="w-full px-4 py-3 rounded-lg text-sm outline-none focus:ring-2 focus:ring-ring"
+              className="w-full px-4 py-3 rounded-[10px] text-base outline-none"
               style={{ background: B.bg, border: `1px solid ${B.border}`, color: B.ink }}
               placeholder="••••••••"
             />
           </div>
 
           {error && (
-            <div className="p-3 rounded-lg text-sm"
+            <div className="p-4 rounded-xl text-[15px]"
               style={{ background: `${B.error}10`, border: `1px solid ${B.error}30`, color: B.error }}>
               {error}
             </div>
@@ -98,7 +98,7 @@ function LoginForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 rounded-lg text-sm font-bold uppercase tracking-widest"
+            className="w-full py-3.5 rounded-xl text-[15px] font-bold transition-opacity hover:opacity-90"
             style={{
               background: loading ? B.surface2 : B.primary,
               color: loading ? B.muted : B.onPrimary,
@@ -108,8 +108,8 @@ function LoginForm() {
           </button>
         </form>
 
-        <div className="text-center mt-6">
-          <Link href="/forgot-password" className="text-xs" style={{ color: B.primary }}>
+        <div className="text-center mt-8">
+          <Link href="/forgot-password" className="text-[14px] font-semibold" style={{ color: B.primary }}>
             {t('auth.forgotPassword')}
           </Link>
         </div>

@@ -29,7 +29,7 @@ export default function ExecutiveSummaryTab({ record, insightsRunning, onGenerat
   if (!record) {
     return (
       <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: '14px' }}>
-        <div style={{ fontSize: '13px', color: B.muted, lineHeight: 1.6 }}>{t('v4res.sum_placeholder')}</div>
+        <div style={{ fontSize: '15px', color: B.muted, lineHeight: 1.6 }}>{t('v4res.sum_placeholder')}</div>
         <button
           type="button"
           onClick={onGenerate}
@@ -45,7 +45,7 @@ export default function ExecutiveSummaryTab({ record, insightsRunning, onGenerat
   if (record.status === 'error') {
     return (
       <div style={{ ...card, borderColor: `${B.error}40` }}>
-        <div style={{ fontSize: '13px', color: B.error, lineHeight: 1.6 }}>
+        <div style={{ fontSize: '15px', color: B.error, lineHeight: 1.6 }}>
           {t('v4res.insights_error')}: {record.error}
         </div>
       </div>
@@ -59,20 +59,20 @@ export default function ExecutiveSummaryTab({ record, insightsRunning, onGenerat
   const horizons = [3, 6, 12]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Critical alerts — red banner (sheet 16 C alert_critici). */}
       {alerts.length > 0 && (
         <div
           style={{
-            background: `${B.error}15`,
-            border: `1px solid ${B.error}`,
-            borderRadius: '12px',
-            padding: '16px 20px',
+            background: `${B.error}0d`,
+            border: `1px solid ${B.error}55`,
+            borderRadius: B.radius.card,
+            padding: '24px 28px',
           }}
         >
           <div style={{ ...mutedLabel, color: B.error, marginBottom: '8px' }}>{t('v4res.sum_alerts')}</div>
           {alerts.map((a, i) => (
-            <div key={i} style={{ fontSize: '13px', color: B.error, lineHeight: 1.6 }}>
+            <div key={i} style={{ fontSize: '15px', color: B.error, lineHeight: 1.6 }}>
               • {a}
             </div>
           ))}
@@ -83,11 +83,11 @@ export default function ExecutiveSummaryTab({ record, insightsRunning, onGenerat
       <div style={card}>
         <div
           style={{
-            fontFamily: B.fontMono,
-            fontSize: '22px',
-            fontWeight: 700,
+            fontSize: '28px',
+            fontWeight: 750,
+            letterSpacing: '-0.02em',
             color: B.ink,
-            lineHeight: 1.4,
+            lineHeight: 1.25,
           }}
         >
           {out.headline_dominante ?? '—'}
@@ -105,7 +105,7 @@ export default function ExecutiveSummaryTab({ record, insightsRunning, onGenerat
       {out.scorecard_overview && (
         <div style={card}>
           <h3 style={sectionTitle}>{t('v4res.sum_scorecard')}</h3>
-          <div style={{ fontSize: '14px', color: B.ink, lineHeight: 1.7 }}>{out.scorecard_overview}</div>
+          <div style={{ fontSize: '16px', color: B.ink, lineHeight: 1.7 }}>{out.scorecard_overview}</div>
         </div>
       )}
 
@@ -113,13 +113,13 @@ export default function ExecutiveSummaryTab({ record, insightsRunning, onGenerat
       {correlations.length > 0 && (
         <div style={card}>
           <h3 style={sectionTitle}>{t('v4res.sum_correlations')}</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
             {correlations.map((c, i) => (
-              <div key={i} style={{ border: `1px solid ${B.border}`, borderRadius: '10px', padding: '14px' }}>
-                <div style={{ fontSize: '14px', fontWeight: 600, color: B.ink, marginBottom: '6px' }}>
+              <div key={i} style={{ border: `1px solid ${B.border}`, borderRadius: B.radius.control, padding: '20px' }}>
+                <div style={{ fontSize: '17px', fontWeight: 650, color: B.ink, marginBottom: '8px' }}>
                   {c.titolo ?? '—'}
                 </div>
-                <div style={{ fontSize: '12px', color: B.muted, lineHeight: 1.6 }}>{c.spiegazione}</div>
+                <div style={{ fontSize: '14px', color: B.muted, lineHeight: 1.6 }}>{c.spiegazione}</div>
                 {Array.isArray(c.driver_coinvolti) && c.driver_coinvolti.length > 0 && (
                   <div style={{ marginTop: '8px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                     {c.driver_coinvolti.map((d) => (
@@ -139,21 +139,21 @@ export default function ExecutiveSummaryTab({ record, insightsRunning, onGenerat
       {priorities.length > 0 && (
         <div style={card}>
           <h3 style={sectionTitle}>{t('v4res.sum_priorities')}</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
             {horizons.map((h) => {
               const inHorizon = priorities.filter((p) => (p.orizzonte_temporale_mesi ?? 12) === h)
               return (
-                <div key={h} style={{ border: `1px solid ${B.border}`, borderRadius: '10px', padding: '14px' }}>
+                <div key={h} style={{ border: `1px solid ${B.border}`, borderRadius: B.radius.control, padding: '20px' }}>
                   <div style={{ ...mutedLabel, color: B.primary, marginBottom: '10px' }}>
                     {h} {t('v4res.sum_months')}
                   </div>
                   {inHorizon.length === 0 ? (
-                    <div style={{ fontSize: '12px', color: B.muted }}>—</div>
+                    <div style={{ fontSize: '14px', color: B.muted }}>—</div>
                   ) : (
                     inHorizon.map((p, i) => (
                       <div key={i} style={{ marginBottom: '14px' }}>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'baseline', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '13px', fontWeight: 600, color: B.ink }}>{p.titolo}</span>
+                          <span style={{ fontSize: '16px', fontWeight: 650, color: B.ink }}>{p.titolo}</span>
                           {p.impatto_atteso && (
                             <span style={pill(PRIORITY_COLORS[p.impatto_atteso] ?? B.muted)}>
                               {t('v4res.sum_impact')}: {p.impatto_atteso}
@@ -161,12 +161,12 @@ export default function ExecutiveSummaryTab({ record, insightsRunning, onGenerat
                           )}
                         </div>
                         {p.razionale && (
-                          <div style={{ fontSize: '12px', color: B.muted, lineHeight: 1.6, marginTop: '4px' }}>
+                          <div style={{ fontSize: '14px', color: B.muted, lineHeight: 1.6, marginTop: '4px' }}>
                             {p.razionale}
                           </div>
                         )}
                         {Array.isArray(p.driver_impattati) && p.driver_impattati.length > 0 && (
-                          <div style={{ marginTop: '6px', fontSize: '11px', color: B.muted }}>
+                          <div style={{ marginTop: '6px', fontSize: '13px', color: B.muted }}>
                             {t('v4res.sum_drivers')}: {p.driver_impattati.join(', ')}
                           </div>
                         )}
