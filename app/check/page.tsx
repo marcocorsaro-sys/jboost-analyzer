@@ -6,8 +6,8 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { AREAS, QUESTIONS, OBSERVATIONS, computeScores } from "@/lib/saloncheck";
 
-// CTA principale del funnel: il libro "L'azienda chiamata salone" (aggiornare con l'URL definitivo)
-const BOOK_URL = "https://www.aziendachiamatasalone.it";
+// CTA principale del funnel: il libro "L'azienda chiamata salone" su Amazon
+const BOOK_URL = "https://amzn.eu/d/031LSxMT";
 
 const track = (kind: string, lead_id?: string | null, meta?: any) => {
   supabase.from("lead_events").insert({ kind, lead_id: lead_id ?? null, meta: meta ?? null }).then(() => {});
@@ -194,7 +194,7 @@ export default function SalonCheck() {
               <p style={{ fontSize: 13, letterSpacing: ".1em", margin: 0, opacity: .8 }}>IL PRIMO PASSO DEL METODO GPS</p>
               <h3 style={{ fontSize: 22, margin: "8px 0" }}>📖 "L'azienda chiamata salone"</h3>
               <p style={{ fontSize: 15, lineHeight: 1.5, opacity: .95 }}>
-                Il libro che spiega il metodo dietro questa diagnosi: come trasformare il salone da mestiere ad azienda, partendo esattamente da aree come <b>{p.label}</b>.
+                GPS, il metodo dietro questa diagnosi: trasformare il salone in azienda, il titolare in imprenditore e i collaboratori in un vero team — partendo esattamente da aree come <b>{p.label}</b>.
               </p>
               <a href={BOOK_URL} target="_blank" rel="noreferrer" onClick={() => track("cta_book", leadId)}
                 style={{ display: "inline-block", background: GOLD, color: "#2a230a", fontWeight: 800, borderRadius: 10, padding: "14px 26px", fontSize: 16, textDecoration: "none", marginTop: 6 }}>
