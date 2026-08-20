@@ -17,6 +17,7 @@ const NAV = [
   { href: "/pianificazione", label: "Pianificazione" },
   { href: "/comunicazioni", label: "Comunicazioni" },
   { href: "/import", label: "Import" },
+  { href: "/condivisi", label: "File" },
   { href: "/operatore", label: "Operatore" },
 ];
 
