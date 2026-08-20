@@ -106,6 +106,15 @@ export default async function HomePage() {
                       <div className="min-w-0 flex-1">
                         <div className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-semibold text-foreground">
                           {a.name}
+                          {/* Promoted audit → discreet client marker. */}
+                          {a.clientId && (
+                            <span
+                              className="ml-2 inline-block rounded-full px-2 py-0.5 align-middle text-[10px] font-semibold"
+                              style={{ background: '#c8e64a18', color: '#c8e64a' }}
+                            >
+                              <T k="audits.client_badge" />
+                            </span>
+                          )}
                         </div>
                         <div className="text-[11px]" style={{ color: stateMeta.color }}>
                           <T k={stateMeta.labelKey} />

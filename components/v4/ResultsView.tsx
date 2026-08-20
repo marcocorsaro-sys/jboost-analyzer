@@ -25,6 +25,7 @@ import DriverPanel, { type ScoreView } from './DriverPanel'
 import ExecutiveSummaryTab from './ExecutiveSummaryTab'
 import OutputPreviewTab from './OutputPreviewTab'
 import PublishDialog from './PublishDialog'
+import SwitchToClientButton from '@/components/audits/SwitchToClientButton'
 import { ControllerChip, ControllerPanel, type ControllerResponse } from './ControllerPanel'
 import type { EditsResponse, InsightsResponse, SiteMeta } from './results-shared'
 import { card, mutedLabel, pill, primaryButton, ghostButton, scoreColor, fill, MEASURE_LABEL_KEY } from './results-shared'
@@ -39,6 +40,9 @@ const SpiderChart = nextDynamic(() => import('@/components/analyzer/SpiderChart'
 
 interface V4StatusResponse extends StatusResponse {
   domain?: string | null
+  brandName?: string | null
+  /** Client tied to this audit (promotion or wizard pick), null = prospect. */
+  clientId?: string | null
   sites?: SiteMeta[]
 }
 
@@ -273,6 +277,13 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
         <span style={pill(auditState.color)}>
           {t(auditState.key as Parameters<typeof t>[0])}
         </span>
+        {/* Promotion — the audit (prospect) becomes a client, or shows the
+            client it already belongs to. Same island as /audits. */}
+        <SwitchToClientButton
+          analysisId={analysisId}
+          auditName={status.brandName || status.domain || analysisId}
+          clientId={status.clientId ?? null}
+        />
         <ControllerChip
           data={controller}
           open={controllerOpen}

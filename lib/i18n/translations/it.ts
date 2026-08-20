@@ -50,7 +50,16 @@ const it = {
   'audits.col_actions': 'Azioni',
   'audits.open': 'Apri',
   'audits.switch_to_client': 'Switch to client',
-  'audits.switch_tooltip': 'Disponibile nella fase ongoing (promozione a cliente)',
+  'audits.switch_tooltip': 'Crea un cliente dai dati di questo audit',
+  // Switch to client — promozione reale (audit/prospect → cliente)
+  'audits.switch_confirm': 'Creare il cliente "{name}" dai dati di questo audit?',
+  'audits.switch_confirm_yes': 'Crea cliente',
+  'audits.switch_cancel': 'Annulla',
+  'audits.switch_working': 'Creazione…',
+  'audits.switch_done': 'Cliente creato',
+  'audits.switch_error': 'Promozione non riuscita',
+  'audits.client_badge': 'Cliente',
+  'audits.client_badge_tooltip': 'Apri il cliente collegato a questo audit',
   'audits.col_controller': 'Controller',
   'audits.controller_clean': 'pulito',
 
@@ -137,6 +146,9 @@ const it = {
   'clients.active_clients_title': 'Clienti Attivi',
   'clients.active_clients_subtitle': 'Clienti in engagement e monitorati',
   'clients.new_prospect_button': '+ Nuovo Prospect',
+  // Onboarding unico V4: un nuovo cliente nasce come prospect dal wizard New audit.
+  'clients.new_client_button': '+ Nuovo cliente (audit)',
+  'clients.empty_start_audit': 'Avvia un nuovo audit — promuovilo con "Switch to client" →',
   'clients.new_prospect_title': 'Nuovo Prospect',
   'clients.new_prospect_subtitle': 'Aggiungi un nuovo prospect alla pipeline pre-sales',
   'clients.new_prospect_notice': 'Il nuovo cliente verrà creato come prospect. Un amministratore potrà promuoverlo ad attivo in seguito.',

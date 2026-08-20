@@ -433,7 +433,16 @@ export function mergeV4Setup(
   next: Record<string, unknown>,
 ): Record<string, unknown> {
   const attachments = Array.isArray(existing?.attachments) ? existing.attachments : []
-  return { ...next, attachments }
+  // The promotion stamp (lib/v4/promote) is owned by the promote route, not
+  // by the wizard: a setup save must never wipe "this audit became a client".
+  const promotion: Record<string, unknown> = {}
+  if (typeof existing?.promoted_client_id === 'string' && existing.promoted_client_id) {
+    promotion.promoted_client_id = existing.promoted_client_id
+  }
+  if (typeof existing?.promoted_at === 'string' && existing.promoted_at) {
+    promotion.promoted_at = existing.promoted_at
+  }
+  return { ...next, attachments, ...promotion }
 }
 
 export function readAttachments(

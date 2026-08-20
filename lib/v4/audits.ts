@@ -22,6 +22,8 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 
+import { linkedClientId } from '@/lib/v4/promote'
+
 export type AuditState = 'running' | 'needs_decision' | 'draft' | 'published'
 
 /** Translation keys + pill colors, aligned with ResultsView's pill. */
@@ -66,6 +68,12 @@ export interface AuditListItem {
    * a results page that has nothing to show.
    */
   started: boolean
+  /**
+   * The client this audit is tied to: a "Switch to client" promotion
+   * (v4_setup.promoted_client_id) or the client picked in the wizard
+   * (analyses.client_id). Null = still a plain prospect audit.
+   */
+  clientId: string | null
 }
 
 /** Pure state computation — same precedence as ResultsView's pill. */
@@ -101,7 +109,7 @@ export async function listV4Audits(
 ): Promise<AuditListItem[]> {
   let query = db
     .from('analyses')
-    .select('id, domain, brand_name, created_at, ref_date')
+    .select('id, domain, brand_name, created_at, ref_date, client_id, v4_setup')
     .not('ref_date', 'is', null)
     .order('created_at', { ascending: false })
   if (opts.limit) query = query.limit(opts.limit)
@@ -113,6 +121,8 @@ export async function listV4Audits(
     brand_name: string | null
     created_at: string
     ref_date: string | null
+    client_id: string | null
+    v4_setup: Record<string, unknown> | null
   }>
   if (rows.length === 0) return []
 
@@ -157,6 +167,7 @@ export async function listV4Audits(
       driversDone: enabled.filter((r) => r.status === 'done').length,
       driversTotal: enabled.length,
       started: runs.length > 0,
+      clientId: linkedClientId(a),
     }
   })
 }

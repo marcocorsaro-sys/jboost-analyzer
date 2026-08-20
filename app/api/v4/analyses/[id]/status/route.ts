@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getAnalysisProgress } from '@/lib/v4/runner/execute'
 import { readSites } from '@/lib/v4/runner/normalize'
 import { loadAnalysisSites } from '@/lib/v4/runner/store'
+import { linkedClientId } from '@/lib/v4/promote'
 
 /**
  * GET /api/v4/analyses/[id]/status
@@ -34,7 +35,7 @@ export async function GET(
 
   const { data: analysis, error: fetchError } = await supabase
     .from('analyses')
-    .select('id, ref_date, domain')
+    .select('id, ref_date, domain, brand_name, client_id, v4_setup')
     .eq('id', analysisId)
     .single()
   if (fetchError || !analysis) {
@@ -55,6 +56,12 @@ export async function GET(
     analysisId,
     refDate: (analysis as { ref_date: string | null }).ref_date,
     domain: (analysis as { domain: string | null }).domain,
+    brandName: (analysis as { brand_name: string | null }).brand_name,
+    // The client this audit is tied to (promotion or wizard pick) — feeds
+    // the results header's Switch-to-client button / "Cliente" chip.
+    clientId: linkedClientId(
+      analysis as { client_id: string | null; v4_setup: Record<string, unknown> | null },
+    ),
     sites: sites.map((s) => ({
       site_ref: s.site_ref,
       domain: s.domain,

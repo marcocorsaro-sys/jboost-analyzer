@@ -181,7 +181,8 @@ export default function AdminPage() {
         .single()
 
       if (profile?.role !== 'admin') {
-        router.push('/analyzer')
+        // Non-admins land on the V4 Home — never on the parked V1 analyzer.
+        router.push('/home')
         return
       }
       setIsAdmin(true)

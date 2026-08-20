@@ -409,8 +409,11 @@ export default async function ClientOverviewPage({
           <T k="clients.quickActions" />
         </h3>
         <div className="flex gap-3 flex-wrap">
+          {/* Single onboarding mechanic (V4): new analyses start in the
+              New-audit wizard, pre-bound to this client. The V1 analyzer
+              stays parked behind the legacy flag. */}
           <Link
-            href={`/analyzer?client=${params.id}&domain=${client.domain || ''}`}
+            href={`/analyzer/v4?client=${params.id}`}
             className="px-5 py-2.5 bg-primary text-background rounded-lg text-[13px] font-bold no-underline font-mono"
           >
             <T k="clients.newAnalysis" />

@@ -39,7 +39,9 @@ function statusColor(status: string): string {
   }
 }
 
-export default function ClientAnalysesList({ analyses, clientId, clientDomain }: Props) {
+// clientDomain stays in Props for the existing callers, but the CTA now goes
+// to the V4 wizard (?client= pre-binds; the wizard reads the domain itself).
+export default function ClientAnalysesList({ analyses, clientId }: Props) {
   const [filter, setFilter] = useState<'all' | 'completed' | 'running' | 'failed'>('all')
   const filtered = useMemo(
     () => (filter === 'all' ? analyses : analyses.filter(a => a.status === filter)),
@@ -79,7 +81,7 @@ export default function ClientAnalysesList({ analyses, clientId, clientDomain }:
             ))}
           </div>
           <Link
-            href={`/analyzer?client=${clientId}&domain=${clientDomain ?? ''}`}
+            href={`/analyzer/v4?client=${clientId}`}
             style={{
               padding: '8px 16px', background: '#c8e64a', color: '#111318',
               borderRadius: '8px', fontSize: '13px', fontWeight: 700,
@@ -103,7 +105,7 @@ export default function ClientAnalysesList({ analyses, clientId, clientDomain }:
               : `Nessuna analisi ${filter === 'completed' ? 'completata' : filter === 'running' ? 'in corso' : 'fallita'}.`}
           </p>
           <Link
-            href={`/analyzer?client=${clientId}&domain=${clientDomain ?? ''}`}
+            href={`/analyzer/v4?client=${clientId}`}
             style={{
               display: 'inline-block', padding: '10px 24px', background: '#c8e64a',
               color: '#111318', borderRadius: '8px', fontWeight: 700,

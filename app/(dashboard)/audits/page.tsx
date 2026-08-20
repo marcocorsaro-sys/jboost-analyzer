@@ -27,8 +27,9 @@ const BAND_COLORS: Record<string, string> = {
  *
  * Server component: the list is one batched read (lib/v4/audits). The only
  * client islands are the <T> translation leaves and the Switch-to-client
- * stub — promotion itself belongs to the ongoing phase (README 01 §9), so
- * the button is a disabled hook with an explanatory tooltip.
+ * button — the REAL promotion (POST /api/v4/analyses/[id]/promote): the one
+ * onboarding mechanic where a prospect audit becomes a client. Promoted
+ * audits show a discreet "Cliente" chip instead of the button.
  */
 export default async function AuditsPage() {
   const user = await getUser()
@@ -110,7 +111,20 @@ export default async function AuditsPage() {
                 return (
                   <tr key={a.id} className="border-b border-border last:border-b-0">
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-foreground">{a.name}</div>
+                      <div className="font-semibold text-foreground">
+                        {a.name}
+                        {/* Discreet client marker for drafts (their action is
+                            "Resume setup"); started audits get the linkable
+                            "Cliente" chip in the actions cell instead. */}
+                        {a.clientId && !a.started && (
+                          <span
+                            className="ml-2 inline-block rounded-full px-2 py-0.5 align-middle text-[10px] font-semibold"
+                            style={{ background: '#c8e64a18', color: '#c8e64a' }}
+                          >
+                            <T k="audits.client_badge" />
+                          </span>
+                        )}
+                      </div>
                       {a.domain && a.domain !== a.name && (
                         <div className="text-[11px] text-muted-foreground">{a.domain}</div>
                       )}
@@ -153,7 +167,11 @@ export default async function AuditsPage() {
                           >
                             <T k="audits.open" />
                           </Link>
-                          <SwitchToClientButton />
+                          <SwitchToClientButton
+                            analysisId={a.id}
+                            auditName={a.name}
+                            clientId={a.clientId}
+                          />
                         </>
                       ) : (
                         <Link

@@ -63,15 +63,18 @@ export default function ClientsListWrapper({ initialClients }: Props) {
             {t('clients.active_clients_subtitle')} · {activeCount}
           </p>
         </div>
+        {/* One onboarding mechanic (V4): a new client starts as a New-audit
+            prospect and is promoted with "Switch to client" — so this CTA
+            goes to the wizard, not to the parked V1 /pre-sales intake. */}
         <Link
-          href="/pre-sales/new"
+          href="/analyzer/v4"
           style={{
             padding: '10px 20px', background: '#c8e64a', color: '#111318',
             borderRadius: '8px', fontSize: '14px', fontWeight: 700,
             textDecoration: 'none', fontFamily: "'JetBrains Mono', monospace",
           }}
         >
-          {t('clients.new_prospect_button')}
+          {t('clients.new_client_button')}
         </Link>
       </div>
 
@@ -117,11 +120,12 @@ export default function ClientsListWrapper({ initialClients }: Props) {
             {search ? t('clients.empty_search') : t('clients.empty_active')}
           </p>
           {!search && (
+            /* Empty state → straight into the single onboarding: the wizard. */
             <Link
-              href="/pre-sales"
+              href="/analyzer/v4"
               style={{ color: '#c8e64a', textDecoration: 'underline', fontSize: '14px' }}
             >
-              {t('clients.see_prospects_link')}
+              {t('clients.empty_start_audit')}
             </Link>
           )}
         </div>
