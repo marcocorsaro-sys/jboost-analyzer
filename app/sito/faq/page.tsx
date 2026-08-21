@@ -17,7 +17,10 @@ const FAQ: { q: string; a: string }[] = [
   { q: "GPS serve a vendere di più?", a: "Può migliorare la performance commerciale, ma non nasce per spingere vendite aggressive. La vendita è parte della consulenza: proporre ciò che è realmente utile al cliente e sostenibile per l'azienda." },
   { q: "GPS controlla i collaboratori?", a: "GPS controlla il sistema e rende visibili obiettivi, risultati e comportamenti misurabili. L'obiettivo non è sorvegliare le persone, ma creare chiarezza, responsabilità e criteri comuni di lavoro." },
   { q: "Cosa comprende GPS oltre al software?", a: "Metodo, libri, Academy, corsi, strumenti operativi, Salon Check, installazione del metodo e software: livelli diversi dello stesso sistema." },
-  { q: "Da dove si comincia?", a: "Dalla consapevolezza. Il Salon Check individua le aree critiche; \"L'azienda chiamata salone\" introduce il metodo; poi il percorso può proseguire con i libri verticali, il corso, la demo e l'installazione del software." },
+  { q: "Il software è già disponibile? Quanto costa?", a: "Il software è oggi in fase pilota con saloni selezionati, a partire da The Gentlemen Inn. Condizioni e tempi vengono definiti caso per caso in fase di demo: preferiamo dirlo apertamente piuttosto che pubblicare un listino che non rispecchierebbe la fase attuale del progetto." },
+  { q: "Devo rifare tutto da capo per passare a GPS?", a: "No. L'onboarding parte dai dati che hai già: export del gestionale attuale, storico clienti e servizi vengono importati. L'obiettivo dichiarato è che il passaggio costi poco tempo al salone." },
+  { q: "I dati del mio salone dove finiscono?", a: "Restano dati del salone, ospitati su infrastruttura cloud dedicata al progetto e accessibili solo agli utenti autorizzati di quel salone. Ogni collaboratore vede ciò che serve al suo ruolo." },
+  { q: "Da dove si comincia?", a: "Dalla consapevolezza. Il Salon Check individua le aree critiche e il CAM Check ti dice se il servizio che vendi di più ti fa guadagnare; \"L'azienda chiamata salone\" introduce il metodo; poi il percorso può proseguire con i libri verticali, il corso, la demo e l'installazione del software." },
 ];
 
 export default function Faq() {

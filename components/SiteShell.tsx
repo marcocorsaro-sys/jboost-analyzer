@@ -85,6 +85,7 @@ export default function SiteShell({ children, active }: { children: React.ReactN
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <Link href="/check">Salon Check</Link>
+              <Link href="/cam">CAM Check</Link>
               <Link href="/login">Accesso clienti GPS</Link>
               <a href="https://amzn.eu/d/031LSxMT" target="_blank" rel="noreferrer">Il libro su Amazon</a>
             </div>

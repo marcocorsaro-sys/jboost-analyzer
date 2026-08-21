@@ -26,15 +26,19 @@ export default function Metodo() {
     <SiteShell active="/sito/metodo">
       <section className="s-hero"><div className="s-wrap" style={{ padding: "60px 22px 50px" }}>
         <p className="s-eyebrow">Il metodo</p>
-        <h1 style={{ fontSize: "clamp(28px,4.5vw,42px)", margin: "10px 0" }}>Un metodo proprietario, non un'altra dashboard.</h1>
+        <h1 style={{ fontSize: "clamp(28px,4.5vw,42px)", margin: "10px 0" }}>Le stesse cose di prima. Finalmente in ordine.</h1>
         <p style={{ maxWidth: 720, fontSize: 17, color: "#dfe6f2" }}>
-          Il metodo nasce da un principio semplice: un titolare non dovrebbe scoprire a fine mese cosa è successo alla propria attività.
-          Dovrebbe capire, mentre il mese è in corso, dove si trova, che direzione sta prendendo e quali scelte possono correggere la rotta.
+          Un titolare non dovrebbe scoprire a fine mese cosa è successo alla propria attività. Dovrebbe capire, mentre il mese è ancora
+          in corso, dove si trova, che direzione sta prendendo e quali scelte possono correggere la rotta. Il metodo serve a questo:
+          mettere in fila ciò che oggi vive sparso tra agenda, cassa, testa e sensazioni.
         </p>
       </div></section>
 
       <section className="s-sec"><div className="s-wrap">
-        <h2 style={{ fontSize: 26, marginBottom: 18 }}>Le 7 aree del metodo</h2>
+        <h2 style={{ fontSize: 26, marginBottom: 6 }}>Le 7 aree del metodo</h2>
+        <p style={{ maxWidth: 720, fontSize: 16, marginTop: 0 }}>
+          Ogni area risponde a una domanda che, senza metodo, resta senza risposta — o riceve una risposta troppo tardi.
+        </p>
         <div className="s-grid g2">
           {AREE.map(a => (
             <div key={a.t} className="s-card" style={{ borderLeft: "4px solid " + BLU }}>

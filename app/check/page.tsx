@@ -9,8 +9,9 @@ import { AREAS, QUESTIONS, OBSERVATIONS, computeScores } from "@/lib/saloncheck"
 // CTA principale del funnel: il libro "L'azienda chiamata salone" su Amazon
 const BOOK_URL = "https://amzn.eu/d/031LSxMT";
 
+// tracking e salvataggio passano da RPC server-side: la tabella lead resta illeggibile agli anonimi
 const track = (kind: string, lead_id?: string | null, meta?: any) => {
-  supabase.from("lead_events").insert({ kind, lead_id: lead_id ?? null, meta: meta ?? null }).then(() => {});
+  supabase.rpc("track_event", { p_kind: kind, p_lead: lead_id ?? null, p_meta: meta ?? null }).then(() => {});
 };
 
 type Stage = "intro" | "quiz" | "qualify" | "gate" | "result";
@@ -42,16 +43,16 @@ export default function SalonCheck() {
     if (!form.name.trim() || !/.+@.+\..+/.test(form.email)) { setErr("Inserisci nome ed email validi."); return; }
     if (!form.consent) { setErr("Serve il consenso per inviarti la diagnosi e i contenuti successivi."); return; }
     setBusy(true);
-    const { data, error } = await supabase.from("leads").insert({
+    const { data, error } = await supabase.rpc("submit_lead", { p: {
       name: form.name.trim(), email: form.email.trim().toLowerCase(), consent: true,
       team_size: qual.team_size || null, years: qual.years || null,
       urgency: qual.urgency || null, support_pref: qual.support_pref || null,
       answers, scores: res.scores, primary_area: res.primary, secondary_area: res.secondary,
-    }).select("id").single();
+    }});
     setBusy(false);
     if (error) { setErr("Qualcosa non ha funzionato, riprova."); return; }
-    setLeadId(data.id);
-    track("lead_captured", data.id, { primary: res.primary, urgency: qual.urgency });
+    setLeadId(data as string);
+    track("lead_captured", data as string, { primary: res.primary, urgency: qual.urgency });
     setStage("result");
   };
 
@@ -74,8 +75,8 @@ export default function SalonCheck() {
           <div style={{ fontSize: 44 }}>💈</div>
           <h1 style={{ fontSize: 34, margin: "10px 0", color: "#0A1D3D", fontFamily: "'Cinzel', serif" }}>GPS Salon Check</h1>
           <p style={{ fontSize: 18, lineHeight: 1.5 }}>
-            Il tuo salone lavora tanto — ma <b>dove</b> sta perdendo margine?<br />
-            18 domande, 3 minuti: scopri quali aree della tua azienda-salone hanno più bisogno di attenzione, tra numeri, agenda, clienti, vendita, marketing e team.
+            Il tuo salone può essere pieno e tu non sapere se sta davvero andando bene.<br />
+            18 domande, tre minuti: scopri dove hai il controllo e dove stai navigando a vista, tra numeri, agenda, clienti, vendita, marketing e team.
           </p>
           <p style={{ fontSize: 14.5, color: "#5c6b58" }}>Gratuito · risultato immediato · pensato per titolari di barbershop e saloni</p>
           <div style={{ marginTop: 22 }}>
@@ -143,10 +144,27 @@ export default function SalonCheck() {
 
       {stage === "gate" && (
         <div style={{ ...box, paddingTop: 26 }}>
+          {/* Anteprima onesta: l'area critica principale si vede SUBITO — la diagnosi è una diagnosi, non un'esca */}
+          {(() => {
+            const p = AREAS[res.primary];
+            const v = res.scores[res.primary];
+            const col = v > 66 ? "#b3402a" : v >= 34 ? "#b8860b" : "#1e7a4f";
+            return (
+              <div style={{ ...card, marginBottom: 14, borderTop: "5px solid " + col }}>
+                <p style={{ margin: 0, fontSize: 12, letterSpacing: ".12em", color: "#7b8798" }}>LA TUA AREA PIÙ CRITICA</p>
+                <h2 style={{ fontFamily: "'Cinzel', serif", color: "#0A1D3D", margin: "6px 0 4px", fontSize: 25 }}>{p.icon} {p.label}</h2>
+                <p style={{ fontSize: 15, margin: "0 0 10px", color: "#4c5661" }}>
+                  {v > 66 ? "È l'area in cui oggi stai navigando più a vista." : v >= 34 ? "È l'area con più spazio di miglioramento." : "Anche la tua area più debole è già in buono stato."}
+                </p>
+                <div style={{ background: "#dde3ec", borderRadius: 5, height: 9 }}>
+                  <div style={{ width: Math.max(4, v) + "%", height: 9, borderRadius: 5, background: col }} />
+                </div>
+              </div>
+            );
+          })()}
           <div style={{ ...card, textAlign: "center" }}>
-            <div style={{ fontSize: 34 }}>🔎</div>
-            <h2 style={{ color: G, margin: "8px 0" }}>La tua diagnosi è pronta</h2>
-            <p style={{ fontSize: 15, color: "#4c5a48" }}>Abbiamo analizzato le 6 aree del tuo salone e individuato dove concentrare l'attenzione. Dicci dove inviarla e la vedi subito.</p>
+            <h2 style={{ color: G, margin: "4px 0", fontSize: 22 }}>Vuoi il quadro completo?</h2>
+            <p style={{ fontSize: 15, color: "#4c5661" }}>Tutte e sei le aree, la seconda criticità, cosa significano i tuoi risultati e da dove conviene partire. Te lo mostriamo subito e te lo inviamo per email.</p>
             <input placeholder="Il tuo nome" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
               style={{ width: "100%", padding: "13px 14px", fontSize: 16, borderRadius: 10, border: "1.5px solid #c7d0de", margin: "6px 0", boxSizing: "border-box" }} />
             <input placeholder="La tua email" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
@@ -156,7 +174,7 @@ export default function SalonCheck() {
               {" "}Acconsento al trattamento dei dati e a ricevere la diagnosi e i contenuti GPS su come far crescere il mio salone. Niente spam, disiscrizione quando vuoi.
             </label>
             {err && <p style={{ color: "#a33a25", fontSize: 14 }}>{err}</p>}
-            <button style={btn} disabled={busy} onClick={saveLead}>{busy ? "Un attimo…" : "Mostrami la diagnosi →"}</button>
+            <button style={btn} disabled={busy} onClick={saveLead}>{busy ? "Un attimo…" : "Mostrami il quadro completo →"}</button>
           </div>
         </div>
       )}

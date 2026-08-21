@@ -5,7 +5,7 @@ import PlatformShell from "@/components/PlatformShell";
 import { useOrg } from "@/lib/useOrg";
 import { supabase } from "@/lib/supabase";
 import { AREAS } from "@/lib/saloncheck";
-import { num } from "@/lib/gps";
+import { num, eur } from "@/lib/gps";
 
 const STATUSES = ["new", "contacted", "nurturing", "customer"];
 const S_LABEL: Record<string, string> = { new: "nuovo", contacted: "contattato", nurturing: "in coltivazione", customer: "cliente" };
@@ -13,6 +13,8 @@ const S_LABEL: Record<string, string> = { new: "nuovo", contacted: "contattato",
 export default function LeadPage() {
   const ctx = useOrg();
   const [leads, setLeads] = useState<any[]>([]);
+  const [camLeads, setCamLeads] = useState<any[]>([]);
+  const [tab, setTab] = useState<"salon" | "cam">("salon");
   const [funnel, setFunnel] = useState<Record<string, number>>({});
   const [fArea, setFArea] = useState<string>("");
   const [fUrg, setFUrg] = useState<string>("");
@@ -23,6 +25,8 @@ export default function LeadPage() {
     (async () => {
       const { data } = await supabase.from("leads").select("*").order("created_at", { ascending: false }).limit(500);
       setLeads(data ?? []);
+      const { data: cl } = await supabase.from("cam_leads").select("*").order("created_at", { ascending: false }).limit(500);
+      setCamLeads(cl ?? []);
       const { data: ev } = await supabase.from("lead_events").select("kind");
       const f: Record<string, number> = {};
       for (const e of (ev ?? []) as any[]) f[e.kind] = (f[e.kind] ?? 0) + 1;
@@ -60,7 +64,39 @@ export default function LeadPage() {
         <div className="card dark"><div className="kpi-label">Click verso il libro</div><div className="kpi-value">{num(F("cta_book"))}</div><div className="kpi-note">{pct(F("cta_book"), F("lead_captured"))} dei lead</div></div>
       </div>
 
-      <div className="filters section" style={{ marginBottom: 10 }}>
+      <div className="filters section" style={{ marginBottom: 14 }}>
+        <button className={"chip" + (tab === "salon" ? " on" : "")} onClick={() => setTab("salon")}>🧭 Salon Check ({leads.length})</button>
+        <button className={"chip" + (tab === "cam" ? " on" : "")} onClick={() => setTab("cam")}>⏱️ CAM Check ({camLeads.length})</button>
+      </div>
+
+      {tab === "cam" ? (
+        <>
+          <table className="tbl">
+            <thead><tr><th>Lead</th><th className="num">Obiettivo/mese</th><th className="num">CAM</th><th>Servizio</th><th className="num">Margine/erog.</th><th className="num">Impatto mese</th><th className="num">Prezzo minimo</th><th>Quando</th></tr></thead>
+            <tbody>
+              {camLeads.map(l => {
+                const neg = Number(l.margin_per_unit) < 0;
+                return (
+                  <tr key={l.id}>
+                    <td><b>{l.name}</b><br /><span className="sub">{l.email}</span></td>
+                    <td className="num">{eur(Number(l.monthly_goal), 0)}</td>
+                    <td className="num"><b>{eur(Number(l.cam), 2)}</b></td>
+                    <td>{l.service_name ?? "—"}<br /><span className="sub">{eur(Number(l.service_price), 0)} · {num(Number(l.service_minutes))}′ · ×{num(Number(l.service_count))}</span></td>
+                    <td className="num" style={{ color: neg ? "#b3402a" : "#1e7a4f", fontWeight: 700 }}>{neg ? "−" : "+"}{eur(Math.abs(Number(l.margin_per_unit)))}</td>
+                    <td className="num" style={{ color: neg ? "#b3402a" : "#1e7a4f", fontWeight: 700 }}>{neg ? "−" : "+"}{eur(Math.abs(Number(l.monthly_impact)), 0)}</td>
+                    <td className="num">{eur(Number(l.min_price))}</td>
+                    <td className="sub">{new Date(l.created_at).toLocaleDateString("it-IT")}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {camLeads.length === 0 && <p className="sub" style={{ marginTop: 10 }}>Nessun lead dal CAM Check — condividi gps-pilot.vercel.app/cam sui social.</p>}
+          <p className="sub" style={{ marginTop: 12 }}>I lead con margine negativo sul servizio principale sono i più caldi: hanno appena visto quanto costa loro ogni mese.</p>
+        </>
+      ) : (
+      <>
+      <div className="filters" style={{ marginBottom: 10 }}>
         <button className={"chip" + (!fArea ? " on" : "")} onClick={() => setFArea("")}>Tutte le aree</button>
         {Object.entries(AREAS).map(([k, a]) => (
           <button key={k} className={"chip" + (fArea === k ? " on" : "")} onClick={() => setFArea(k)}>{a.icon} {a.label} ({leads.filter(l => l.primary_area === k).length})</button>
@@ -91,6 +127,8 @@ export default function LeadPage() {
         </tbody>
       </table>
       {view.length === 0 && <p className="sub" style={{ marginTop: 10 }}>Nessun lead ancora{fArea || fUrg ? " con questi filtri" : " — condividi gps-pilot.vercel.app/check sui social per iniziare a raccoglierli"}.</p>}
+      </>
+      )}
 
       {sel && (
         <div className="drawer">

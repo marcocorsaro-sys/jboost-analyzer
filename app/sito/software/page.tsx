@@ -29,15 +29,28 @@ export default function Software() {
     <SiteShell active="/sito/software">
       <section className="s-hero"><div className="s-wrap" style={{ padding: "60px 22px 50px" }}>
         <p className="s-eyebrow">Il software</p>
-        <h1 style={{ fontSize: "clamp(28px,4.5vw,42px)", margin: "10px 0" }}>Il gestionale evoluto costruito attorno al metodo.</h1>
+        <h1 style={{ fontSize: "clamp(28px,4.5vw,42px)", margin: "10px 0" }}>Vedere prima. Capire prima. Decidere prima.</h1>
         <p style={{ maxWidth: 720, fontSize: 17, color: "#dfe6f2" }}>
-          È progettato per sostituire il gestionale tradizionale, mantenendo semplice il passaggio: importazione dei dati esistenti,
-          onboarding rapido e una raccolta delle informazioni già costruita intorno ai KPI e alle logiche proprietarie di GPS.
+          Il tuo gestionale di oggi ti racconta ieri. Il software GPS è costruito per farti vedere la giornata mentre accade,
+          la traiettoria del mese mentre puoi ancora cambiarla, e il punto esatto in cui conviene intervenire.
         </p>
       </div></section>
 
       <section className="s-sec"><div className="s-wrap">
-        <h2 style={{ fontSize: 26, marginBottom: 6 }}>Cosa lo rende diverso</h2>
+        <h2 style={{ fontSize: 26, marginBottom: 6 }}>Cosa cambia, in concreto</h2>
+        <div className="s-grid g3" style={{ marginBottom: 26 }}>
+          {[
+            { t: "Alle 11 del mattino", d: "Sai quanto è costato finora il tempo aperto e quanto valore hai prodotto: il margine della giornata è un numero, non una sensazione." },
+            { t: "Il 12 del mese", d: "Vedi la traiettoria verso l'obiettivo e quanto manca al giorno — in tempo per fare qualcosa." },
+            { t: "Quando un cliente esce", d: "Sai se tornerà, quanto vale davvero e se il riappuntamento è stato chiesto: non lo scopri tre mesi dopo." },
+          ].map(x => (
+            <div key={x.t} className="s-card" style={{ borderTop: "4px solid " + BLU }}>
+              <h3 style={{ fontFamily: "'Cinzel', serif", color: NAVY, fontSize: 17, margin: "0 0 6px" }}>{x.t}</h3>
+              <p style={{ fontSize: 14.5, margin: 0 }}>{x.d}</p>
+            </div>
+          ))}
+        </div>
+        <h2 style={{ fontSize: 24, marginBottom: 6 }}>Perché ci riesce</h2>
         <p style={{ maxWidth: 740, fontSize: 16 }}>
           Il confronto è semplice: i gestionali tradizionali registrano ciò che è successo; GPS usa i dati raccolti per guidare
           <b> ciò che deve succedere dopo</b>.
