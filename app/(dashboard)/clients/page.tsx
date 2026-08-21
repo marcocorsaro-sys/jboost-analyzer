@@ -25,7 +25,12 @@ export default async function ClientsPage() {
 
   const statsByClient = new Map<
     string,
-    { count: number; latest_score: number | null; latest_analysis_at: string | null }
+    {
+      count: number
+      latest_score: number | null
+      previous_score: number | null
+      latest_analysis_at: string | null
+    }
   >()
   if (clientIds.length > 0) {
     const { data: analyses } = await supabase
@@ -40,9 +45,13 @@ export default async function ClientsPage() {
         statsByClient.set(a.client_id, {
           count: 1,
           latest_score: a.overall_score ?? null,
+          previous_score: null,
           latest_analysis_at: a.completed_at ?? null,
         })
       } else {
+        // Second most-recent run: kept for the "vs previous" delta the
+        // Bibbia asks for on the Clients list.
+        if (cur.count === 1) cur.previous_score = a.overall_score ?? null
         cur.count += 1
       }
     }
@@ -59,6 +68,7 @@ export default async function ClientsPage() {
       lifecycle_stage: c.lifecycle_stage,
       analyses_count: stats?.count ?? 0,
       latest_score: stats?.latest_score ?? null,
+      previous_score: stats?.previous_score ?? null,
       latest_analysis_at: stats?.latest_analysis_at ?? null,
     }
   })

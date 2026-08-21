@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import {
   Building2,
   LogOut,
-  MessageSquare,
   Plus,
   Settings,
   Shield,
@@ -141,13 +140,8 @@ export function CommandPaletteProvider({
                   <Sparkles />
                   <span>{t('command.new_analysis')}</span>
                 </CommandItem>
-                <CommandItem
-                  value="ask-j"
-                  onSelect={() => runCommand(() => router.push('/ask-j'))}
-                >
-                  <MessageSquare />
-                  <span>{t('nav.ask_j')}</span>
-                </CommandItem>
+                {/* Ask J PARCHEGGIATO (Comparazione 07): la route /ask-j
+                    reindirizza a /home, quindi la voce e' stata rimossa. */}
               </>
             )}
             <CommandItem

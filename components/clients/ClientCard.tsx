@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { getScoreBand } from '@/lib/constants'
+import { calcDelta } from '@/lib/trends/calculate'
 import type { ClientLifecycleStage } from '@/lib/types/client'
 import { useLocale, formatLocalDate } from '@/lib/i18n'
 import type { TranslationKey } from '@/lib/i18n'
@@ -17,6 +18,8 @@ interface ClientCardProps {
   lifecycle_stage?: ClientLifecycleStage
   analyses_count: number
   latest_score: number | null
+  /** Score of the run before the latest one, for the "vs previous" delta. */
+  previous_score?: number | null
   latest_analysis_at: string | null
   onDeleted?: (id: string) => void
 }
@@ -44,13 +47,20 @@ const STAGE_LABEL_KEYS: Record<ClientLifecycleStage, TranslationKey> = {
 }
 
 export default function ClientCard({
-  id, name, domain, industry, status, lifecycle_stage, analyses_count, latest_score, latest_analysis_at, onDeleted,
+  id, name, domain, industry, status, lifecycle_stage, analyses_count, latest_score, previous_score, latest_analysis_at, onDeleted,
 }: ClientCardProps) {
   const { t, locale } = useLocale()
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const band = latest_score !== null ? getScoreBand(latest_score) : null
   const color = band ? BAND_COLORS[band.color] ?? B.muted : B.muted
+
+  // Delta vs the previous completed run (Bibbia 04, Clients list: score
+  // aggiornato + confronto vs run precedente). Derived from data already on
+  // the page, no extra fetch.
+  const delta = calcDelta(latest_score, previous_score ?? null)
+  const deltaColor = delta.direction === 'up' ? B.success : delta.direction === 'down' ? B.error : B.muted
+  const deltaArrow = delta.direction === 'up' ? '↑' : delta.direction === 'down' ? '↓' : '→'
 
   const stage: ClientLifecycleStage = lifecycle_stage ?? 'active'
   const stageClass = STAGE_STYLES[stage]
@@ -140,6 +150,14 @@ export default function ClientCard({
             >
               {latest_score ?? '—'}
             </div>
+            {delta.direction !== 'unknown' && (
+              <span
+                className="text-[11px] font-mono font-semibold"
+                style={{ color: deltaColor }}
+              >
+                {deltaArrow} {delta.delta !== null && delta.delta > 0 ? '+' : ''}{delta.delta !== null ? Math.round(delta.delta) : ''} {t('clients.vsPrevious')}
+              </span>
+            )}
             {industry && (
               <span className="inline-block text-[11px] px-2 py-0.5 rounded-full bg-white/5 text-gray-400">
                 {industry}

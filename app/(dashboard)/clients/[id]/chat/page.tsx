@@ -1,30 +1,14 @@
-import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import ChatInterface from '@/components/chat/ChatInterface'
 
-export default async function ClientChatPage({
+/**
+ * Route PARKED per Bibbia V4 (Comparazione 07): non prevista nel pannello
+ * cliente one-off. L'implementazione V1 resta nel repo (page.parked.tsx e
+ * componenti sottostanti) per la futura versione ongoing.
+ */
+export default function ParkedClientRoute({
   params,
 }: {
   params: { id: string }
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  // Fetch client name. Access is enforced by RLS / client_members.
-  const { data: client } = await supabase
-    .from('clients')
-    .select('name')
-    .eq('id', params.id)
-    .single()
-
-  if (!client) redirect('/clients')
-
-  return (
-    <ChatInterface
-      clientId={params.id}
-      clientName={client.name}
-      mode="contextual"
-    />
-  )
+  redirect(`/clients/${params.id}`)
 }

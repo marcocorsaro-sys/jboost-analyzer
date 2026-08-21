@@ -8,7 +8,6 @@ import {
   Zap,
   Search,
   FileText,
-  MessageSquare,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -55,5 +54,7 @@ export const LEGACY_NAV: NavItem[] = [
   { href: '/pre-sales', labelKey: 'nav.pre_sales', icon: Zap },
   { href: '/analyzer', labelKey: 'nav.analyzeDomain', icon: Search },
   { href: '/results', labelKey: 'nav.results', icon: FileText },
-  { href: '/ask-j', labelKey: 'nav.ask_j', icon: MessageSquare },
+  // Ask J e' PARCHEGGIATO anche fuori dal legacy shell: la route /ask-j ora
+  // reindirizza a /home (Comparazione 07: non prioritaria per V4 one-off).
+  // Voce rimossa: { href: '/ask-j', labelKey: 'nav.ask_j', icon: MessageSquare }
 ]

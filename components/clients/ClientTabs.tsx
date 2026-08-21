@@ -11,6 +11,16 @@ interface ClientTabsProps {
 const TABS = [
   { label: 'Overview', path: '', icon: '◉' },
   { label: 'Analisi', path: '/analyses', icon: '◎' },
+]
+
+/**
+ * V1 tabs PARKED per Bibbia V4 (Comparazione 07: Martech "non prevista in
+ * V4", Knowledge "non inclusa in V4 one-off", Ask J "non prioritaria per
+ * one-off", Summary vive nei risultati audit, Schema e' un driver audit).
+ * Le route corrispondenti reindirizzano alla pagina cliente; i componenti
+ * restano nel repo per la futura versione ongoing. NON renderizzate.
+ */
+export const PARKED_TABS = [
   { label: 'Summary', path: '/executive-summary', icon: '◆' },
   { label: 'MarTech', path: '/martech', icon: '⚡' },
   { label: 'Structured Data', path: '/schema', icon: '◇' },

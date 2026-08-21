@@ -16,6 +16,9 @@ export interface ClientData {
   lifecycle_stage: ClientLifecycleStage
   analyses_count: number
   latest_score: number | null
+  /** Score of the run before the latest one (delta "vs previous" on cards).
+      Optional: legacy callers (pre-sales prospects) do not compute it. */
+  previous_score?: number | null
   latest_analysis_at: string | null
 }
 
