@@ -52,7 +52,8 @@ export const MOBILE_NAV: NavItem[] = PRIMARY_NAV
 export const LEGACY_NAV: NavItem[] = [
   { href: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
   { href: '/pre-sales', labelKey: 'nav.pre_sales', icon: Zap },
-  { href: '/analyzer', labelKey: 'nav.analyzeDomain', icon: Search },
+  // /analyzer (V1 "digital presence") e' PARCHEGGIATO: la route reindirizza al
+  // wizard V4 (onboarding unico). Voce rimossa anche dal legacy shell.
   { href: '/results', labelKey: 'nav.results', icon: FileText },
   // Ask J e' PARCHEGGIATO anche fuori dal legacy shell: la route /ask-j ora
   // reindirizza a /home (Comparazione 07: non prioritaria per V4 one-off).

@@ -80,7 +80,7 @@ export default async function AuditsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-[1440px]">
       <div className="mb-6 flex items-end justify-between gap-4">
         <div>
           <h1

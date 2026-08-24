@@ -16,7 +16,7 @@ export default async function V4ResultsPage({ params }: { params: Promise<{ id: 
   const { id } = await params
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ maxWidth: '1440px', margin: '0 auto' }}>
       {/* Back-affordance: a results page is a detail of the Audits list. */}
       <BackLink href="/audits">
         <T k="nav.audits" />

@@ -133,14 +133,9 @@ export function CommandPaletteProvider({
                   <Plus />
                   <span>{t('command.new_prospect')}</span>
                 </CommandItem>
-                <CommandItem
-                  value="new-analysis"
-                  onSelect={() => runCommand(() => router.push('/analyzer'))}
-                >
-                  <Sparkles />
-                  <span>{t('command.new_analysis')}</span>
-                </CommandItem>
-                {/* Ask J PARCHEGGIATO (Comparazione 07): la route /ask-j
+                {/* Analisi V1 PARCHEGGIATA (onboarding unico): la route
+                    /analyzer reindirizza al wizard V4, voce rimossa.
+                    Ask J PARCHEGGIATO (Comparazione 07): la route /ask-j
                     reindirizza a /home, quindi la voce e' stata rimossa. */}
               </>
             )}

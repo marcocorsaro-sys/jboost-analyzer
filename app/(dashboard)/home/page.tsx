@@ -54,21 +54,30 @@ export default async function HomePage() {
   const topClients = clients ?? []
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-[1440px]">
       {/* Headliner — JAKALA BrandHero band + primary CTA */}
       <BrandHero
-        className="mb-12 mt-4"
-        height={300}
+        className="mb-10"
+        height={340}
         title="J·Boost Analyzer"
         subtitle="SEO/GEO Analysis Platform"
       >
-        <Link
-          href="/analyzer/v4"
-          className="inline-block rounded-xl px-7 py-3.5 text-[15px] font-bold no-underline transition-opacity hover:opacity-90"
-          style={{ background: B.bg, color: B.primary }}
-        >
-          <T k="home.start_new_audit" />
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/analyzer/v4"
+            className="inline-block rounded-xl px-7 py-3.5 text-[16px] font-bold no-underline transition-opacity hover:opacity-90"
+            style={{ background: B.bg, color: B.primary }}
+          >
+            <T k="home.start_new_audit" />
+          </Link>
+          <Link
+            href="/audits"
+            className="inline-block rounded-xl px-7 py-3.5 text-[16px] font-semibold text-white no-underline transition-colors hover:bg-white/10"
+            style={{ border: '1.5px solid rgba(255,255,255,.45)' }}
+          >
+            <T k="home.all_audits" />
+          </Link>
+        </div>
       </BrandHero>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -148,13 +157,28 @@ export default async function HomePage() {
 
           {topClients.length === 0 ? (
             <div className="py-10 text-center text-[15px] text-muted-foreground">
-              <T k="home.no_clients" />
+              <div>
+                <T k="home.no_clients" />
+              </div>
+              <Link
+                href="/audits"
+                className="mt-3 inline-block text-[14px] font-bold no-underline"
+                style={{ color: B.primary }}
+              >
+                <T k="home.all_audits" /> →
+              </Link>
             </div>
           ) : (
             <div className="flex flex-col gap-2">
               {topClients.map((c) => (
                 <Link key={c.id} href={`/clients/${c.id}`} className="no-underline">
                   <div className="flex items-center gap-4 rounded-xl bg-background px-4 py-3.5 transition-colors hover:bg-accent">
+                    <div
+                      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-xl font-bold uppercase"
+                      style={{ background: B.primarySoft, color: B.primary }}
+                    >
+                      {(c.name || c.domain || '?').charAt(0)}
+                    </div>
                     <div className="min-w-0 flex-1">
                       <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-semibold text-foreground">
                         {c.name}
@@ -163,6 +187,12 @@ export default async function HomePage() {
                         {c.domain || c.industry || '—'}
                       </div>
                     </div>
+                    <span
+                      className="shrink-0 rounded-full px-2.5 py-0.5 text-[13px] font-semibold"
+                      style={{ background: '#e7f6ef', color: B.success }}
+                    >
+                      <T k="clients.active_label" />
+                    </span>
                   </div>
                 </Link>
               ))}
