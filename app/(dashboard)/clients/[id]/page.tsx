@@ -42,7 +42,7 @@ export default async function ClientOverviewPage({
   const { data: analyses } = await supabase
     .from('analyses')
     .select(
-      'id, domain, country, language, status, overall_score, created_at, completed_at, competitors, target_topic',
+      'id, domain, country, language, status, overall_score, created_at, completed_at, competitors, target_topic, ref_date',
     )
     .eq('client_id', params.id)
     .order('created_at', { ascending: false })
@@ -84,7 +84,7 @@ export default async function ClientOverviewPage({
           className="border border-border bg-card p-6 text-center"
           style={{ borderRadius: B.radius.card, boxShadow: B.shadow.card }}
         >
-          <div className="mb-2 font-mono text-[11px] uppercase tracking-wide text-gray-500">
+          <div className="mb-2 font-mono text-[13px] uppercase tracking-wide text-muted-foreground">
             <T k="clients.currentScore" />
           </div>
           <div
@@ -94,13 +94,13 @@ export default async function ClientOverviewPage({
             {overallScore ?? '—'}
           </div>
           {band && (
-            <div className="mt-1 text-xs" style={{ color }}>
+            <div className="mt-1 text-sm" style={{ color }}>
               <T k={band.label as TranslationKey} />
             </div>
           )}
           {overallDelta.direction !== 'unknown' && (
             <div
-              className="mt-1 font-mono text-xs font-semibold"
+              className="mt-1 font-mono text-sm font-semibold"
               style={{ color: deltaColor }}
             >
               {deltaArrow}{' '}
@@ -115,14 +115,14 @@ export default async function ClientOverviewPage({
           className="border border-border bg-card p-6 text-center"
           style={{ borderRadius: B.radius.card, boxShadow: B.shadow.card }}
         >
-          <div className="mb-2 font-mono text-[11px] uppercase tracking-wide text-gray-500">
+          <div className="mb-2 font-mono text-[13px] uppercase tracking-wide text-muted-foreground">
             <T k="clients.analyses" />
           </div>
           <div className="font-mono text-4xl font-bold text-foreground">
             {completed.length}
           </div>
           {latest?.completed_at && (
-            <div className="mt-1 text-xs text-gray-500">
+            <div className="mt-1 text-sm text-muted-foreground">
               <T k="clients.last" />:{' '}
               {new Date(latest.completed_at).toLocaleDateString('en-US')}
             </div>

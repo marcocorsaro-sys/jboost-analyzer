@@ -148,7 +148,7 @@ export function ControllerPanel({
                     {getV4Driver(f.driver_key)?.label ?? f.driver_key}
                   </span>
                 )}
-                <span style={{ fontSize: '13px', color: B.muted, fontFamily: B.fontMono }}>
+                <span style={{ fontSize: '14px', color: B.muted, fontFamily: B.fontMono }}>
                   {f.check}
                 </span>
               </div>
@@ -164,7 +164,7 @@ export function ControllerPanel({
       )}
 
       {data && (
-        <div style={{ fontSize: '13px', color: B.muted }}>
+        <div style={{ fontSize: '14px', color: B.muted }}>
           {t('v4ctrl.checked_at')} {new Date(data.checked_at).toLocaleTimeString()}
         </div>
       )}

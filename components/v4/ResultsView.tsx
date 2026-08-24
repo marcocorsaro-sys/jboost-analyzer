@@ -57,6 +57,31 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
   const [editsInfo, setEditsInfo] = useState<EditsResponse | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabKey>('overview')
+
+  // The active tab lives in ?tab= so refresh and shared links land on the
+  // same tab. Read AFTER mount (no SSR/hydration mismatch: the server always
+  // renders 'overview'); written with history.replaceState (no router
+  // navigation, no re-render loop, no extra history entries).
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search).get('tab')
+      if (q) setActiveTab(q)
+    } catch {
+      /* URL APIs unavailable: keep the default tab */
+    }
+  }, [])
+
+  const selectTab = useCallback((key: TabKey) => {
+    setActiveTab(key)
+    try {
+      const url = new URL(window.location.href)
+      if (key === 'overview') url.searchParams.delete('tab')
+      else url.searchParams.set('tab', key)
+      window.history.replaceState(window.history.state, '', url)
+    } catch {
+      /* the tab still switches in-page even if the URL cannot be updated */
+    }
+  }, [])
   const [view, setView] = useState<ScoreView>('relative')
   const [overlay, setOverlay] = useState(true)
   const [publishOpen, setPublishOpen] = useState(false)
@@ -267,6 +292,9 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
     { key: 'output', label: t('v4export.tab') },
   ]
 
+  // A ?tab= pointing to a disabled/unknown driver falls back to Overview.
+  const currentTab: TabKey = tabs.some((tab) => tab.key === activeTab) ? activeTab : 'overview'
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* ------------------------------------------------------- header --- */}
@@ -338,7 +366,7 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
         <span style={{ fontSize: '14px', color: drafts > 0 ? B.warning : B.muted }}>
           {drafts > 0 ? `${drafts} ${t('v4res.drafts_pending')}` : t('v4res.no_drafts')}
         </span>
-        <span style={{ fontSize: '13px', color: B.muted }}>
+        <span style={{ fontSize: '14px', color: B.muted }}>
           {t('v4res.refdate')} {status.refDate ?? '—'}
         </span>
       </div>
@@ -358,12 +386,12 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
         {tabs.map((tab) => {
           const row = enabledRows.find((d) => d.driver_key === tab.key)
           const statusColor = row ? STATUS_STYLE[row.status].color : null
-          const active = activeTab === tab.key
+          const active = currentTab === tab.key
           return (
             <button
               key={tab.key}
               type="button"
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => selectTab(tab.key)}
               style={{
                 ...ghostButton,
                 padding: '10px 18px',
@@ -397,7 +425,7 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
       )}
 
       {/* ------------------------------------------------------- content -- */}
-      {activeTab === 'overview' && (
+      {currentTab === 'overview' && (
         <OverviewTab
           rows={enabledRows}
           sites={sites}
@@ -407,12 +435,12 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
           progress={progress}
           starting={starting}
           onStartPending={startPending}
-          onOpenDriver={(key) => setActiveTab(key)}
+          onOpenDriver={(key) => selectTab(key)}
           insightByDriver={insightByDriver}
         />
       )}
 
-      {activeTab === 'summary' && (
+      {currentTab === 'summary' && (
         <ExecutiveSummaryTab
           record={insights?.executiveSummary ?? null}
           insightsRunning={insightsRunning}
@@ -420,7 +448,7 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
         />
       )}
 
-      {activeTab === 'output' && (
+      {currentTab === 'output' && (
         <OutputPreviewTab
           analysisId={analysisId}
           anyDriverDone={enabledRows.some((r) => r.status === 'done')}
@@ -429,7 +457,7 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
 
       {enabledRows.map(
         (row) =>
-          activeTab === row.driver_key && (
+          currentTab === row.driver_key && (
             <DriverPanel
               key={row.driver_key}
               analysisId={analysisId}

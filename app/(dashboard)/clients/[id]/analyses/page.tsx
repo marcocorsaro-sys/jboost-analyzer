@@ -13,7 +13,7 @@ export default async function ClientAnalysesPage({
     getClientById(params.id),
     supabase
       .from('analyses')
-      .select('id, domain, country, language, status, overall_score, created_at, completed_at, competitors, target_topic')
+      .select('id, domain, country, language, status, overall_score, created_at, completed_at, competitors, target_topic, ref_date')
       .eq('client_id', params.id)
       .order('created_at', { ascending: false }),
   ])

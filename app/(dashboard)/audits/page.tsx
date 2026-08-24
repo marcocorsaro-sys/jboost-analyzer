@@ -51,12 +51,12 @@ export default async function AuditsPage() {
   return (
     <div className="mx-auto max-w-5xl">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-bold tracking-tight text-foreground">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
           <T k="nav.audits" />
         </h1>
         <Link
           href="/analyzer/v4"
-          className="rounded-lg px-4 py-2 text-[13px] font-bold text-white no-underline transition-opacity hover:opacity-90"
+          className="rounded-lg px-4 py-2 text-[14px] font-bold text-white no-underline transition-opacity hover:opacity-90"
           style={{ background: B.primary }}
         >
           <T k="home.start_new_audit" />
@@ -71,7 +71,7 @@ export default async function AuditsPage() {
           </div>
           <Link
             href="/analyzer/v4"
-            className="inline-block rounded-lg px-5 py-2.5 text-[13px] font-bold text-white no-underline transition-opacity hover:opacity-90"
+            className="inline-block rounded-lg px-5 py-2.5 text-[14px] font-bold text-white no-underline transition-opacity hover:opacity-90"
             style={{ background: B.primary }}
           >
             <T k="home.start_new_audit" />
@@ -82,24 +82,24 @@ export default async function AuditsPage() {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="px-4 py-3 text-left font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <th className="px-4 py-3 text-left font-mono text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
                   <T k="audits.col_audit" />
                 </th>
-                <th className="px-4 py-3 text-left font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <th className="px-4 py-3 text-left font-mono text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
                   <T k="audits.col_date" />
                 </th>
-                <th className="px-4 py-3 text-left font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <th className="px-4 py-3 text-left font-mono text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
                   <T k="audits.col_state" />
                 </th>
-                <th className="px-4 py-3 text-center font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <th className="px-4 py-3 text-center font-mono text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
                   <T k="audits.col_score" />
                 </th>
                 {isAdmin && (
-                  <th className="px-4 py-3 text-center font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <th className="px-4 py-3 text-center font-mono text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
                     <T k="audits.col_controller" />
                   </th>
                 )}
-                <th className="px-4 py-3 text-right font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <th className="px-4 py-3 text-right font-mono text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
                   <T k="audits.col_actions" />
                 </th>
               </tr>
@@ -119,7 +119,7 @@ export default async function AuditsPage() {
                             "Cliente" chip in the actions cell instead. */}
                         {a.clientId && !a.started && (
                           <span
-                            className="ml-2 inline-block rounded-full px-2 py-0.5 align-middle text-[10px] font-semibold"
+                            className="ml-2 inline-block rounded-full px-2.5 py-0.5 align-middle text-[13px] font-semibold"
                             style={{ background: B.primarySoft, color: B.primary }}
                           >
                             <T k="audits.client_badge" />
@@ -127,7 +127,7 @@ export default async function AuditsPage() {
                         )}
                       </div>
                       {a.domain && a.domain !== a.name && (
-                        <div className="text-[11px] text-muted-foreground">{a.domain}</div>
+                        <div className="text-[13px] text-muted-foreground">{a.domain}</div>
                       )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
@@ -136,13 +136,13 @@ export default async function AuditsPage() {
                     <td className="px-4 py-3">
                       {/* State pill — same priority + palette as ResultsView. */}
                       <span
-                        className="inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+                        className="inline-block rounded-full px-2.5 py-0.5 text-[13px] font-semibold"
                         style={{ background: `${stateMeta.color}18`, color: stateMeta.color }}
                       >
                         <T k={stateMeta.labelKey} />
                       </span>
                       {a.driversTotal > 0 && (
-                        <span className="ml-2 text-[11px] text-muted-foreground">
+                        <span className="ml-2 text-[13px] text-muted-foreground">
                           {a.driversDone}/{a.driversTotal}
                         </span>
                       )}
@@ -164,7 +164,7 @@ export default async function AuditsPage() {
                         <>
                           <Link
                             href={`/results/v4/${a.id}`}
-                            className="mr-2 inline-block rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold text-foreground no-underline transition-colors hover:bg-accent"
+                            className="mr-2 inline-block rounded-lg border border-border px-3 py-1.5 text-[14px] font-semibold text-foreground no-underline transition-colors hover:bg-accent"
                           >
                             <T k="audits.open" />
                           </Link>
@@ -177,7 +177,7 @@ export default async function AuditsPage() {
                       ) : (
                         <Link
                           href={`/analyzer/v4?resume=${a.id}`}
-                          className="inline-block rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white no-underline transition-opacity hover:opacity-90"
+                          className="inline-block rounded-lg px-3 py-1.5 text-[14px] font-semibold text-white no-underline transition-opacity hover:opacity-90"
                           style={{ background: B.primary }}
                         >
                           <T k="audits.resume_setup" />

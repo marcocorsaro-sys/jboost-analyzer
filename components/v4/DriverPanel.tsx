@@ -584,12 +584,12 @@ function SummaryBody({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
       {comment ? (
-        <div style={{ fontSize: '16px', color: B.ink, lineHeight: 1.6 }}>{comment}</div>
+        <div style={{ fontSize: '16px', color: B.ink, lineHeight: 1.6, maxWidth: '75ch' }}>{comment}</div>
       ) : (
         <div style={{ fontSize: '15px', color: B.muted }}>{t('v4res.insights_placeholder')}</div>
       )}
       {extras.map((x, i) => (
-        <div key={i} style={{ fontSize: '14px', color: B.muted, lineHeight: 1.5 }}>
+        <div key={i} style={{ fontSize: '14px', color: B.muted, lineHeight: 1.5, maxWidth: '75ch' }}>
           {x}
         </div>
       ))}
@@ -628,7 +628,7 @@ function IssuesList({ output, family }: { output: Record<string, unknown> | null
             )}
           </div>
           {item.spiegazione && (
-            <div style={{ fontSize: '15px', color: B.muted, lineHeight: 1.6, marginTop: '4px' }}>
+            <div style={{ fontSize: '15px', color: B.muted, lineHeight: 1.6, marginTop: '4px', maxWidth: '75ch' }}>
               {item.spiegazione}
             </div>
           )}
@@ -667,7 +667,7 @@ function SolutionsList({ output, family }: { output: Record<string, unknown> | n
               </span>
             )}
           </div>
-          <div style={{ fontSize: '15px', color: B.muted, lineHeight: 1.6, marginTop: '4px' }}>
+          <div style={{ fontSize: '15px', color: B.muted, lineHeight: 1.6, marginTop: '4px', maxWidth: '75ch' }}>
             {item.soluzione_proposta}
           </div>
         </div>
@@ -850,7 +850,7 @@ function EvidenceArray({ name, list, noValueLabel }: { name: string; list: unkno
         </table>
       </div>
       {list.length > 10 && (
-        <div style={{ fontSize: '13px', color: B.muted, marginTop: '4px' }}>+{list.length - 10}</div>
+        <div style={{ fontSize: '14px', color: B.muted, marginTop: '4px' }}>+{list.length - 10}</div>
       )}
     </div>
   )

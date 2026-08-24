@@ -5,15 +5,16 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 import { cn } from '@/lib/utils'
-import { MOBILE_NAV } from '@/components/layout/nav-items'
+import { MOBILE_NAV, isNavActive } from '@/components/layout/nav-items'
 import { useLocale } from '@/lib/i18n'
 
 export function MobileTabBar() {
   const pathname = usePathname()
   const { t } = useLocale()
 
-  const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(href + '/')
+  // Shared matcher (nav-items.ts): detail pages keep their section lit,
+  // identical to the desktop Icon Rail.
+  const isActive = (href: string) => isNavActive(href, pathname)
 
   return (
     <nav

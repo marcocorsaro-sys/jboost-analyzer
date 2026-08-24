@@ -64,8 +64,8 @@ export default function ControllerBadge({ analysisId }: { analysisId: string }) 
     }
   }, [analysisId])
 
-  if (failed) return <span className="text-[11px] text-muted-foreground">—</span>
-  if (!counts) return <span className="text-[11px] text-muted-foreground">…</span>
+  if (failed) return <span className="text-[13px] text-muted-foreground">—</span>
+  if (!counts) return <span className="text-[13px] text-muted-foreground">…</span>
 
   const total = counts.error + counts.warning + counts.info
   const color = counts.error > 0 ? B.error : counts.warning > 0 ? B.warning : B.success
@@ -73,7 +73,7 @@ export default function ControllerBadge({ analysisId }: { analysisId: string }) 
 
   return (
     <span
-      className="inline-block rounded-full px-2.5 py-0.5 font-mono text-[11px] font-semibold"
+      className="inline-block rounded-full px-2.5 py-0.5 font-mono text-[13px] font-semibold"
       style={{ background: `${color}18`, color }}
       title={`errors ${counts.error} · warnings ${counts.warning} · info ${counts.info}`}
     >

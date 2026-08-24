@@ -1,4 +1,5 @@
 import NewProspectIntake from '@/components/clients/NewProspectIntake'
+import BackLink from '@/components/layout/back-link'
 import T from '@/components/ui/T'
 import { B } from '@/lib/brand'
 
@@ -10,6 +11,9 @@ import { B } from '@/lib/brand'
 export default function NewClientPage() {
   return (
     <div style={{ maxWidth: '800px' }}>
+      <BackLink href="/clients">
+        <T k="nav.clients" />
+      </BackLink>
       <h1 style={{
         fontFamily: B.fontMono,
         fontSize: '24px',

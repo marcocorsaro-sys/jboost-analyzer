@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useLocale, formatLocalDate } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
+import BackLink from '@/components/layout/back-link'
 
 // ─── Types ─────────────────────────────────────────────
 interface UserProfile {
@@ -561,6 +562,9 @@ export default function AdminPage() {
 
   return (
     <div className="max-w-[1100px] p-8">
+      {/* Back-affordance: Admin is reached from Settings/account menu and is
+          not on the rail, so it needs an explicit way back. */}
+      <BackLink href="/home">{t('nav.home')}</BackLink>
       <h1 className="mb-6 text-2xl font-bold tracking-tight text-foreground">
         {t('admin.adminPanel')}
       </h1>

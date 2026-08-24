@@ -1,4 +1,6 @@
 import ResultsView from '@/components/v4/ResultsView'
+import BackLink from '@/components/layout/back-link'
+import T from '@/components/ui/T'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +17,10 @@ export default async function V4ResultsPage({ params }: { params: Promise<{ id: 
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+      {/* Back-affordance: a results page is a detail of the Audits list. */}
+      <BackLink href="/audits">
+        <T k="nav.audits" />
+      </BackLink>
       <ResultsView analysisId={id} />
     </div>
   )

@@ -104,7 +104,7 @@ export default function ClientsListWrapper({ initialClients }: Props) {
                 background: filter === f ? B.border : 'transparent',
                 color: filter === f ? B.ink : B.muted,
                 border: 'none', borderRadius: '6px',
-                fontSize: '12px', fontWeight: 600,
+                fontSize: '14px', fontWeight: 600,
                 cursor: 'pointer', textTransform: 'capitalize',
               }}
             >

@@ -52,7 +52,7 @@ export default function ClientTabs({ clientId }: ClientTabsProps) {
             href={tabPath}
             style={{
               padding: '10px 16px',
-              fontSize: '13px',
+              fontSize: '14px',
               fontWeight: 600,
               fontFamily: B.fontMono,
               color: isActive ? B.primary : B.muted,

@@ -26,7 +26,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { PRIMARY_NAV, LEGACY_NAV } from '@/components/layout/nav-items'
+import { PRIMARY_NAV, LEGACY_NAV, isNavActive } from '@/components/layout/nav-items'
 import { showLegacy } from '@/lib/feature-flags'
 import { useCommandPalette } from '@/components/layout/command-palette'
 import { useLocale, LOCALE_LABELS, type Locale } from '@/lib/i18n'
@@ -49,12 +49,10 @@ export function IconRail({
   const LOCALES: Locale[] = ['en', 'it', 'es', 'fr']
   const { setOpen } = useCommandPalette()
 
-  const isActive = (href: string) => {
-    // Legacy /analyzer must not light up while the user is on /analyzer/v4
-    // (New audit): the V1 entry only matches itself.
-    if (href === '/analyzer') return pathname === href
-    return pathname === href || pathname.startsWith(href + '/')
-  }
+  // Shared matcher (nav-items.ts): keeps the section lit on its detail
+  // pages too (e.g. /results/v4/<id> highlights Audits) and stays in sync
+  // with the Mobile Tab Bar.
+  const isActive = (href: string) => isNavActive(href, pathname)
 
   const legacyEnabled = showLegacy()
 

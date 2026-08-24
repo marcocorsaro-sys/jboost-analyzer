@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import SetupWizard, { type WizardInitial } from '@/components/v4/SetupWizard'
 import { readAttachments } from '@/lib/v4/setup'
+import BackLink from '@/components/layout/back-link'
 import T from '@/components/ui/T'
 import { B } from '@/lib/brand'
 
@@ -31,6 +32,11 @@ export default async function V4SetupPage({
 
   return (
     <div style={{ maxWidth: '960px', margin: '0 auto' }}>
+      {/* Back-affordance: leaving the wizard never loses a saved draft, and
+          the Audits list is where drafts resume from. */}
+      <BackLink href="/audits">
+        <T k="nav.audits" />
+      </BackLink>
       <h1
         style={{
           fontSize: '34px',

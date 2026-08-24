@@ -339,11 +339,11 @@ function DriverCard({
           {s.label}
         </span>
         {row.attempts > 1 && (
-          <span style={{ fontSize: '13px', color: B.muted }}>
+          <span style={{ fontSize: '14px', color: B.muted }}>
             tentativo {row.attempts}/{row.max_attempts}
           </span>
         )}
-        {row.edited && <span style={{ fontSize: '13px', color: B.warning }}>modificato a mano</span>}
+        {row.edited && <span style={{ fontSize: '14px', color: B.warning }}>modificato a mano</span>}
 
         <span style={{ marginLeft: 'auto', display: 'flex', gap: '20px' }}>
           {row.status === 'done' && (

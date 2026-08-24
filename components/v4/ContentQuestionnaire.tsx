@@ -232,14 +232,14 @@ export default function ContentQuestionnaire({
               minWidth: '150px',
             }}
           >
-            <div style={{ fontSize: '13px', color: B.muted }}>
+            <div style={{ fontSize: '14px', color: B.muted }}>
               {site.is_client ? `${site.name} · ${t('v4content.client_required')}` : site.name}
             </div>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'baseline' }}>
               <span style={{ fontSize: '28px', fontWeight: 750, fontVariantNumeric: 'tabular-nums', color: scoreColor(score) }}>
                 {score === null ? '—' : score}
               </span>
-              <span style={{ fontSize: '13px', color: B.muted }}>
+              <span style={{ fontSize: '14px', color: B.muted }}>
                 {score === null
                   ? `${answered}/${total} ${t('v4content.answered')}`
                   : b
@@ -249,7 +249,7 @@ export default function ContentQuestionnaire({
             </div>
           </div>
         ))}
-        <div style={{ alignSelf: 'center', fontSize: '13px', color: B.muted }}>
+        <div style={{ alignSelf: 'center', fontSize: '14px', color: B.muted }}>
           {t('v4content.client_required')} · {t('v4content.competitor_optional')}
         </div>
       </div>
@@ -386,7 +386,7 @@ function QuestionBlock({
                   >
                     {opt.key} · {ANSWER_LABELS[opt.key]}
                   </span>
-                  <span style={{ fontSize: '13px', color: B.muted }}>
+                  <span style={{ fontSize: '14px', color: B.muted }}>
                     {opt.points} {ptsLabel}
                   </span>
                 </div>

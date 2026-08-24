@@ -69,7 +69,7 @@ export default function SwitchToClientButton({
     return (
       <span className="inline-flex items-center gap-1.5">
         {justCreated && (
-          <span className="text-[13px]" style={{ color: B.success }}>
+          <span className="text-[14px]" style={{ color: B.success }}>
             {t('audits.switch_done')}
           </span>
         )}
@@ -88,7 +88,7 @@ export default function SwitchToClientButton({
   if (confirming) {
     return (
       <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
-        <span className="text-[13px] text-muted-foreground">
+        <span className="text-[14px] text-muted-foreground">
           {t('audits.switch_confirm').replace('{name}', auditName)}
         </span>
         <button
@@ -112,7 +112,7 @@ export default function SwitchToClientButton({
           {t('audits.switch_cancel')}
         </button>
         {error && (
-          <span className="text-[13px]" style={{ color: B.error }}>
+          <span className="text-[14px]" style={{ color: B.error }}>
             {error}
           </span>
         )}

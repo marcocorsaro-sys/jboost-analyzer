@@ -31,12 +31,14 @@ const BAND_COLORS: Record<string, string> = {
   red: B.error,
 }
 
-// Stage badge styling — kept consistent with Tailwind tokens used elsewhere.
-const STAGE_STYLES: Record<ClientLifecycleStage, string> = {
-  prospect: 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
-  active: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
-  churned: 'bg-gray-500/15 text-gray-400 border border-gray-500/30',
-  archived: 'bg-white/5 text-gray-500 border border-white/10',
+// Stage badge styling — B tokens on the white JAKALA surfaces (the previous
+// Tailwind classes were dark-theme leftovers: amber-400/emerald-400 text and
+// white/5 backgrounds are unreadable on white).
+const STAGE_STYLES: Record<ClientLifecycleStage, React.CSSProperties> = {
+  prospect: { background: `${B.warning}15`, color: B.warning, border: `1px solid ${B.warning}30` },
+  active: { background: `${B.success}15`, color: B.success, border: `1px solid ${B.success}30` },
+  churned: { background: `${B.muted}15`, color: B.muted, border: `1px solid ${B.muted}30` },
+  archived: { background: B.surface2, color: B.muted, border: `1px solid ${B.border}` },
 }
 
 const STAGE_LABEL_KEYS: Record<ClientLifecycleStage, TranslationKey> = {
@@ -63,7 +65,7 @@ export default function ClientCard({
   const deltaArrow = delta.direction === 'up' ? '↑' : delta.direction === 'down' ? '↓' : '→'
 
   const stage: ClientLifecycleStage = lifecycle_stage ?? 'active'
-  const stageClass = STAGE_STYLES[stage]
+  const stageStyle = STAGE_STYLES[stage]
   const stageLabel = t(STAGE_LABEL_KEYS[stage])
 
   const handleDelete = async (e: React.MouseEvent) => {
@@ -93,18 +95,22 @@ export default function ClientCard({
   return (
     <Link href={`/clients/${id}`}>
       <div
-        className={`group relative overflow-hidden rounded-xl border bg-card transition-all duration-200 hover:shadow-lg hover:shadow-primary/5 ${deleting ? 'opacity-50 pointer-events-none' : ''} ${deleteError ? 'border-red-500/60' : 'border-border hover:border-primary/30'}`}
+        className={`group relative overflow-hidden rounded-xl border bg-card transition-all duration-200 hover:shadow-lg hover:shadow-primary/5 ${deleting ? 'opacity-50 pointer-events-none' : ''} ${deleteError ? 'border-red/60' : 'border-border hover:border-primary/30'}`}
         title={deleteError ? `Cancellazione fallita: ${deleteError}` : undefined}
       >
         {/* Top-right badges: lifecycle + (optional) archived marker + delete */}
         <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10">
           <span
-            className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold font-mono ${stageClass}`}
+            className="text-[13px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold font-mono"
+            style={stageStyle}
           >
             {stageLabel}
           </span>
           {status === 'archived' && (
-            <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-gray-700/50 text-gray-400">
+            <span
+              className="text-[13px] uppercase tracking-wider px-2 py-0.5 rounded-full"
+              style={{ background: B.surface2, color: B.muted }}
+            >
               Archived
             </span>
           )}
@@ -114,7 +120,7 @@ export default function ClientCard({
             disabled={deleting}
             title="Elimina definitivamente"
             aria-label={`Elimina ${name}`}
-            className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center w-6 h-6 rounded-full bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center w-6 h-6 rounded-full bg-red/10 text-red hover:bg-red/20 disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z" />
@@ -129,12 +135,12 @@ export default function ClientCard({
           <div className="flex items-start justify-between gap-3 mb-3 pr-20">
             <div className="min-w-0 flex-1">
               <h3
-                className="font-semibold text-foreground text-[15px] truncate group-hover:text-[var(--lime)] transition-colors font-mono"
+                className="font-semibold text-foreground text-[15px] truncate group-hover:text-primary transition-colors font-mono"
               >
                 {name}
               </h3>
               {domain && (
-                <p className="text-xs text-gray-500 mt-0.5 truncate">{domain}</p>
+                <p className="text-[14px] text-muted-foreground mt-0.5 truncate">{domain}</p>
               )}
             </div>
           </div>
@@ -152,21 +158,24 @@ export default function ClientCard({
             </div>
             {delta.direction !== 'unknown' && (
               <span
-                className="text-[11px] font-mono font-semibold"
+                className="text-[13px] font-mono font-semibold"
                 style={{ color: deltaColor }}
               >
                 {deltaArrow} {delta.delta !== null && delta.delta > 0 ? '+' : ''}{delta.delta !== null ? Math.round(delta.delta) : ''} {t('clients.vsPrevious')}
               </span>
             )}
             {industry && (
-              <span className="inline-block text-[11px] px-2 py-0.5 rounded-full bg-white/5 text-gray-400">
+              <span
+                className="inline-block text-[13px] px-2 py-0.5 rounded-full"
+                style={{ background: B.surface2, color: B.muted }}
+              >
                 {industry}
               </span>
             )}
           </div>
 
           {/* Stats row */}
-          <div className="flex items-center gap-4 text-[11px] text-gray-500 pt-3 border-t border-white/5">
+          <div className="flex items-center gap-4 text-[13px] text-muted-foreground pt-3 border-t border-border">
             <span>{analyses_count} {t('clients.analysisCount')}</span>
             {latest_analysis_at && (
               <span>

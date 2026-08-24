@@ -120,11 +120,11 @@ export default async function HomePage() {
                             </span>
                           )}
                         </div>
-                        <div className="mt-0.5 text-[13px] font-medium" style={{ color: stateMeta.color }}>
+                        <div className="mt-0.5 text-[14px] font-medium" style={{ color: stateMeta.color }}>
                           <T k={stateMeta.labelKey} />
                         </div>
                       </div>
-                      <div className="shrink-0 text-[13px] text-muted-foreground">
+                      <div className="shrink-0 text-[14px] text-muted-foreground">
                         {formatLocalDate(a.createdAt, locale, { day: '2-digit', month: 'short' })}
                       </div>
                     </div>
@@ -159,7 +159,7 @@ export default async function HomePage() {
                       <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-semibold text-foreground">
                         {c.name}
                       </div>
-                      <div className="mt-0.5 text-[13px] text-muted-foreground">
+                      <div className="mt-0.5 text-[14px] text-muted-foreground">
                         {c.domain || c.industry || '—'}
                       </div>
                     </div>

@@ -72,7 +72,7 @@ export default function ExecutiveSummaryTab({ record, insightsRunning, onGenerat
         >
           <div style={{ ...mutedLabel, color: B.error, marginBottom: '8px' }}>{t('v4res.sum_alerts')}</div>
           {alerts.map((a, i) => (
-            <div key={i} style={{ fontSize: '15px', color: B.error, lineHeight: 1.6 }}>
+            <div key={i} style={{ fontSize: '15px', color: B.error, lineHeight: 1.6, maxWidth: '75ch' }}>
               • {a}
             </div>
           ))}
@@ -105,7 +105,7 @@ export default function ExecutiveSummaryTab({ record, insightsRunning, onGenerat
       {out.scorecard_overview && (
         <div style={card}>
           <h3 style={sectionTitle}>{t('v4res.sum_scorecard')}</h3>
-          <div style={{ fontSize: '16px', color: B.ink, lineHeight: 1.7 }}>{out.scorecard_overview}</div>
+          <div style={{ fontSize: '16px', color: B.ink, lineHeight: 1.7, maxWidth: '75ch' }}>{out.scorecard_overview}</div>
         </div>
       )}
 
@@ -166,7 +166,7 @@ export default function ExecutiveSummaryTab({ record, insightsRunning, onGenerat
                           </div>
                         )}
                         {Array.isArray(p.driver_impattati) && p.driver_impattati.length > 0 && (
-                          <div style={{ marginTop: '6px', fontSize: '13px', color: B.muted }}>
+                          <div style={{ marginTop: '6px', fontSize: '14px', color: B.muted }}>
                             {t('v4res.sum_drivers')}: {p.driver_impattati.join(', ')}
                           </div>
                         )}

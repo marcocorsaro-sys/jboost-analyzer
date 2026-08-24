@@ -16,6 +16,10 @@ interface Analysis {
   completed_at: string | null
   competitors: string[] | null
   target_topic: string | null
+  /** Set only by the V4 pipeline (same discriminator as lib/v4/audits):
+      non-null means the row's results live at /results/v4/[id]. Optional so
+      legacy callers that do not select it keep compiling. */
+  ref_date?: string | null
 }
 
 interface Props {
@@ -59,7 +63,7 @@ export default function ClientAnalysesList({ analyses, clientId }: Props) {
           }}>
             Storico Analisi
           </h3>
-          <p style={{ fontSize: '13px', color: B.muted }}>
+          <p style={{ fontSize: '14px', color: B.muted }}>
             {analyses.length} {analyses.length === 1 ? 'analisi' : 'analisi'} per questo cliente
           </p>
         </div>
@@ -71,7 +75,7 @@ export default function ClientAnalysesList({ analyses, clientId }: Props) {
                 onClick={() => setFilter(f)}
                 style={{
                   padding: '5px 12px', borderRadius: '6px', border: 'none',
-                  fontSize: '12px', fontWeight: 500, cursor: 'pointer',
+                  fontSize: '14px', fontWeight: 500, cursor: 'pointer',
                   background: filter === f ? B.primary : B.surface2,
                   color: filter === f ? B.bg : B.muted,
                   transition: 'all 0.2s',
@@ -85,7 +89,7 @@ export default function ClientAnalysesList({ analyses, clientId }: Props) {
             href={`/analyzer/v4?client=${clientId}`}
             style={{
               padding: '8px 16px', background: B.primary, color: B.bg,
-              borderRadius: '8px', fontSize: '13px', fontWeight: 700,
+              borderRadius: '8px', fontSize: '14px', fontWeight: 700,
               textDecoration: 'none', fontFamily: B.fontMono,
             }}
           >
@@ -110,7 +114,7 @@ export default function ClientAnalysesList({ analyses, clientId }: Props) {
             style={{
               display: 'inline-block', padding: '10px 24px', background: B.primary,
               color: B.bg, borderRadius: '8px', fontWeight: 700,
-              textDecoration: 'none', fontSize: '13px',
+              textDecoration: 'none', fontSize: '14px',
               fontFamily: B.fontMono,
             }}
           >
@@ -123,7 +127,13 @@ export default function ClientAnalysesList({ analyses, clientId }: Props) {
             const band = analysis.overall_score !== null ? getScoreBand(analysis.overall_score) : null
             const color = band ? BAND_COLORS[band.color] ?? B.muted : B.muted
             return (
-              <Link key={analysis.id} href={`/results/${analysis.id}`} style={{ textDecoration: 'none' }}>
+              /* V4 audits (ref_date set) open the V4 results page; only true
+                 V1 runs still open the legacy /results/[id]. */
+              <Link
+                key={analysis.id}
+                href={analysis.ref_date ? `/results/v4/${analysis.id}` : `/results/${analysis.id}`}
+                style={{ textDecoration: 'none' }}
+              >
                 <div
                   style={{
                     background: B.surface, borderRadius: '12px', padding: '16px 20px',
@@ -151,16 +161,16 @@ export default function ClientAnalysesList({ analyses, clientId }: Props) {
                         {analysis.domain}
                       </span>
                       <span style={{
-                        fontSize: '10px', fontWeight: 600, padding: '2px 8px',
+                        fontSize: '13px', fontWeight: 600, padding: '2px 8px',
                         borderRadius: '4px', textTransform: 'uppercase',
                         background: `${statusColor(analysis.status)}15`,
                         color: statusColor(analysis.status),
                       }}>
                         {analysis.status}
                       </span>
-                      {band && (<span style={{ fontSize: '11px', color }}>{band.label}</span>)}
+                      {band && (<span style={{ fontSize: '13px', color }}>{band.label}</span>)}
                     </div>
-                    <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: B.muted }}>
+                    <div style={{ display: 'flex', gap: '16px', fontSize: '14px', color: B.muted }}>
                       <span>{analysis.country?.toUpperCase()}</span>
                       <span>
                         {new Date(analysis.created_at).toLocaleDateString('it-IT', {

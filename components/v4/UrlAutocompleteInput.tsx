@@ -265,7 +265,7 @@ export default function UrlAutocompleteInput({
                 </span>
                 <span
                   style={{
-                    fontSize: '13px',
+                    fontSize: '14px',
                     color: B.muted,
                     fontFamily: B.fontMono,
                     flexShrink: 0,

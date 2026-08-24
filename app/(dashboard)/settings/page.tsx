@@ -46,7 +46,7 @@ export default async function SettingsPage() {
           <h2 className="mb-2 font-mono text-sm font-semibold uppercase tracking-wider text-foreground">
             <T k="settings.connectors" />
           </h2>
-          <p className="mb-4 text-xs text-muted-foreground">
+          <p className="mb-4 text-sm text-muted-foreground">
             <T k="settings.connectors_hint" />
           </p>
           <div className="flex flex-col gap-2">
@@ -55,9 +55,9 @@ export default async function SettingsPage() {
                 key={c.key}
                 className="flex items-center justify-between rounded-lg bg-background px-3.5 py-2.5"
               >
-                <span className="font-mono text-xs text-foreground">{c.key}</span>
+                <span className="font-mono text-[13px] text-foreground">{c.key}</span>
                 <span
-                  className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+                  className="rounded-full px-2.5 py-0.5 text-[13px] font-semibold"
                   style={
                     c.configured
                       ? { background: `${B.success}18`, color: B.success }
@@ -85,7 +85,7 @@ export default async function SettingsPage() {
           <h2 className="mb-2 font-mono text-sm font-semibold uppercase tracking-wider text-foreground">
             <T k="settings.defaults" />
           </h2>
-          <p className="mb-4 text-xs text-muted-foreground">
+          <p className="mb-4 text-sm text-muted-foreground">
             <T k="settings.defaults_hint" />
           </p>
           <div className="flex flex-col gap-2">
@@ -100,8 +100,8 @@ export default async function SettingsPage() {
                 key={key}
                 className="flex items-center justify-between rounded-lg bg-background px-3.5 py-2.5"
               >
-                <span className="font-mono text-xs text-muted-foreground">{key}</span>
-                <span className="font-mono text-xs text-foreground">
+                <span className="font-mono text-[13px] text-muted-foreground">{key}</span>
+                <span className="font-mono text-[13px] text-foreground">
                   {value}
                   {inventory.defaults.sources[key] === 'default' && (
                     <span className="ml-2 text-muted-foreground">
@@ -124,13 +124,13 @@ export default async function SettingsPage() {
               <h2 className="font-mono text-sm font-semibold uppercase tracking-wider text-foreground">
                 <T k="nav.admin" />
               </h2>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 text-sm text-muted-foreground">
                 <T k="settings.admin_hint" />
               </p>
             </div>
             <Link
               href="/admin"
-              className="rounded-lg border border-border px-4 py-2 text-[13px] font-semibold text-foreground no-underline transition-colors hover:bg-accent"
+              className="rounded-lg border border-border px-4 py-2 text-[14px] font-semibold text-foreground no-underline transition-colors hover:bg-accent"
             >
               <T k="settings.open_admin" />
             </Link>

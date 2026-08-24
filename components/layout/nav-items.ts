@@ -58,3 +58,33 @@ export const LEGACY_NAV: NavItem[] = [
   // reindirizza a /home (Comparazione 07: non prioritaria per V4 one-off).
   // Voce rimossa: { href: '/ask-j', labelKey: 'nav.ask_j', icon: MessageSquare }
 ]
+
+/**
+ * Detail routes that belong to a nav section WITHOUT sharing its URL prefix.
+ * /results/v4/<id> is the detail page of an audit, so the "Audits" entry must
+ * stay highlighted there (the user never loses the sense of where they are).
+ */
+const SECTION_ALIASES: Record<string, string[]> = {
+  '/audits': ['/results/v4'],
+}
+
+const matches = (prefix: string, pathname: string) =>
+  pathname === prefix || pathname.startsWith(prefix + '/')
+
+/**
+ * Single active-state matcher shared by the Icon Rail and the Mobile Tab Bar,
+ * so desktop and mobile always agree on which section is lit.
+ *
+ * Rules:
+ *  - '/analyzer' (legacy V1) only matches itself — it must not light up while
+ *    the user is on '/analyzer/v4' (New audit).
+ *  - '/results' (legacy V1) must not match '/results/v4/...' — those detail
+ *    pages belong to Audits.
+ *  - '/audits' also matches its detail pages under '/results/v4'.
+ */
+export function isNavActive(href: string, pathname: string): boolean {
+  if (href === '/analyzer') return pathname === href
+  if (href === '/results' && matches('/results/v4', pathname)) return false
+  if (matches(href, pathname)) return true
+  return (SECTION_ALIASES[href] ?? []).some((p) => matches(p, pathname))
+}
