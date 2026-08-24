@@ -1,10 +1,10 @@
+import type { CSSProperties } from 'react'
 import { cookies } from 'next/headers'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
 import { createClient, getProfileRole, getUser } from '@/lib/supabase/server'
 import { listV4Audits, AUDIT_STATE_META } from '@/lib/v4/audits'
-import { getScoreBand } from '@/lib/constants'
 import { formatLocalDate, isValidLocale, type Locale } from '@/lib/i18n'
 import T from '@/components/ui/T'
 import SwitchToClientButton from '@/components/audits/SwitchToClientButton'
@@ -13,24 +13,15 @@ import { B } from '@/lib/brand'
 
 export const dynamic = 'force-dynamic'
 
-const BAND_COLORS: Record<string, string> = {
-  green: B.success,
-  teal: B.teal,
-  amber: B.warning,
-  red: B.error,
-}
-
 /**
- * Audits (UX-UI Bibbia 04, "Navigation & Screens"): the list of one-off V4
- * audits with score and date; open the analysis or promote it with
- * 'Switch to client'. V1 called this section "Prospects" — renamed per
- * Comparazione 07 ("Rinominata 'Audits' in V4").
+ * Audits (UX-UI Bibbia 04 + mockup UX approvato): righe ariose — dominio con
+ * sottoriga competitor, chip stato (Completo / N in attesa / In corso /
+ * Errore), Index 28px navy right-aligned, data, azioni ghost "Apri" e
+ * promozione "Switch to client" (o "Report" quando l'audit è completo).
  *
  * Server component: the list is one batched read (lib/v4/audits). The only
  * client islands are the <T> translation leaves and the Switch-to-client
- * button — the REAL promotion (POST /api/v4/analyses/[id]/promote): the one
- * onboarding mechanic where a prospect audit becomes a client. Promoted
- * audits show a discreet "Cliente" chip instead of the button.
+ * button — the REAL promotion (POST /api/v4/analyses/[id]/promote).
  */
 export default async function AuditsPage() {
   const user = await getUser()
@@ -42,21 +33,80 @@ export default async function AuditsPage() {
 
   const supabase = await createClient()
   const audits = await listV4Audits(supabase)
+  const runningCount = audits.filter((a) => a.state === 'running').length
 
   // Controller column, admins only: the sweep crosses ownership boundaries,
-  // so the server decides here whether to render the client island at all —
-  // the badge then fetches ?scope=all lazily, never blocking this render.
+  // so the server decides here whether to render the client island at all.
   const isAdmin = (await getProfileRole(user.id)) === 'admin'
+
+  const thStyle: CSSProperties = {
+    ...B.type.label,
+    color: B.muted,
+    textAlign: 'left',
+    padding: '0 16px 12px',
+    borderBottom: `1px solid ${B.border}`,
+    whiteSpace: 'nowrap',
+  }
+  const tdStyle: CSSProperties = {
+    padding: '16px',
+    fontSize: '15px',
+    borderBottom: `1px solid ${B.surface}`,
+    verticalAlign: 'middle',
+  }
+  const chipStyle = (color: string): CSSProperties => ({
+    display: 'inline-block',
+    fontSize: '13px',
+    fontWeight: 600,
+    lineHeight: 1.3,
+    color,
+    background: `${color}14`,
+    border: `1px solid ${color}26`,
+    borderRadius: '999px',
+    padding: '5px 12px',
+    whiteSpace: 'nowrap',
+  })
+  const ghostAction: CSSProperties = {
+    display: 'inline-block',
+    background: B.bg,
+    border: `1px solid ${B.border}`,
+    borderRadius: B.radius.control,
+    color: B.ink,
+    padding: '8px 16px',
+    fontSize: '14px',
+    fontWeight: 600,
+    lineHeight: 1.3,
+    textDecoration: 'none',
+    transition: B.transition,
+  }
 
   return (
     <div className="mx-auto max-w-5xl">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          <T k="nav.audits" />
-        </h1>
+      <div className="mb-6 flex items-end justify-between gap-4">
+        <div>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: '30px',
+              fontWeight: 800,
+              letterSpacing: '-0.02em',
+              lineHeight: 1.1,
+              color: B.ink,
+            }}
+          >
+            <T k="nav.audits" />
+          </h1>
+          <div style={{ marginTop: '6px', fontSize: '15px', color: B.muted }}>
+            {audits.length} <T k="audits.sub_analyses" />
+            {runningCount > 0 && (
+              <>
+                {' '}· {runningCount} <T k="audits.sub_running" />
+              </>
+            )}
+          </div>
+        </div>
         <Link
           href="/analyzer/v4"
-          className="rounded-lg px-4 py-2 text-[14px] font-bold text-white no-underline transition-opacity hover:opacity-90"
+          className="rounded-xl px-5 py-3 text-[15px] font-bold text-white no-underline transition-opacity hover:opacity-90"
           style={{ background: B.primary }}
         >
           <T k="home.start_new_audit" />
@@ -65,7 +115,7 @@ export default async function AuditsPage() {
 
       {audits.length === 0 ? (
         /* Empty state → CTA straight into the setup wizard. */
-        <div className="rounded-xl border border-border bg-card py-16 text-center">
+        <div className="rounded-2xl border border-border bg-card py-16 text-center">
           <div className="mb-4 text-sm text-muted-foreground">
             <T k="audits.empty" />
           </div>
@@ -78,106 +128,154 @@ export default async function AuditsPage() {
           </Link>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-border bg-card">
-          <table className="w-full border-collapse text-sm">
+        /* Panel bianco radius 16, tabella full-bleed (mockup .panel). */
+        <div
+          style={{
+            background: B.bg,
+            border: `1px solid ${B.border}`,
+            borderRadius: B.radius.card,
+            boxShadow: B.shadow.card,
+            padding: '20px 0 8px',
+            overflowX: 'auto',
+          }}
+        >
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr className="border-b border-border">
-                <th className="px-4 py-3 text-left font-mono text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <tr>
+                <th style={{ ...thStyle, paddingLeft: '32px' }}>
                   <T k="audits.col_audit" />
                 </th>
-                <th className="px-4 py-3 text-left font-mono text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  <T k="audits.col_date" />
-                </th>
-                <th className="px-4 py-3 text-left font-mono text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <th style={thStyle}>
                   <T k="audits.col_state" />
                 </th>
-                <th className="px-4 py-3 text-center font-mono text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  <T k="audits.col_score" />
+                <th style={{ ...thStyle, textAlign: 'right' }}>
+                  <T k="audits.col_index" />
+                </th>
+                <th style={thStyle}>
+                  <T k="audits.col_date" />
                 </th>
                 {isAdmin && (
-                  <th className="px-4 py-3 text-center font-mono text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <th style={{ ...thStyle, textAlign: 'center' }}>
                     <T k="audits.col_controller" />
                   </th>
                 )}
-                <th className="px-4 py-3 text-right font-mono text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <th style={{ ...thStyle, textAlign: 'right', paddingRight: '32px' }}>
                   <T k="audits.col_actions" />
                 </th>
               </tr>
             </thead>
             <tbody>
-              {audits.map((a) => {
-                const band = getScoreBand(a.overallScore)
-                const scoreColor = band ? BAND_COLORS[band.color] ?? B.muted : B.muted
-                const stateMeta = AUDIT_STATE_META[a.state]
+              {audits.map((a, i) => {
+                const last = i === audits.length - 1
+                const complete = a.driversTotal > 0 && a.driversDone === a.driversTotal
+                const rowBorder = last ? { borderBottom: 0 } : {}
                 return (
-                  <tr key={a.id} className="border-b border-border last:border-b-0">
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-foreground">
+                  <tr key={a.id}>
+                    <td style={{ ...tdStyle, ...rowBorder, paddingLeft: '32px' }}>
+                      <div style={{ fontSize: '17px', fontWeight: 650, color: B.ink }}>
                         {a.name}
                         {/* Discreet client marker for drafts (their action is
                             "Resume setup"); started audits get the linkable
                             "Cliente" chip in the actions cell instead. */}
                         {a.clientId && !a.started && (
-                          <span
-                            className="ml-2 inline-block rounded-full px-2.5 py-0.5 align-middle text-[13px] font-semibold"
-                            style={{ background: B.primarySoft, color: B.primary }}
-                          >
+                          <span style={{ ...chipStyle(B.primary), marginLeft: '8px', verticalAlign: 'middle' }}>
                             <T k="audits.client_badge" />
                           </span>
                         )}
                       </div>
-                      {a.domain && a.domain !== a.name && (
-                        <div className="text-[13px] text-muted-foreground">{a.domain}</div>
+                      {a.competitors.length > 0 ? (
+                        <div style={{ fontSize: '13px', color: B.muted, marginTop: '2px' }}>
+                          <T k="audits.vs" /> {a.competitors.join(', ')}
+                        </div>
+                      ) : (
+                        a.domain &&
+                        a.domain !== a.name && (
+                          <div style={{ fontSize: '13px', color: B.muted, marginTop: '2px' }}>{a.domain}</div>
+                        )
                       )}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
-                      {formatLocalDate(a.createdAt, locale)}
-                    </td>
-                    <td className="px-4 py-3">
-                      {/* State pill — same priority + palette as ResultsView. */}
-                      <span
-                        className="inline-block rounded-full px-2.5 py-0.5 text-[13px] font-semibold"
-                        style={{ background: `${stateMeta.color}18`, color: stateMeta.color }}
-                      >
-                        <T k={stateMeta.labelKey} />
-                      </span>
+                    <td style={{ ...tdStyle, ...rowBorder }}>
+                      {/* Chip stato (mockup): In corso / N in attesa / Errore /
+                          Completo; altrimenti lo stato pill esistente. */}
+                      {a.state === 'running' ? (
+                        <span style={chipStyle(B.teal)}>
+                          <T k="v4res.state_running" />
+                        </span>
+                      ) : a.state === 'needs_decision' ? (
+                        <span style={chipStyle(B.warning)}>
+                          {a.driversNeedsDecision} <T k="audits.waiting_suffix" />
+                        </span>
+                      ) : a.driversError > 0 ? (
+                        <span style={chipStyle(B.error)}>
+                          {a.driversError} <T k="audits.errors_suffix" />
+                        </span>
+                      ) : complete ? (
+                        <span style={chipStyle(B.success)}>
+                          <T k="audits.state_complete" />
+                        </span>
+                      ) : (
+                        <span style={chipStyle(AUDIT_STATE_META[a.state].color)}>
+                          <T k={AUDIT_STATE_META[a.state].labelKey} />
+                        </span>
+                      )}
                       {a.driversTotal > 0 && (
-                        <span className="ml-2 text-[13px] text-muted-foreground">
+                        <span style={{ marginLeft: '8px', fontSize: '13px', color: B.muted }}>
                           {a.driversDone}/{a.driversTotal}
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="font-mono text-sm font-bold" style={{ color: scoreColor }}>
-                        {a.overallScore ?? '—'}
-                      </span>
+                    <td
+                      style={{
+                        ...tdStyle,
+                        ...rowBorder,
+                        textAlign: 'right',
+                        fontSize: '28px',
+                        fontWeight: 750,
+                        fontVariantNumeric: 'tabular-nums',
+                        color: B.primary,
+                      }}
+                    >
+                      {a.overallScore ?? '—'}
+                    </td>
+                    <td style={{ ...tdStyle, ...rowBorder, color: B.muted, whiteSpace: 'nowrap' }}>
+                      {formatLocalDate(a.createdAt, locale)}
                     </td>
                     {isAdmin && (
-                      <td className="px-4 py-3 text-center">
+                      <td style={{ ...tdStyle, ...rowBorder, textAlign: 'center' }}>
                         <ControllerBadge analysisId={a.id} />
                       </td>
                     )}
-                    <td className="whitespace-nowrap px-4 py-3 text-right">
+                    <td
+                      style={{
+                        ...tdStyle,
+                        ...rowBorder,
+                        textAlign: 'right',
+                        paddingRight: '32px',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
                       {/* A draft never launched has no results to open: the
                           action is resuming the setup wizard on it. */}
                       {a.started ? (
-                        <>
-                          <Link
-                            href={`/results/v4/${a.id}`}
-                            className="mr-2 inline-block rounded-lg border border-border px-3 py-1.5 text-[14px] font-semibold text-foreground no-underline transition-colors hover:bg-accent"
-                          >
+                        <span style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
+                          <Link href={`/results/v4/${a.id}`} style={ghostAction} className="hover:bg-accent">
                             <T k="audits.open" />
                           </Link>
-                          <SwitchToClientButton
-                            analysisId={a.id}
-                            auditName={a.name}
-                            clientId={a.clientId}
-                          />
-                        </>
+                          <SwitchToClientButton analysisId={a.id} auditName={a.name} clientId={a.clientId} />
+                          {complete && (
+                            <Link
+                              href={`/results/v4/${a.id}?tab=output`}
+                              className="inline-block rounded-xl px-4 py-2 text-[14px] font-bold text-white no-underline transition-opacity hover:opacity-90"
+                              style={{ background: B.primary }}
+                            >
+                              <T k="audits.report" />
+                            </Link>
+                          )}
+                        </span>
                       ) : (
                         <Link
                           href={`/analyzer/v4?resume=${a.id}`}
-                          className="inline-block rounded-lg px-3 py-1.5 text-[14px] font-semibold text-white no-underline transition-opacity hover:opacity-90"
+                          className="inline-block rounded-xl px-4 py-2 text-[14px] font-bold text-white no-underline transition-opacity hover:opacity-90"
                           style={{ background: B.primary }}
                         >
                           <T k="audits.resume_setup" />

@@ -16,6 +16,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { CSSProperties } from 'react'
 import nextDynamic from 'next/dynamic'
 import { useLocale } from '@/lib/i18n'
 import { driversInUiOrder, getV4Driver } from '@/lib/scoring/registry'
@@ -27,8 +28,29 @@ import OutputPreviewTab from './OutputPreviewTab'
 import PublishDialog from './PublishDialog'
 import SwitchToClientButton from '@/components/audits/SwitchToClientButton'
 import { ControllerChip, ControllerPanel, type ControllerResponse } from './ControllerPanel'
-import type { EditsResponse, InsightsResponse, SiteMeta } from './results-shared'
-import { card, mutedLabel, pill, primaryButton, ghostButton, scoreColor, fill, MEASURE_LABEL_KEY } from './results-shared'
+import type { EditsResponse, InsightsResponse, SiteMeta, SetIndex } from './results-shared'
+import {
+  card,
+  mutedLabel,
+  pill,
+  primaryButton,
+  ghostButton,
+  scoreColor,
+  relBandColor,
+  fill,
+  MEASURE_LABEL_KEY,
+  computeSetIndex,
+  driverDotColor,
+  heroBand,
+  heroDrop,
+  tabBar,
+  tabItem,
+  statusDot,
+  miniBarTrack,
+  miniBarFill,
+  dashedCard,
+  sectionTitle,
+} from './results-shared'
 import { B } from '@/lib/brand'
 
 // recharts radar reused from V1, in its own lazy chunk (V1 pattern).
@@ -44,6 +66,9 @@ interface V4StatusResponse extends StatusResponse {
   brandName?: string | null
   /** Client tied to this audit (promotion or wizard pick), null = prospect. */
   clientId?: string | null
+  /** Header meta (industry · country · REF_DATE) — setup columns, read-only. */
+  industryPreset?: string | null
+  country?: string | null
   sites?: SiteMeta[]
 }
 
@@ -216,6 +241,28 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
     }
   }, [analysisId, loadStatus])
 
+  // "Rilancia" on a single errored driver card (Overview): same retry route
+  // as DriverPanel, scoped to one driver. No force: the row is in error.
+  const [cardRetrying, setCardRetrying] = useState<string | null>(null)
+  const retryDriver = useCallback(
+    async (driverKey: string) => {
+      setCardRetrying(driverKey)
+      try {
+        await fetch(`/api/v4/analyses/${analysisId}/retry`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ driver: driverKey }),
+        })
+        await loadStatus()
+      } catch {
+        /* the card keeps showing the error; the header retry stays available */
+      } finally {
+        setCardRetrying(null)
+      }
+    },
+    [analysisId, loadStatus],
+  )
+
   const startPending = useCallback(async () => {
     if (!status) return
     setStarting(true)
@@ -241,6 +288,12 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
   }, [status])
 
   const sites: SiteMeta[] = status?.sites ?? []
+
+  // Per-site LEADER-INDEX (hero band + comparison table): mean of the
+  // non-null relative scores across done drivers, nulls excluded — the same
+  // aggregate as scoreSet().overall and lib/v4/audits.computeOverallScore.
+  const setIndex: SetIndex = useMemo(() => computeSetIndex(enabledRows), [enabledRows])
+
   const insightByDriver = useMemo(() => {
     const map = new Map<string, InsightsResponse['drivers'][number]['insight']>()
     for (const d of insights?.drivers ?? []) map.set(d.driver_key, d.insight)
@@ -295,81 +348,138 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
   // A ?tab= pointing to a disabled/unknown driver falls back to Overview.
   const currentTab: TabKey = tabs.some((tab) => tab.key === activeTab) ? activeTab : 'overview'
 
+  // Header subline data (mockup): competitor names + industry · country · date.
+  const competitorNames = sites.filter((s) => !s.is_client).map((s) => s.name)
+  const headerMeta = [status.industryPreset, status.country, status.refDate]
+    .filter((x): x is string => typeof x === 'string' && x.trim() !== '')
+    .join(' · ')
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* ------------------------------------------------------- header --- */}
-      <div style={{ ...card, display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+      {/* ------------------------------------------------------- header ---
+          Mockup pagehead: H1 dominio, sottoriga "vs competitor" + chip stato
+          driver + meta (industry · country · REF_DATE); azioni a destra. */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '24px', flexWrap: 'wrap' }}>
         <div>
           <div style={mutedLabel}>{t('v4res.title')}</div>
-          <h1 style={{ ...B.type.h1, color: B.ink, margin: '4px 0 0 0' }}>{status.domain ?? analysisId}</h1>
-        </div>
-        <span style={pill(auditState.color)}>
-          {t(auditState.key as Parameters<typeof t>[0])}
-        </span>
-        {/* Promotion — the audit (prospect) becomes a client, or shows the
-            client it already belongs to. Same island as /audits. */}
-        <SwitchToClientButton
-          analysisId={analysisId}
-          auditName={status.brandName || status.domain || analysisId}
-          clientId={status.clientId ?? null}
-        />
-        <ControllerChip
-          data={controller}
-          open={controllerOpen}
-          onToggle={() => setControllerOpen((v) => !v)}
-        />
-        {progress.error > 0 && (
-          <span style={pill(B.error)}>
-            {progress.error} {t('v4res.state_error')}
-          </span>
-        )}
-        {(progress.error > 0 || progress.pending > 0) && (
-          <button
-            type="button"
-            onClick={retryFailed}
-            disabled={retrying}
-            style={{ ...ghostButton, borderColor: B.error, color: retrying ? B.muted : B.error }}
-            title={t('v4res.retry_hint')}
+          <h1
+            style={{
+              margin: '6px 0 0 0',
+              fontSize: '36px',
+              fontWeight: 800,
+              letterSpacing: '-0.02em',
+              lineHeight: 1.1,
+              color: B.ink,
+            }}
           >
-            {retrying ? t('v4res.retrying') : t('v4res.retry')}
-          </button>
-        )}
-        {retryNote && <span style={{ fontSize: '14px', color: B.warning }}>{retryNote}</span>}
-
-        {/* Absolute / Relative toggle (default Relative — sheet 6 v5). */}
-        <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
-          {(['relative', 'absolute'] as ScoreView[]).map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => setView(v)}
-              style={{
-                ...ghostButton,
-                borderColor: view === v ? B.primary : B.border,
-                color: view === v ? B.primary : B.muted,
-              }}
-            >
-              {t(v === 'relative' ? 'v4res.view_relative' : 'v4res.view_absolute')}
-            </button>
-          ))}
+            {status.domain ?? analysisId}
+          </h1>
+          <div
+            style={{
+              marginTop: '10px',
+              display: 'flex',
+              gap: '12px',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              fontSize: '15px',
+              color: B.muted,
+            }}
+          >
+            {competitorNames.length > 0 && (
+              <span>
+                {t('v4res.head_vs')}{' '}
+                {competitorNames.map((n, i) => (
+                  <span key={n}>
+                    <b style={{ color: B.ink, fontWeight: 650 }}>{n}</b>
+                    {i < competitorNames.length - 1 ? ' · ' : ''}
+                  </span>
+                ))}
+              </span>
+            )}
+            <span style={pill(B.success)}>{fill(t('v4res.head_measured'), { n: progress.done })}</span>
+            {progress.needs_decision > 0 && (
+              <span style={pill(B.warning)}>
+                {fill(t('v4res.head_waiting'), { n: progress.needs_decision })}
+              </span>
+            )}
+            {progress.error > 0 && (
+              <span style={pill(B.error)}>{fill(t('v4res.head_errors'), { n: progress.error })}</span>
+            )}
+            <span style={pill(auditState.color)}>{t(auditState.key as Parameters<typeof t>[0])}</span>
+            {/* Promotion — the audit (prospect) becomes a client, or shows the
+                client it already belongs to. Same island as /audits. */}
+            <SwitchToClientButton
+              analysisId={analysisId}
+              auditName={status.brandName || status.domain || analysisId}
+              clientId={status.clientId ?? null}
+            />
+            {headerMeta && <span>{headerMeta}</span>}
+          </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setPublishOpen(true)}
-          disabled={progress.pending > 0}
-          style={primaryButton(progress.pending === 0)}
-          title={progress.pending > 0 ? t('v4res.publish_blocked_running') : undefined}
-        >
-          {t('v4res.save_publish')}
-        </button>
-        <span style={{ fontSize: '14px', color: drafts > 0 ? B.warning : B.muted }}>
-          {drafts > 0 ? `${drafts} ${t('v4res.drafts_pending')}` : t('v4res.no_drafts')}
-        </span>
-        <span style={{ fontSize: '14px', color: B.muted }}>
-          {t('v4res.refdate')} {status.refDate ?? '—'}
-        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {(progress.error > 0 || progress.pending > 0) && (
+              <button
+                type="button"
+                onClick={retryFailed}
+                disabled={retrying}
+                style={{ ...ghostButton, borderColor: B.error, color: retrying ? B.muted : B.error }}
+                title={t('v4res.retry_hint')}
+              >
+                {retrying ? t('v4res.retrying') : t('v4res.retry')}
+              </button>
+            )}
+            <ControllerChip
+              data={controller}
+              open={controllerOpen}
+              onToggle={() => setControllerOpen((v) => !v)}
+            />
+            <button
+              type="button"
+              onClick={generateInsights}
+              disabled={insightsRunning}
+              style={primaryButton(!insightsRunning)}
+            >
+              {insightsRunning ? t('v4res.gen_insights_running') : t('v4res.gen_insights')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPublishOpen(true)}
+              disabled={progress.pending > 0}
+              style={primaryButton(progress.pending === 0)}
+              title={progress.pending > 0 ? t('v4res.publish_blocked_running') : undefined}
+            >
+              {t('v4res.save_publish')}
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {/* Absolute / Relative toggle (default Relative — sheet 6 v5). */}
+            {(['relative', 'absolute'] as ScoreView[]).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setView(v)}
+                style={{
+                  ...ghostButton,
+                  borderColor: view === v ? B.primary : B.border,
+                  color: view === v ? B.primary : B.muted,
+                }}
+              >
+                {t(v === 'relative' ? 'v4res.view_relative' : 'v4res.view_absolute')}
+              </button>
+            ))}
+            <span style={{ fontSize: '14px', color: drafts > 0 ? B.warning : B.muted }}>
+              {drafts > 0 ? `${drafts} ${t('v4res.drafts_pending')}` : t('v4res.no_drafts')}
+            </span>
+          </div>
+          {retryNote && <span style={{ fontSize: '14px', color: B.warning }}>{retryNote}</span>}
+        </div>
       </div>
+
+      {/* ------------------------------------------------ hero band -------
+          LEADER-INDEX del cliente + classifica del set (mockup .hero). */}
+      <HeroBand setIndex={setIndex} totalEnabled={enabledRows.length} sites={sites} />
 
       {/* Controller findings panel (inline, toggled by the header chip). */}
       {controllerOpen && (
@@ -381,35 +491,19 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
         />
       )}
 
-      {/* ------------------------------------------------------- tab bar -- */}
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+      {/* ------------------------------------------------------- tab bar --
+          Mockup .tabs: one white rail, active tab solid navy, status dot per
+          driver (verde ok, rosso critico, ambra decisione, grigio in attesa).
+          Overview e le tab non-driver restano senza pallino. */}
+      <div style={tabBar}>
         {tabs.map((tab) => {
           const row = enabledRows.find((d) => d.driver_key === tab.key)
-          const statusColor = row ? STATUS_STYLE[row.status].color : null
           const active = currentTab === tab.key
           return (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => selectTab(tab.key)}
-              style={{
-                ...ghostButton,
-                padding: '10px 18px',
-                fontSize: '15px',
-                fontWeight: active ? 650 : 600,
-                background: active ? B.primarySoft : B.bg,
-                borderColor: active ? `${B.primary}55` : B.border,
-                color: active ? B.primary : B.muted,
-                display: 'flex',
-                gap: '8px',
-                alignItems: 'center',
-              }}
-            >
+            <button key={tab.key} type="button" onClick={() => selectTab(tab.key)} style={tabItem(active)}>
+              {row && <span style={statusDot(driverDotColor(row))} />}
               {tab.label}
-              {row && row.status !== 'done' && (
-                <span style={{ width: 9, height: 9, borderRadius: '50%', background: statusColor ?? B.muted }} />
-              )}
-              {row?.edited && <span style={{ color: B.warning }}>✎</span>}
+              {row?.edited && <span style={{ color: active ? B.onPrimary : B.warning }}>✎</span>}
             </button>
           )
         })}
@@ -436,7 +530,9 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
           starting={starting}
           onStartPending={startPending}
           onOpenDriver={(key) => selectTab(key)}
-          insightByDriver={insightByDriver}
+          setIndex={setIndex}
+          onRetryDriver={retryDriver}
+          cardRetrying={cardRetrying}
         />
       )}
 
@@ -485,7 +581,139 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Overview tab: radar + score cards / quick anchors.
+// Hero band — LEADER-INDEX del cliente + classifica del set (mockup .hero).
+// ---------------------------------------------------------------------------
+
+function HeroBand({
+  setIndex,
+  totalEnabled,
+  sites,
+}: {
+  setIndex: SetIndex
+  totalEnabled: number
+  sites: SiteMeta[]
+}) {
+  const { t } = useLocale()
+  const ranked = setIndex.entries.filter((e) => e.index !== null)
+  // Nothing measured yet: no band (the cards and the poll note carry the state).
+  if (ranked.length === 0) return null
+
+  const client = setIndex.entries.find((e) => e.site_ref === 'client') ?? null
+  const leader = ranked[0]
+  const top = leader.index ?? 100
+  const nameOf = (ref: string, domain: string) =>
+    sites.find((s) => s.site_ref === ref)?.name ?? domain
+  const leaderIsClient = leader.site_ref === 'client'
+
+  return (
+    <div style={heroBand}>
+      <div style={heroDrop} aria-hidden />
+
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        <div
+          style={{
+            fontSize: '13px',
+            fontWeight: 700,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            color: 'rgba(255, 255, 255, 0.65)',
+            marginBottom: '6px',
+          }}
+        >
+          {t('v4res.hero_label')}
+        </div>
+        <div
+          style={{
+            ...B.type.num,
+            fontSize: '84px',
+            fontWeight: 800,
+            lineHeight: 0.95,
+            letterSpacing: '-0.03em',
+          }}
+        >
+          {fmt(client?.index ?? null)}
+          <small style={{ fontSize: '26px', fontWeight: 600, color: 'rgba(255, 255, 255, 0.55)', letterSpacing: 0 }}>
+            /100
+          </small>
+        </div>
+        {/* Con meno di 3 driver misurati l'indice è dichiarato parziale. */}
+        {setIndex.measuredDrivers < 3 && (
+          <div style={{ marginTop: '8px', fontSize: '13px', fontWeight: 600, color: 'rgba(255, 255, 255, 0.65)' }}>
+            {fill(t('v4res.hero_partial'), { n: setIndex.measuredDrivers, m: totalEnabled })}
+          </div>
+        )}
+      </div>
+
+      <div
+        style={{
+          fontSize: '15px',
+          color: 'rgba(255, 255, 255, 0.75)',
+          maxWidth: '360px',
+          lineHeight: 1.55,
+          position: 'relative',
+          zIndex: 1,
+        }}
+      >
+        {t('v4res.hero_expl')}{' '}
+        {leaderIsClient ? (
+          <b style={{ color: B.onPrimary }}>{t('v4res.hero_ref_self')}</b>
+        ) : (
+          <>
+            {t('v4res.hero_ref')} <b style={{ color: B.onPrimary }}>{nameOf(leader.site_ref, leader.domain)}</b>.
+          </>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', minWidth: '280px', position: 'relative', zIndex: 1 }}>
+        {setIndex.entries.map((e) => {
+          const isMe = e.site_ref === 'client'
+          const width = e.index !== null && top > 0 ? (e.index / top) * 100 : 0
+          return (
+            <div
+              key={e.site_ref}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '20px 110px 1fr 44px',
+                gap: '10px',
+                alignItems: 'center',
+                fontSize: '15px',
+                ...B.type.num,
+              }}
+            >
+              <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontWeight: 700 }}>{e.rank ?? '—'}</span>
+              <span style={{ fontWeight: 650, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {nameOf(e.site_ref, e.domain)}
+                {isMe && (
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 800,
+                      background: B.accentRed,
+                      color: B.onPrimary,
+                      borderRadius: '4px',
+                      padding: '2px 5px',
+                      marginLeft: '8px',
+                      verticalAlign: '2px',
+                    }}
+                  >
+                    {t('v4res.hero_you')}
+                  </span>
+                )}
+              </span>
+              <span style={{ height: '8px', borderRadius: '999px', background: 'rgba(255, 255, 255, 0.15)', overflow: 'hidden' }}>
+                <i style={{ display: 'block', height: '100%', borderRadius: '999px', background: B.onPrimary, width: `${width}%` }} />
+              </span>
+              <span style={{ textAlign: 'right', fontWeight: 750 }}>{fmt(e.index)}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Overview tab: driver cards (mockup .grid) + tabella confronto + radar.
 // ---------------------------------------------------------------------------
 
 function OverviewTab({
@@ -498,7 +726,9 @@ function OverviewTab({
   starting,
   onStartPending,
   onOpenDriver,
-  insightByDriver,
+  setIndex,
+  onRetryDriver,
+  cardRetrying,
 }: {
   rows: DriverRow[]
   sites: SiteMeta[]
@@ -509,7 +739,9 @@ function OverviewTab({
   starting: boolean
   onStartPending: () => void
   onOpenDriver: (key: string) => void
-  insightByDriver: Map<string, InsightsResponse['drivers'][number]['insight']>
+  setIndex: SetIndex
+  onRetryDriver: (key: string) => void
+  cardRetrying: string | null
 }) {
   const { t } = useLocale()
 
@@ -563,7 +795,25 @@ function OverviewTab({
         <div style={{ fontSize: '14px', color: B.muted }}>{t('v4res.autorefresh')}</div>
       )}
 
-      {/* Panoramic radar. */}
+      {/* Driver cards, one per driver (mockup .grid): click = apri la tab. */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+        {rows.map((row) => (
+          <OverviewCard
+            key={row.driver_key}
+            row={row}
+            view={view}
+            sites={sites}
+            onOpen={() => onOpenDriver(row.driver_key)}
+            onRetry={() => onRetryDriver(row.driver_key)}
+            retrying={cardRetrying === row.driver_key}
+          />
+        ))}
+      </div>
+
+      {/* Confronto nel set: righe = siti, colonne = driver misurati + Index. */}
+      <ComparisonPanel rows={rows} sites={sites} setIndex={setIndex} />
+
+      {/* Panoramic radar (Bibbia sheet 6), sotto la tabella di confronto. */}
       {anyScore ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <SpiderChart
@@ -590,133 +840,362 @@ function OverviewTab({
       ) : (
         <div style={{ ...card, color: B.muted, fontSize: '15px' }}>{t('v4res.no_radar_data')}</div>
       )}
+    </div>
+  )
+}
 
-      {/* Score cards / quick anchors, one per driver. */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
-        {rows.map((row) => (
-          <OverviewCard
-            key={row.driver_key}
-            row={row}
-            view={view}
-            insight={insightByDriver.get(row.driver_key) ?? null}
-            onOpen={() => onOpenDriver(row.driver_key)}
-          />
-        ))}
+// ---------------------------------------------------------------------------
+// Confronto nel set (mockup .panel): leader col badge, riga cliente
+// evidenziata, numeri 22px right-aligned, colori semantici sugli estremi.
+// ---------------------------------------------------------------------------
+
+const compareTh = (align: 'left' | 'right'): CSSProperties => ({
+  ...B.type.label,
+  color: B.muted,
+  textAlign: align,
+  padding: '0 16px 12px',
+  borderBottom: `1px solid ${B.border}`,
+  whiteSpace: 'nowrap',
+})
+
+const compareTd: CSSProperties = {
+  padding: '16px',
+  fontSize: '15px',
+  borderBottom: `1px solid ${B.surface}`,
+}
+
+function ComparisonPanel({
+  rows,
+  sites,
+  setIndex,
+}: {
+  rows: DriverRow[]
+  sites: SiteMeta[]
+  setIndex: SetIndex
+}) {
+  const { t } = useLocale()
+  // Columns: only drivers with at least one measured relative score.
+  const measured = rows.filter(
+    (r) => r.status === 'done' && r.sites.some((s) => typeof s.score_relative === 'number'),
+  )
+  if (measured.length === 0 || setIndex.entries.length === 0) return null
+
+  const nameOf = (ref: string, domain: string) =>
+    sites.find((m) => m.site_ref === ref)?.name ?? domain
+
+  // Same precedence as computeSetIndex: the client's row-level score wins
+  // (analyst edits), competitors use the per-site normalized score.
+  const scoreFor = (row: DriverRow, ref: string): number | null => {
+    const s = row.sites.find((x) => x.site_ref === ref)
+    const v =
+      ref === 'client'
+        ? (row.score_relative ?? s?.score_relative ?? null)
+        : (s?.score_relative ?? null)
+    return typeof v === 'number' && Number.isFinite(v) ? v : null
+  }
+
+  return (
+    <div style={card}>
+      <h2 style={{ ...sectionTitle, margin: '0 0 4px 0' }}>{t('v4res.compare_title')}</h2>
+      <p style={{ fontSize: '15px', color: B.muted, margin: '0 0 22px 0', maxWidth: '75ch' }}>
+        {t('v4res.compare_desc')}
+      </p>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', ...B.type.num }}>
+          <thead>
+            <tr>
+              <th style={compareTh('left')}>{t('v4res.compare_site')}</th>
+              {measured.map((r) => (
+                <th key={r.driver_key} style={compareTh('right')}>
+                  {getV4Driver(r.driver_key)?.label ?? r.driver_key}
+                </th>
+              ))}
+              <th style={compareTh('right')}>{t('v4res.compare_index')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {setIndex.entries.map((e, i) => {
+              const isMe = e.site_ref === 'client'
+              const last = i === setIndex.entries.length - 1
+              return (
+                <tr
+                  key={e.site_ref}
+                  style={isMe ? { background: `linear-gradient(90deg, ${B.primarySoft}, transparent 70%)` } : undefined}
+                >
+                  <td
+                    style={{
+                      ...compareTd,
+                      ...(last ? { borderBottom: 0 } : {}),
+                      ...(isMe ? { borderLeft: `3px solid ${B.primary}`, borderRadius: '2px' } : {}),
+                    }}
+                  >
+                    <span style={{ fontWeight: 650, color: B.ink }}>{nameOf(e.site_ref, e.domain)}</span>
+                    {e.rank === 1 && (
+                      <span style={{ ...pill(B.success), marginLeft: '8px', fontSize: '12px', padding: '3px 8px' }}>
+                        {t('v4res.leader')}
+                      </span>
+                    )}
+                  </td>
+                  {measured.map((r) => {
+                    const v = scoreFor(r, e.site_ref)
+                    const rounded = v === null ? null : Math.round(v)
+                    // Semantic colour only on the client's extremes: 100 =
+                    // leader (green), < 30 critical (red), else plain ink.
+                    const color =
+                      isMe && rounded !== null
+                        ? rounded >= 100
+                          ? B.success
+                          : rounded < 30
+                            ? B.error
+                            : B.ink
+                        : B.ink
+                    return (
+                      <td
+                        key={r.driver_key}
+                        style={{
+                          ...compareTd,
+                          ...(last ? { borderBottom: 0 } : {}),
+                          textAlign: 'right',
+                          fontSize: '22px',
+                          fontWeight: 750,
+                          color,
+                        }}
+                      >
+                        {fmt(rounded)}
+                      </td>
+                    )
+                  })}
+                  <td
+                    style={{
+                      ...compareTd,
+                      ...(last ? { borderBottom: 0 } : {}),
+                      textAlign: 'right',
+                      fontSize: '22px',
+                      fontWeight: 750,
+                      color: B.primary,
+                    }}
+                  >
+                    {fmt(e.index)}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   )
 }
+
+// ---------------------------------------------------------------------------
+// Driver card (mockup .card): nome uppercase, chip stato, score semantico,
+// riga misura reale, minibar. needs_decision = card tratteggiata con CTA;
+// error = bordo rosso + Rilancia. Click sulla card = apri la tab del driver.
+// ---------------------------------------------------------------------------
 
 function OverviewCard({
   row,
   view,
-  insight,
+  sites,
   onOpen,
+  onRetry,
+  retrying,
 }: {
   row: DriverRow
   view: ScoreView
-  insight: InsightsResponse['drivers'][number]['insight']
+  sites: SiteMeta[]
   onOpen: () => void
+  onRetry: () => void
+  retrying: boolean
 }) {
   const { t } = useLocale()
   const def = getV4Driver(row.driver_key)
+  const name = def?.label ?? row.driver_key
+  const measureKey = MEASURE_LABEL_KEY[row.driver_key]
+  const measureLabel = measureKey ? t(measureKey) : row.driver_key
+
+  const openOnKey = (e: { key: string }) => {
+    if (e.key === 'Enter' || e.key === ' ') onOpen()
+  }
+
+  // ---- needs_decision: card tratteggiata con invito + CTA -----------------
+  if (row.status === 'needs_decision') {
+    const request = (row.decision_request ?? {}) as { message?: string }
+    const copy =
+      row.driver_key === 'ai_visibility'
+        ? {
+            title: t('v4res.card_wait_ai_title'),
+            body: t('v4res.card_wait_ai_body'),
+            cta: t('v4res.card_wait_ai_cta'),
+          }
+        : row.driver_key === 'content'
+          ? {
+              title: t('v4res.card_wait_content_title'),
+              body: t('v4res.card_wait_content_body'),
+              cta: t('v4res.card_wait_content_cta'),
+            }
+          : {
+              title: t('v4res.card_wait_generic_title'),
+              body: typeof request.message === 'string' ? clipText(request.message, 140) : '',
+              cta: t('v4res.card_wait_generic_cta'),
+            }
+    return (
+      <div
+        className="jk-card-hover"
+        role="button"
+        tabIndex={0}
+        onClick={onOpen}
+        onKeyDown={openOnKey}
+        style={{
+          ...dashedCard,
+          borderColor: `${B.warning}70`,
+          cursor: 'pointer',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        <span style={mutedLabel}>{name}</span>
+        <div style={{ fontSize: '22px', fontWeight: 700, color: B.warning, lineHeight: 1.3, marginTop: '12px' }}>
+          {copy.title}
+        </div>
+        {copy.body && (
+          <div style={{ fontSize: '14px', color: B.muted, lineHeight: 1.5, marginTop: '6px' }}>{copy.body}</div>
+        )}
+        <span style={{ marginTop: '12px', fontSize: '14px', fontWeight: 700, color: B.primary }}>{copy.cta}</span>
+      </div>
+    )
+  }
+
+  // ---- error: bordo rosso, motivo breve, CTA Rilancia ---------------------
+  if (row.status === 'error') {
+    return (
+      <div
+        className="jk-card-hover"
+        style={{ ...card, borderColor: `${B.error}66`, display: 'flex', flexDirection: 'column', gap: '10px' }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+          <span style={mutedLabel}>{name}</span>
+          <span style={pill(B.error)}>{STATUS_STYLE.error.label}</span>
+        </div>
+        <div style={{ fontSize: '14px', color: B.error, lineHeight: 1.5 }}>
+          {clipText(row.error ?? '—', 140)}
+        </div>
+        <div style={{ display: 'flex', gap: '8px', marginTop: 'auto', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={onRetry}
+            disabled={retrying}
+            style={{ ...ghostButton, borderColor: `${B.error}66`, color: retrying ? B.muted : B.error }}
+            title={t('v4res.retry_hint')}
+          >
+            {retrying ? t('v4res.retrying') : t('v4res.retry')}
+          </button>
+          <button type="button" onClick={onOpen} style={ghostButton}>
+            {t('v4res.open_tab')}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ---- queued / running ---------------------------------------------------
+  if (row.status === 'queued' || row.status === 'running') {
+    const s = STATUS_STYLE[row.status]
+    return (
+      <div
+        className="jk-card-hover"
+        role="button"
+        tabIndex={0}
+        onClick={onOpen}
+        onKeyDown={openOnKey}
+        style={{ ...card, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px' }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+          <span style={mutedLabel}>{name}</span>
+          <span style={pill(s.color)}>{s.label}</span>
+        </div>
+        <div style={{ fontSize: '14px', color: B.muted, lineHeight: 1.5 }}>{t('v4res.card_queued_note')}</div>
+      </div>
+    )
+  }
+
+  // ---- done: score semantico + misura reale + minibar ---------------------
   const hasAbs = def?.hasAbsoluteView ?? false
   const effectiveView: ScoreView = view === 'absolute' && hasAbs ? 'absolute' : 'relative'
   const score = effectiveView === 'absolute' ? row.score_absolute : row.score_relative
-  const s = STATUS_STYLE[row.status]
-
-  // Explicit score line (never a bare 100): what the number IS in this view.
-  // Relative: "reale 57 (measure) · leader del set" / "… · 74% del leader".
-  // Absolute: "measure · n° 2 di 3" (or "Nel set: leader").
+  const color = effectiveView === 'relative' ? relBandColor(score) : scoreColor(score)
   const clientRank = row.sites.find((x) => x.site_ref === 'client')?.rank ?? null
-  const measureKey = MEASURE_LABEL_KEY[row.driver_key]
-  const measureLabel = measureKey ? t(measureKey) : row.driver_key
-  const scoreLine =
-    effectiveView === 'absolute'
-      ? `${t('v4res.abs_label')} · ${
-          clientRank === 1
-            ? t('v4res.in_set_leader')
-            : clientRank !== null
-              ? fill(t('v4res.in_set_rank'), { rank: clientRank, n: row.sites.length })
-              : measureLabel
-        }`
-      : [
-          `${t('v4res.ov_real_prefix')} ${fmt(row.raw_value)} (${measureLabel})`,
-          clientRank === 1
-            ? t('v4res.ov_leader')
-            : score !== null && score !== undefined
-              ? fill(t('v4res.ov_pct'), { pct: Math.round(Number(score)) })
-              : null,
-        ]
-          .filter(Boolean)
-          .join(' · ')
-
-  const summarySnippet = (() => {
-    if (insight?.status === 'done') {
-      const c = insight.output?.commento_relative ?? insight.output?.commento_absolute
-      if (typeof c === 'string' && c.trim() !== '') return firstSentence(c)
-    }
-    if (row.comment_relative) return firstSentence(row.comment_relative)
-    return null
-  })()
+  const leaderSite = row.sites.find((s) => s.rank === 1 && s.site_ref !== 'client') ?? null
+  const leaderName = leaderSite
+    ? (sites.find((m) => m.site_ref === leaderSite.site_ref)?.name ?? leaderSite.domain)
+    : null
 
   return (
     <div
       className="jk-card-hover"
-      style={{
-        ...card,
-        borderColor: row.status === 'error' ? `${B.error}40` : row.status === 'needs_decision' ? `${B.warning}60` : B.border,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '12px',
-      }}
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={openOnKey}
+      style={{ ...card, cursor: 'pointer', display: 'flex', flexDirection: 'column' }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '17px', fontWeight: 650, color: B.ink }}>{def?.label ?? row.driver_key}</span>
-        <span style={pill(s.color)}>{s.label}</span>
-        {row.edited && <span style={pill(B.warning)}>{t('v4res.edited_badge')}</span>}
-      </div>
-
-      <div style={{ display: 'flex', gap: '16px', alignItems: 'baseline', flexWrap: 'wrap' }}>
-        <span
-          style={{
-            ...B.type.display,
-            ...B.type.num,
-            fontSize: '56px',
-            color: scoreColor(score ?? null),
-            cursor: 'help',
-          }}
-          title={t('v4res.formula_note')}
-        >
-          {fmt(score)}
-        </span>
-        <span style={pill(B.muted)}>
-          {t(def?.family === 'business' ? 'v4res.family_business' : 'v4res.family_development')}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+        <span style={mutedLabel}>{name}</span>
+        <span style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {row.driver_key === 'discoverability' && row.tier_used && (
+            <span style={pill(B.primary)}>
+              {t('v4res.tier_label')} {row.tier_used}
+            </span>
+          )}
+          {row.edited && <span style={pill(B.warning)}>{t('v4res.edited_badge')}</span>}
+          <span style={pill(B.success)}>{STATUS_STYLE.done.label}</span>
         </span>
       </div>
-      {/* One explicit line under the number: what it is, and the real measure. */}
-      <div style={{ fontSize: '14px', color: B.muted, lineHeight: 1.5 }} title={t('v4res.formula_note')}>
-        {scoreLine}
+
+      <div
+        style={{
+          ...B.type.num,
+          fontSize: '52px',
+          fontWeight: 800,
+          lineHeight: 1,
+          letterSpacing: '-0.02em',
+          color,
+          cursor: 'help',
+        }}
+        title={t('v4res.formula_note')}
+      >
+        {fmt(score)}
       </div>
 
-      {row.status === 'error' && row.error && (
-        <div style={{ fontSize: '14px', color: B.error, lineHeight: 1.5 }}>{clipText(row.error, 160)}</div>
-      )}
+      {/* Misura reale (mai un 100 relativo senza il suo raw) + leader del set. */}
+      <div style={{ fontSize: '14px', color: B.muted, marginTop: '8px', lineHeight: 1.5 }}>
+        {clientRank === 1 ? (
+          <>
+            {t('v4res.card_leader_self')} ·{' '}
+            <b style={{ color: B.ink, fontWeight: 650 }}>{fmt(row.raw_value)}</b> ({measureLabel})
+          </>
+        ) : (
+          <>
+            {t('v4res.real_measure')}:{' '}
+            <b style={{ color: B.ink, fontWeight: 650 }}>{fmt(row.raw_value)}</b> ({measureLabel})
+            {leaderSite && leaderName ? (
+              <>
+                {' '}
+                · {t('v4res.leader')} {leaderName} {fmt(leaderSite.raw)}
+              </>
+            ) : null}
+          </>
+        )}
+      </div>
 
-      {summarySnippet && row.status === 'done' && (
-        <div style={{ fontSize: '15px', color: B.muted, lineHeight: 1.55 }}>{summarySnippet}</div>
-      )}
-
-      <button type="button" onClick={onOpen} style={{ ...ghostButton, alignSelf: 'flex-start', marginTop: 'auto' }}>
-        {row.status === 'needs_decision' ? t('v4res.resolve') : t('v4res.open_tab')}
-      </button>
+      {/* Minibar proporzionale, sempre sul relativo (proporzione vs leader). */}
+      <div style={{ marginTop: 'auto' }}>
+        <div style={miniBarTrack}>
+          <i style={miniBarFill(Number(row.score_relative ?? 0), relBandColor(row.score_relative))} />
+        </div>
+      </div>
     </div>
   )
-}
-
-function firstSentence(text: string): string {
-  const m = text.match(/^[^.!?]{10,200}[.!?]/)
-  return m ? m[0] : clipText(text, 160)
 }
 
 function clipText(text: string, max: number): string {

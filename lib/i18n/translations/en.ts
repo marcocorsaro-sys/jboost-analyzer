@@ -980,9 +980,45 @@ const en = {
   // Audits list — draft resume (Bibbia 04: Save draft + resume)
   'audits.resume_setup': 'Resume setup',
 
+  // Audits list — approved UX mockup (airy rows, state chips, Index column)
+  'audits.sub_analyses': 'analyses',
+  'audits.sub_running': 'running',
+  'audits.state_complete': 'Complete',
+  'audits.waiting_suffix': 'waiting',
+  'audits.errors_suffix': 'failed',
+  'audits.report': 'Report',
+  'audits.col_index': 'Index',
+  'audits.vs': 'vs',
+
   // Driver tab — setup attachments (parsing downstream)
   'v4res.attachments': 'Uploaded attachments',
   'v4res.attachment_pending': 'uploaded in setup, not parsed yet',
+
+  // Results — approved UX mockup (hero band, comparison table, cards, header)
+  'v4res.hero_label': 'Leader-Index',
+  'v4res.hero_expl': 'Average of the driver scores against the set leader: for each driver the best site is worth 100 and the others in proportion.',
+  'v4res.hero_ref': 'Your reference here is',
+  'v4res.hero_ref_self': 'You are the reference of the set.',
+  'v4res.hero_partial': 'partial: {n} of {m} drivers',
+  'v4res.hero_you': 'YOU',
+  'v4res.card_leader_self': 'You are the leader',
+  'v4res.card_wait_ai_title': 'Waiting for your input',
+  'v4res.card_wait_ai_body': 'Paste the J-Horizon answers text to measure presence in the AIs.',
+  'v4res.card_wait_ai_cta': 'Enter now →',
+  'v4res.card_wait_content_title': 'Questionnaire to fill in',
+  'v4res.card_wait_content_body': '9 questions on the client article and PDP. About 5 minutes.',
+  'v4res.card_wait_content_cta': 'Fill in →',
+  'v4res.card_wait_generic_title': 'Waiting for your decision',
+  'v4res.card_wait_generic_cta': 'Resolve →',
+  'v4res.card_queued_note': 'Measurement queued or running. This card updates by itself.',
+  'v4res.compare_title': 'Set comparison',
+  'v4res.compare_desc': 'Relative scores per driver: the leader is worth 100, the others in proportion to the real measure.',
+  'v4res.compare_site': 'Site',
+  'v4res.compare_index': 'Index',
+  'v4res.head_vs': 'vs',
+  'v4res.head_measured': '{n} drivers measured',
+  'v4res.head_waiting': '{n} waiting for input',
+  'v4res.head_errors': '{n} failed',
 
   // V4 setup wizard (Bibbia 04, sheet "New Audit (Setup)", 5 steps)
   'v4setup.title': 'New audit',

@@ -9,6 +9,7 @@
 
 import type React from 'react'
 import type { TranslationKey } from '@/lib/i18n'
+import type { DriverRow } from './RunProgress'
 import { B } from '@/lib/brand'
 
 // ---------------------------------------------------------------------------
@@ -135,6 +136,102 @@ export function scoreColor(score: number | null | undefined): string {
   return B.error
 }
 
+/**
+ * Semantic colour for a RELATIVE (leader-index) score, mockup thresholds:
+ * >= 70 green, 30-69 amber, < 30 red. null stays muted (never 0, never red).
+ */
+export function relBandColor(score: number | null | undefined): string {
+  if (score === null || score === undefined) return B.muted
+  if (score >= 70) return B.success
+  if (score >= 30) return B.warning
+  return B.error
+}
+
+// ---------------------------------------------------------------------------
+// LEADER-INDEX per sito (hero band + tabella confronto)
+// ---------------------------------------------------------------------------
+
+export interface SetIndexEntry {
+  site_ref: string
+  domain: string
+  /** Mean of the site's non-null score_relative across done drivers. */
+  index: number | null
+  /** 1 = leader of the set; null when the site has no measured driver. */
+  rank: number | null
+}
+
+export interface SetIndex {
+  /** One entry per site of the set, leader first (nulls last). */
+  entries: SetIndexEntry[]
+  /** Drivers 'done' that contributed at least one measured score. */
+  measuredDrivers: number
+}
+
+/**
+ * Per-site LEADER-INDEX aggregate for the hero band and the comparison table.
+ *
+ * Mirrors scoreSet().overall (lib/scoring/leader-index, sheet 8 section D,
+ * weights = 1) and computeOverallScore (lib/v4/audits): mean of the non-null
+ * score_relative across enabled done drivers — null EXCLUDED, never 0. For
+ * the client the row-level score_relative wins (analyst edits survive), the
+ * competitors use the per-site normalized score.
+ */
+export function computeSetIndex(rows: DriverRow[]): SetIndex {
+  const done = rows.filter((r) => r.enabled && r.status === 'done')
+  const acc = new Map<string, { domain: string; sum: number; n: number }>()
+  let measuredDrivers = 0
+
+  for (const row of done) {
+    let counted = false
+    for (const s of row.sites) {
+      const score =
+        s.site_ref === 'client'
+          ? (row.score_relative ?? s.score_relative ?? null)
+          : (s.score_relative ?? null)
+      const cur = acc.get(s.site_ref) ?? { domain: s.domain, sum: 0, n: 0 }
+      if (typeof score === 'number' && Number.isFinite(score)) {
+        cur.sum += score
+        cur.n += 1
+        counted = true
+      }
+      acc.set(s.site_ref, cur)
+    }
+    if (counted) measuredDrivers += 1
+  }
+
+  const entries: SetIndexEntry[] = [...acc.entries()].map(([site_ref, v]) => ({
+    site_ref,
+    domain: v.domain,
+    index: v.n > 0 ? Math.round(v.sum / v.n) : null,
+    rank: null,
+  }))
+
+  // Competition ranking (1,2,2,4) on the index, descending; nulls unranked.
+  const sorted = entries
+    .map((e) => e.index)
+    .filter((x): x is number => x !== null)
+    .sort((a, b) => b - a)
+  for (const e of entries) {
+    e.rank = e.index === null ? null : sorted.indexOf(e.index) + 1
+  }
+  entries.sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99))
+
+  return { entries, measuredDrivers }
+}
+
+/**
+ * Tab-bar status dot per driver (mockup): green = done, red = done but
+ * critical relative score (< 30), amber = needs_decision, grey = queued /
+ * running / error (still waiting for a good measurement).
+ */
+export function driverDotColor(row: DriverRow): string {
+  if (row.status === 'done') {
+    return typeof row.score_relative === 'number' && row.score_relative < 30 ? B.error : B.success
+  }
+  if (row.status === 'needs_decision') return B.warning
+  return B.mutedLight
+}
+
 export type BandKey = 'critical' | 'weak' | 'good' | 'excellent'
 
 export function bandKey(score: number): BandKey {
@@ -235,4 +332,99 @@ export const pageTitle: React.CSSProperties = {
   ...B.type.h1,
   color: B.ink,
   margin: 0,
+}
+
+// ---------------------------------------------------------------------------
+// Mockup UX (approvato) — hero band, tab bar, dots, minibar, card tratteggiata
+// ---------------------------------------------------------------------------
+
+/** HERO band navy: gradient primary → inkPanel, radius 20, white content. */
+export const heroBand: React.CSSProperties = {
+  background: `linear-gradient(120deg, ${B.primary} 0%, ${B.inkPanel} 100%)`,
+  borderRadius: '20px',
+  color: B.onPrimary,
+  padding: '36px 40px',
+  display: 'grid',
+  gridTemplateColumns: 'auto 1fr auto',
+  gap: '48px',
+  alignItems: 'center',
+  position: 'relative',
+  overflow: 'hidden',
+}
+
+/** Decorative "goccia" in the hero's top-right corner (brand mark shape). */
+export const heroDrop: React.CSSProperties = {
+  position: 'absolute',
+  right: '-60px',
+  top: '-80px',
+  width: '280px',
+  height: '280px',
+  background: 'rgba(255, 255, 255, 0.06)',
+  borderRadius: '50% 50% 50% 8px',
+  transform: 'rotate(45deg)',
+  pointerEvents: 'none',
+}
+
+/** Tab strip container: one white rail with soft shadow (mockup .tabs). */
+export const tabBar: React.CSSProperties = {
+  display: 'flex',
+  gap: '6px',
+  background: B.bg,
+  border: `1px solid ${B.border}`,
+  borderRadius: '14px',
+  padding: '6px',
+  overflowX: 'auto',
+  boxShadow: B.shadow.card,
+}
+
+/** One tab: active = solid navy, inactive = quiet text (mockup .tab). */
+export const tabItem = (active: boolean): React.CSSProperties => ({
+  flexShrink: 0,
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+  padding: '10px 16px',
+  borderRadius: '10px',
+  fontSize: '15px',
+  fontWeight: 600,
+  color: active ? B.onPrimary : B.muted,
+  background: active ? B.primary : 'transparent',
+  border: 'none',
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+  transition: B.transition,
+  fontFamily: 'inherit',
+})
+
+/** Status dot for tabs (green done, red critical, amber decision, grey wait). */
+export const statusDot = (color: string): React.CSSProperties => ({
+  width: '8px',
+  height: '8px',
+  borderRadius: '50%',
+  background: color,
+  flexShrink: 0,
+})
+
+/** Minibar track under the Overview card score (mockup .minibar). */
+export const miniBarTrack: React.CSSProperties = {
+  marginTop: '14px',
+  height: '6px',
+  background: B.surface,
+  borderRadius: B.radius.pill,
+  overflow: 'hidden',
+}
+
+/** Minibar fill, proportional and semantically coloured. */
+export const miniBarFill = (pct: number, color: string): React.CSSProperties => ({
+  display: 'block',
+  height: '100%',
+  width: `${Math.max(0, Math.min(100, pct))}%`,
+  borderRadius: B.radius.pill,
+  background: color,
+})
+
+/** Dashed card for drivers waiting on the analyst (mockup .card.pending). */
+export const dashedCard: React.CSSProperties = {
+  ...card,
+  borderStyle: 'dashed',
 }

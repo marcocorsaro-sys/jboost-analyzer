@@ -980,9 +980,45 @@ const it = {
   // Lista audit — ripresa bozza (Bibbia 04: Save draft + resume)
   'audits.resume_setup': 'Riprendi setup',
 
+  // Lista audits — mockup UX approvato (righe ariose, chip stato, colonna Index)
+  'audits.sub_analyses': 'analisi',
+  'audits.sub_running': 'in corso',
+  'audits.state_complete': 'Completo',
+  'audits.waiting_suffix': 'in attesa',
+  'audits.errors_suffix': 'in errore',
+  'audits.report': 'Report',
+  'audits.col_index': 'Index',
+  'audits.vs': 'vs',
+
   // Tab driver — allegati dal setup (parsing a valle)
   'v4res.attachments': 'Allegati caricati',
   'v4res.attachment_pending': 'caricato in setup, non ancora analizzato',
+
+  // Risultati — mockup UX approvato (hero band, tabella confronto, card, header)
+  'v4res.hero_label': 'Leader-Index',
+  'v4res.hero_expl': 'Media dei punteggi driver rispetto al leader del set: per ogni driver il migliore vale 100 e gli altri sono in proporzione.',
+  'v4res.hero_ref': 'Il tuo riferimento qui è',
+  'v4res.hero_ref_self': 'Il riferimento del set sei tu.',
+  'v4res.hero_partial': 'parziale: {n} driver su {m}',
+  'v4res.hero_you': 'TU',
+  'v4res.card_leader_self': 'Sei il leader',
+  'v4res.card_wait_ai_title': 'In attesa del tuo input',
+  'v4res.card_wait_ai_body': 'Incolla il testo delle risposte J-Horizon per misurare la presenza nelle AI.',
+  'v4res.card_wait_ai_cta': 'Inserisci ora →',
+  'v4res.card_wait_content_title': 'Questionario da compilare',
+  'v4res.card_wait_content_body': '9 domande sull\'articolo e sulla PDP del cliente. Circa 5 minuti.',
+  'v4res.card_wait_content_cta': 'Compila →',
+  'v4res.card_wait_generic_title': 'In attesa di una tua decisione',
+  'v4res.card_wait_generic_cta': 'Risolvi →',
+  'v4res.card_queued_note': 'Misurazione in coda o in corso. La card si aggiorna da sola.',
+  'v4res.compare_title': 'Confronto nel set',
+  'v4res.compare_desc': 'Punteggi relativi per driver: il leader vale 100, gli altri in proporzione alla misura reale.',
+  'v4res.compare_site': 'Sito',
+  'v4res.compare_index': 'Index',
+  'v4res.head_vs': 'vs',
+  'v4res.head_measured': '{n} driver misurati',
+  'v4res.head_waiting': '{n} in attesa di input',
+  'v4res.head_errors': '{n} in errore',
 
   // Wizard di setup V4 (Bibbia 04, foglio "New Audit (Setup)", 5 step)
   'v4setup.title': 'Nuovo audit',

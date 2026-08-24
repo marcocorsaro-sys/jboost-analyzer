@@ -63,6 +63,12 @@ export interface AuditListItem {
   overallScore: number | null
   driversDone: number
   driversTotal: number
+  /** Enabled drivers paused on a human decision (chip "N in attesa"). */
+  driversNeedsDecision: number
+  /** Enabled drivers in error (chip "Errore"). */
+  driversError: number
+  /** Competitor domains of the set — the muted subline under the domain. */
+  competitors: string[]
   /**
    * False = a setup saved as draft and never launched (no driver_runs yet):
    * the list offers "Resume setup" (wizard ?resume=<id>) instead of opening
@@ -110,7 +116,7 @@ export async function listV4Audits(
 ): Promise<AuditListItem[]> {
   let query = db
     .from('analyses')
-    .select('id, domain, brand_name, created_at, ref_date, client_id, v4_setup')
+    .select('id, domain, brand_name, created_at, ref_date, client_id, v4_setup, competitors')
     .not('ref_date', 'is', null)
     .order('created_at', { ascending: false })
   if (opts.limit) query = query.limit(opts.limit)
@@ -124,6 +130,7 @@ export async function listV4Audits(
     ref_date: string | null
     client_id: string | null
     v4_setup: Record<string, unknown> | null
+    competitors: string[] | null
   }>
   if (rows.length === 0) return []
 
@@ -167,6 +174,9 @@ export async function listV4Audits(
       overallScore: computeOverallScore(runs),
       driversDone: enabled.filter((r) => r.status === 'done').length,
       driversTotal: enabled.length,
+      driversNeedsDecision: enabled.filter((r) => r.status === 'needs_decision').length,
+      driversError: enabled.filter((r) => r.status === 'error').length,
+      competitors: Array.isArray(a.competitors) ? a.competitors.filter(Boolean) : [],
       started: runs.length > 0,
       clientId: linkedClientId(a),
     }

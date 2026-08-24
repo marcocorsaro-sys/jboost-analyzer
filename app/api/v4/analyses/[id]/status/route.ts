@@ -35,7 +35,7 @@ export async function GET(
 
   const { data: analysis, error: fetchError } = await supabase
     .from('analyses')
-    .select('id, ref_date, domain, brand_name, client_id, v4_setup')
+    .select('id, ref_date, domain, brand_name, client_id, v4_setup, industry_preset, country')
     .eq('id', analysisId)
     .single()
   if (fetchError || !analysis) {
@@ -57,6 +57,10 @@ export async function GET(
     refDate: (analysis as { ref_date: string | null }).ref_date,
     domain: (analysis as { domain: string | null }).domain,
     brandName: (analysis as { brand_name: string | null }).brand_name,
+    // Header meta (industry · country · REF_DATE) — columns setup already
+    // writes; presentation only, no extra queries.
+    industryPreset: (analysis as { industry_preset: string | null }).industry_preset,
+    country: (analysis as { country: string | null }).country,
     // The client this audit is tied to (promotion or wizard pick) — feeds
     // the results header's Switch-to-client button / "Cliente" chip.
     clientId: linkedClientId(
