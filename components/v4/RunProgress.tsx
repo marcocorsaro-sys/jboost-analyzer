@@ -600,6 +600,9 @@ export function DecisionForm({
     message?: string
     empty_players?: string[]
     next_tier?: string | null
+    copy_prompt?: string
+    fields?: Array<{ key: string; label?: string; type?: string; domains?: string[] }>
+    extracted_scores?: Array<{ site_ref?: number; geo_score?: number | null }>
   }
   const [score, setScore] = useState('')
   const [comment, setComment] = useState('')
@@ -607,6 +610,26 @@ export function DecisionForm({
   const [error, setError] = useState<string | null>(null)
   const [replaceTo, setReplaceTo] = useState('')
   const [replaceBrand, setReplaceBrand] = useState('')
+  const [pasteText, setPasteText] = useState('')
+  const [compScores, setCompScores] = useState<Record<string, string>>({})
+  const [copied, setCopied] = useState(false)
+  const [showManual, setShowManual] = useState(false)
+
+  const isJhorizon = request.reason === 'jhorizon_paste' || request.reason === 'client_not_covered'
+  const compDomains =
+    request.fields?.find((f) => f.key === 'competitors')?.domains ?? []
+
+  const sendManualAiv = () => {
+    const competitors: Record<string, number> = {}
+    for (const [domain, v] of Object.entries(compScores)) {
+      if (v.trim() !== '' && !Number.isNaN(Number(v))) competitors[domain.toLowerCase()] = Number(v)
+    }
+    send({
+      score: Number(score),
+      ...(Object.keys(competitors).length > 0 ? { competitors } : {}),
+      ...(comment.trim() ? { comment: comment.trim() } : {}),
+    })
+  }
 
   const send = async (decision: Record<string, unknown>) => {
     setBusy(true)
@@ -707,6 +730,94 @@ export function DecisionForm({
             Sostituisci (ri-esegue tutta l&apos;analisi)
           </button>
         </div>
+      )}
+
+      {isJhorizon && (
+        <>
+          {/* 1. Copy-prompt: the operator carries it to J-Horizon. */}
+          {request.copy_prompt && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase' as const, color: B.muted }}>
+                1 · Copia il prompt e incollalo in J-Horizon
+              </div>
+              <textarea
+                readOnly
+                value={request.copy_prompt}
+                style={{ ...editInput, minHeight: '72px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical' as const, color: B.muted }}
+              />
+              <button
+                type="button"
+                style={{ ...decisionButton, alignSelf: 'flex-start' }}
+                onClick={() => {
+                  navigator.clipboard?.writeText(request.copy_prompt ?? '').then(() => {
+                    setCopied(true)
+                    setTimeout(() => setCopied(false), 2000)
+                  })
+                }}
+              >
+                {copied ? 'Copiato ✓' : 'Copia prompt'}
+              </button>
+            </div>
+          )}
+
+          {/* 2. Paste back: one LLM extraction call server-side. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase' as const, color: B.muted }}>
+              2 · Incolla qui la risposta di J-Horizon
+            </div>
+            <textarea
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              placeholder="Incolla il testo completo della risposta J-Horizon"
+              style={{ ...editInput, minHeight: '140px', fontFamily: 'inherit', resize: 'vertical' as const }}
+            />
+            <button
+              type="button"
+              disabled={busy || pasteText.trim().length < 20}
+              onClick={() => send({ jhorizon_answer: pasteText.trim() })}
+              style={{ ...decisionButton, alignSelf: 'flex-start', opacity: busy || pasteText.trim().length < 20 ? 0.6 : 1 }}
+            >
+              {busy ? 'Estrazione in corso…' : 'Invia risposta e misura'}
+            </button>
+          </div>
+
+          {/* 3. Manual fallback, collapsed by default. */}
+          <button
+            type="button"
+            onClick={() => setShowManual((v) => !v)}
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '14px', fontWeight: 700, color: B.primary, textAlign: 'left' as const }}
+          >
+            {showManual ? '− Nascondi inserimento manuale' : '+ In alternativa: inserisci i punteggi a mano'}
+          </button>
+          {showManual && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '10px', alignItems: 'center' }}>
+                <span style={{ fontSize: '14px', color: B.ink, fontWeight: 650 }}>Cliente (0-100)</span>
+                <input style={editInput} value={score} onChange={(e) => setScore(e.target.value)} placeholder="es. 62" />
+              </div>
+              {compDomains.map((d) => (
+                <div key={d} style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '10px', alignItems: 'center' }}>
+                  <span style={{ fontSize: '14px', color: B.muted }}>{d}</span>
+                  <input
+                    style={editInput}
+                    value={compScores[d] ?? ''}
+                    onChange={(e) => setCompScores((m) => ({ ...m, [d]: e.target.value }))}
+                    placeholder="0-100 (opzionale)"
+                  />
+                </div>
+              ))}
+              <input style={editInput} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Commento (opzionale)" />
+              <button
+                type="button"
+                disabled={busy || score.trim() === '' || Number.isNaN(Number(score))}
+                onClick={sendManualAiv}
+                style={{ ...decisionButton, alignSelf: 'flex-start' }}
+              >
+                {busy ? 'Invio…' : 'Salva punteggi manuali'}
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {request.reason === 'manual_input' && (
