@@ -28,6 +28,15 @@ import type { LlmInsightRecord } from '@/lib/v4/llm/orchestrator'
  * this route only flips v4_insights_status to 'running' and dispatches.
  * Re-POSTing is safe and is the retry path: stored insights are skipped
  * idempotently, errored ones are regenerated.
+ *
+ * TARGETED MODE (review item 3/13): an optional body { drivers: string[] }
+ * generates/REgenerates the insight of ONLY those drivers. Each requested
+ * driver must be enabled, 'done' and part of the LLM sequence; the state of
+ * the OTHER drivers does not matter here (a queued or paused sibling never
+ * blocks a targeted regeneration). Stored insights of the requested drivers
+ * are cleared first, so the engine regenerates them; every other driver's
+ * stored insight stays and keeps feeding the cumulative context. An absent
+ * Executive Summary is NOT generated in targeted mode.
  */
 export async function POST(
   request: Request,
@@ -54,6 +63,18 @@ export async function POST(
     return NextResponse.json({ error: 'analysis not found or no access' }, { status: 404 })
   }
 
+  // Optional body: { drivers } switches to the targeted per-driver mode.
+  let requestedDrivers: string[] | null = null
+  try {
+    const body = (await request.json()) as { drivers?: unknown }
+    if (Array.isArray(body?.drivers)) {
+      const list = body.drivers.filter((d): d is string => typeof d === 'string' && d.trim() !== '')
+      if (list.length > 0) requestedDrivers = [...new Set(list)]
+    }
+  } catch {
+    /* no body = full orchestration, the original contract */
+  }
+
   const db = createAdminClient()
   const { data: runData, error: runsError } = await db
     .from('driver_runs')
@@ -65,6 +86,69 @@ export async function POST(
   const runs = (runData ?? []) as Array<{ driver_key: string; enabled: boolean; status: string }>
   const enabled = runs.filter((r) => r.enabled)
 
+  // ---------------------------------------------------- targeted mode -----
+  if (requestedDrivers) {
+    const problems: string[] = []
+    for (const key of requestedDrivers) {
+      const def = getV4Driver(key)
+      const run = enabled.find((r) => r.driver_key === key)
+      if (!def || !run) {
+        problems.push(`${key}: driver sconosciuto o non abilitato per questa analisi`)
+      } else if (def.llmSequence === null) {
+        problems.push(`${key}: driver fuori dalla sequenza LLM (nessun insight generabile)`)
+      } else if (run.status !== 'done') {
+        problems.push(`${key}: stato "${run.status}", solo un driver completato può generare insight`)
+      }
+    }
+    if (problems.length > 0) {
+      return NextResponse.json(
+        { error: `insight per driver non generabili: ${problems.join('; ')}` },
+        { status: 409 },
+      )
+    }
+
+    // Clear the stored insights of the requested drivers so the engine
+    // regenerates them (it skips 'done' insights by design). The other
+    // drivers' insights stay and keep feeding the cumulative context.
+    const { error: clearError } = await db
+      .from('driver_runs')
+      .update({ llm_insight: null })
+      .eq('analysis_id', analysisId)
+      .in('driver_key', requestedDrivers)
+    if (clearError) {
+      return NextResponse.json({ error: clearError.message }, { status: 500 })
+    }
+
+    const { error: statusError } = await db
+      .from('analyses')
+      .update({ v4_insights_status: 'running', v4_insights_error: null })
+      .eq('id', analysisId)
+    if (statusError) {
+      return NextResponse.json({ error: statusError.message }, { status: 500 })
+    }
+
+    const dispatch = await dispatchInsightsJob(resolveBaseUrl(request), analysisId, requestedDrivers)
+    if (!dispatch.dispatched) {
+      await db
+        .from('analyses')
+        .update({
+          v4_insights_status: 'error',
+          v4_insights_error: `dispatch insight fallito: ${dispatch.error ?? 'unknown'}`,
+        })
+        .eq('id', analysisId)
+      return NextResponse.json(
+        { error: `dispatch failed: ${dispatch.error ?? 'unknown'}` },
+        { status: 502 },
+      )
+    }
+
+    return NextResponse.json(
+      { status: 'accepted', analysisId, drivers: requestedDrivers, targeted: true },
+      { status: 202 },
+    )
+  }
+
+  // ---------------------------------------------------- full orchestration -
   const pendingDecision = enabled.filter((r) => r.status === 'needs_decision')
   if (pendingDecision.length > 0) {
     return NextResponse.json(

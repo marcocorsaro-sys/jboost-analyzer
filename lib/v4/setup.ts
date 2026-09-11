@@ -375,6 +375,83 @@ export function appliesTo(
   return drivers
 }
 
+// ---------------------------------------------------------------------------
+// Post-launch setup diff (review item 6): which drivers' config changed
+// ---------------------------------------------------------------------------
+
+/**
+ * The per-driver slice of the wizard state, as the diff sees it. Everything
+ * here ends up in driver_runs.config (or in the template_configs the page
+ * drivers read), so "this changed" is exactly "a relaunch would measure with
+ * a different configuration".
+ */
+export interface DriverSetupSnapshot {
+  jhorizonAnswer: string
+  thematicClusters: string[]
+  driverTemplates: Record<string, string[]>
+  /** site_ref -> template_key -> URL (shared by the four page drivers). */
+  templates: Record<string, Record<string, string>>
+  /** kind + path is enough: a re-upload changes the path. */
+  attachments: Array<{ kind: string; path: string }>
+}
+
+const norm = (v: string | undefined | null) => (v ?? '').trim()
+const listKey = (v: string[] | undefined) =>
+  JSON.stringify([...(v ?? [])].map((x) => x.trim()).filter(Boolean).sort())
+const templatesKey = (t: Record<string, Record<string, string>>) =>
+  JSON.stringify(
+    Object.keys(t)
+      .sort()
+      .map((site) => [
+        site,
+        Object.entries(t[site] ?? {})
+          .map(([k, u]) => [k, norm(u)] as const)
+          .filter(([, u]) => u !== '')
+          .sort(([a], [b]) => a.localeCompare(b)),
+      ]),
+  )
+const attachmentsKey = (list: Array<{ kind: string; path: string }>, kind: string) =>
+  JSON.stringify(list.filter((a) => a.kind === kind).map((a) => a.path).sort())
+
+/**
+ * Compare two wizard snapshots and name the drivers whose configuration
+ * changed — the honest preselection of "Quali driver vuoi rilanciare con il
+ * nuovo setup?". Conservative on the shared template URLs: a change there
+ * flags all four page drivers (they measure the same pages by design).
+ */
+export function changedDriverConfigs(
+  before: DriverSetupSnapshot,
+  after: DriverSetupSnapshot,
+): string[] {
+  const changed = new Set<string>()
+
+  if (norm(before.jhorizonAnswer) !== norm(after.jhorizonAnswer)) changed.add('ai_visibility')
+  if (listKey(before.thematicClusters) !== listKey(after.thematicClusters)) {
+    changed.add('discoverability')
+  }
+
+  const sharedUrlsChanged = templatesKey(before.templates) !== templatesKey(after.templates)
+  for (const driver of TEMPLATE_DRIVER_KEYS) {
+    if (
+      sharedUrlsChanged ||
+      listKey(before.driverTemplates[driver]) !== listKey(after.driverTemplates[driver])
+    ) {
+      changed.add(driver)
+    }
+  }
+
+  for (const [kind, driver] of [
+    ['compliance_crawl', 'compliance'],
+    ['authority_backlinks', 'authority'],
+  ] as const) {
+    if (attachmentsKey(before.attachments, kind) !== attachmentsKey(after.attachments, kind)) {
+      changed.add(driver)
+    }
+  }
+
+  return [...changed].sort()
+}
+
 export function isHttpUrl(value: string): boolean {
   try {
     const u = new URL(value)
@@ -400,6 +477,17 @@ export interface SetupAttachment {
   path: string
   size: number | null
   uploaded_at: string
+  /**
+   * Parsed content of the upload, when the kind supports it (today: the
+   * Ahrefs backlink export, review item 5): columns, row count and a sample
+   * of the raw rows. Travels into driver_runs.config via
+   * driverConfigFromSetup, so the driver sees the data, not just the path.
+   */
+  parsed?: {
+    columns: string[]
+    row_count: number
+    sample: Array<Record<string, unknown>>
+  } | null
 }
 
 /** Which driver tab lists an upload kind ('knowledge_doc' is global). */
@@ -441,6 +529,11 @@ export function mergeV4Setup(
   }
   if (typeof existing?.promoted_at === 'string' && existing.promoted_at) {
     promotion.promoted_at = existing.promoted_at
+  }
+  // The global project notes (review 12) are owned by the results page's
+  // Note panel: a setup save must carry them over, never wipe them.
+  if (typeof existing?.global_notes === 'string' && existing.global_notes) {
+    promotion.global_notes = existing.global_notes
   }
   return { ...next, attachments, ...promotion }
 }

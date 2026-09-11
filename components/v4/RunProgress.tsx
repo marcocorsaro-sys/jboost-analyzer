@@ -39,8 +39,15 @@ export interface DriverRow {
   error: string | null
   sites: SiteScore[]
   decision_request: unknown
-  /** Setup uploads bound to this driver (parsing downstream — listed only). */
-  attachments?: Array<{ kind: string; name: string; path?: string; size?: number | null }>
+  /** Setup uploads bound to this driver. Backlink exports carry the parsed
+   *  summary (columns + row count); other kinds are listed as references. */
+  attachments?: Array<{
+    kind: string
+    name: string
+    path?: string
+    size?: number | null
+    parsed?: { columns?: string[]; row_count?: number } | null
+  }>
 }
 
 export interface StatusResponse {

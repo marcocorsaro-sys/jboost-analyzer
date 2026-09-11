@@ -26,6 +26,7 @@ import DriverPanel, { type ScoreView } from './DriverPanel'
 import ExecutiveSummaryTab from './ExecutiveSummaryTab'
 import OutputPreviewTab from './OutputPreviewTab'
 import PublishDialog from './PublishDialog'
+import GlobalNotesDialog from './GlobalNotesDialog'
 import SwitchToClientButton from '@/components/audits/SwitchToClientButton'
 import { ControllerChip, ControllerPanel, type ControllerResponse } from './ControllerPanel'
 import type { EditsResponse, InsightsResponse, SiteMeta, SetIndex } from './results-shared'
@@ -70,6 +71,8 @@ interface V4StatusResponse extends StatusResponse {
   industryPreset?: string | null
   country?: string | null
   sites?: SiteMeta[]
+  /** Note globali di progetto (analyses.v4_setup.global_notes, review 12). */
+  globalNotes?: string | null
 }
 
 type TabKey = 'overview' | 'summary' | string
@@ -110,6 +113,7 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
   const [view, setView] = useState<ScoreView>('relative')
   const [overlay, setOverlay] = useState(true)
   const [publishOpen, setPublishOpen] = useState(false)
+  const [notesOpen, setNotesOpen] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
 
@@ -197,23 +201,37 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
 
   const insightsRunning = insights?.insightsStatus === 'running'
 
-  const generateInsights = useCallback(async () => {
-    setGenError(null)
-    try {
-      const res = await fetch(`/api/v4/analyses/${analysisId}/insights`, { method: 'POST' })
-      const body = await res.json()
-      if (!res.ok) {
-        setGenError(body.error ?? `errore ${res.status}`)
-        return
+  // Full orchestration without arguments; { drivers } generates/regenerates
+  // ONLY those drivers (review 3/13) — same route, targeted body.
+  const generateInsights = useCallback(
+    async (drivers?: string[]) => {
+      setGenError(null)
+      try {
+        const res = await fetch(`/api/v4/analyses/${analysisId}/insights`, {
+          method: 'POST',
+          ...(drivers && drivers.length > 0
+            ? {
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ drivers }),
+              }
+            : {}),
+        })
+        const body = await res.json()
+        if (!res.ok) {
+          setGenError(body.error ?? `errore ${res.status}`)
+          return
+        }
+        setInsights((prev) =>
+          prev ? { ...prev, insightsStatus: 'running', insightsError: null } : prev,
+        )
+        await loadInsights()
+      } catch (err) {
+        setGenError(err instanceof Error ? err.message : 'network error')
       }
-      setInsights((prev) =>
-        prev ? { ...prev, insightsStatus: 'running', insightsError: null } : prev,
-      )
-      await loadInsights()
-    } catch (err) {
-      setGenError(err instanceof Error ? err.message : 'network error')
-    }
-  }, [analysisId, loadInsights])
+    },
+    [analysisId, loadInsights],
+  )
+  const generateAllInsights = useCallback(() => generateInsights(), [generateInsights])
 
   const [retrying, setRetrying] = useState(false)
   const [retryNote, setRetryNote] = useState<string | null>(null)
@@ -435,9 +453,29 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
               open={controllerOpen}
               onToggle={() => setControllerOpen((v) => !v)}
             />
+            {/* Note globali di progetto (review 12): sempre visibile. */}
             <button
               type="button"
-              onClick={generateInsights}
+              onClick={() => setNotesOpen(true)}
+              style={{
+                ...ghostButton,
+                ...(status.globalNotes?.trim() ? { borderColor: `${B.primary}55`, color: B.primary } : {}),
+              }}
+              title={t('v4res.notes_hint')}
+            >
+              {t('v4res.notes_button')}
+            </button>
+            {/* Modifica setup post-lancio (review 6): riapre il wizard. */}
+            <a
+              href={`/analyzer/v4?resume=${analysisId}`}
+              style={{ ...ghostButton, textDecoration: 'none', display: 'inline-block' }}
+              title={t('v4res.edit_setup_hint')}
+            >
+              {t('v4res.edit_setup')}
+            </a>
+            <button
+              type="button"
+              onClick={generateAllInsights}
               disabled={insightsRunning}
               style={primaryButton(!insightsRunning)}
             >
@@ -540,7 +578,7 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
         <ExecutiveSummaryTab
           record={insights?.executiveSummary ?? null}
           insightsRunning={insightsRunning}
-          onGenerate={generateInsights}
+          onGenerate={generateAllInsights}
         />
       )}
 
@@ -562,7 +600,8 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
               sites={sites}
               insight={insightByDriver.get(row.driver_key) ?? null}
               insightsRunning={insightsRunning}
-              onGenerateInsights={generateInsights}
+              onGenerateInsights={generateAllInsights}
+              onGenerateDriverInsight={() => void generateInsights([row.driver_key])}
               onChanged={loadAll}
             />
           ),
@@ -574,6 +613,15 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
           editsInfo={editsInfo}
           onClose={() => setPublishOpen(false)}
           onPublished={loadAll}
+        />
+      )}
+
+      {notesOpen && (
+        <GlobalNotesDialog
+          analysisId={analysisId}
+          initialNotes={status.globalNotes ?? ''}
+          onClose={() => setNotesOpen(false)}
+          onSaved={loadStatus}
         />
       )}
     </div>
@@ -810,8 +858,10 @@ function OverviewTab({
         ))}
       </div>
 
-      {/* Confronto nel set: righe = siti, colonne = driver misurati + Index. */}
-      <ComparisonPanel rows={rows} sites={sites} setIndex={setIndex} />
+      {/* Confronto nel set: righe = siti, colonne = driver misurati + Index.
+          Segue il toggle: in Assoluta mostra gli score assoluti dei driver
+          che li hanno; l'Index resta relativo by design. */}
+      <ComparisonPanel rows={rows} sites={sites} setIndex={setIndex} view={view} />
 
       {/* Panoramic radar (Bibbia sheet 6), sotto la tabella di confronto. */}
       {anyScore ? (
@@ -868,16 +918,32 @@ function ComparisonPanel({
   rows,
   sites,
   setIndex,
+  view,
 }: {
   rows: DriverRow[]
   sites: SiteMeta[]
   setIndex: SetIndex
+  view: ScoreView
 }) {
   const { t } = useLocale()
-  // Columns: only drivers with at least one measured relative score.
+  const absolute = view === 'absolute'
+  // Columns follow the toggle (review 9): Relative = drivers with a measured
+  // relative score; Absolute = only drivers WITH an absolute view and a
+  // measured absolute score. The relative-only Business drivers drop out of
+  // the Absolute columns with an explicit note; the Index column stays
+  // relative by design (leader-index, like the hero band).
   const measured = rows.filter(
-    (r) => r.status === 'done' && r.sites.some((s) => typeof s.score_relative === 'number'),
+    (r) =>
+      r.status === 'done' &&
+      (absolute
+        ? (getV4Driver(r.driver_key)?.hasAbsoluteView ?? false) &&
+          (typeof r.score_absolute === 'number' ||
+            r.sites.some((s) => typeof s.score_absolute === 'number'))
+        : r.sites.some((s) => typeof s.score_relative === 'number')),
   )
+  const excluded = absolute
+    ? rows.filter((r) => r.status === 'done' && !getV4Driver(r.driver_key)?.hasAbsoluteView)
+    : []
   if (measured.length === 0 || setIndex.entries.length === 0) return null
 
   const nameOf = (ref: string, domain: string) =>
@@ -887,8 +953,11 @@ function ComparisonPanel({
   // (analyst edits), competitors use the per-site normalized score.
   const scoreFor = (row: DriverRow, ref: string): number | null => {
     const s = row.sites.find((x) => x.site_ref === ref)
-    const v =
-      ref === 'client'
+    const v = absolute
+      ? ref === 'client'
+        ? (row.score_absolute ?? s?.score_absolute ?? null)
+        : (s?.score_absolute ?? null)
+      : ref === 'client'
         ? (row.score_relative ?? s?.score_relative ?? null)
         : (s?.score_relative ?? null)
     return typeof v === 'number' && Number.isFinite(v) ? v : null
@@ -896,9 +965,18 @@ function ComparisonPanel({
 
   return (
     <div style={card}>
-      <h2 style={{ ...sectionTitle, margin: '0 0 4px 0' }}>{t('v4res.compare_title')}</h2>
+      <h2 style={{ ...sectionTitle, margin: '0 0 4px 0' }}>
+        {t('v4res.compare_title')} · {t(absolute ? 'v4res.view_absolute' : 'v4res.view_relative')}
+      </h2>
       <p style={{ fontSize: '15px', color: B.muted, margin: '0 0 22px 0', maxWidth: '75ch' }}>
-        {t('v4res.compare_desc')}
+        {absolute ? t('v4res.compare_desc_absolute') : t('v4res.compare_desc')}
+        {absolute && excluded.length > 0 && (
+          <>
+            {' '}
+            {t('v4res.radar_absolute_note')}{' '}
+            {excluded.map((r) => getV4Driver(r.driver_key)?.label ?? r.driver_key).join(', ')}
+          </>
+        )}
       </p>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', ...B.type.num }}>
@@ -939,15 +1017,18 @@ function ComparisonPanel({
                   {measured.map((r) => {
                     const v = scoreFor(r, e.site_ref)
                     const rounded = v === null ? null : Math.round(v)
-                    // Semantic colour only on the client's extremes: 100 =
-                    // leader (green), < 30 critical (red), else plain ink.
+    // Semantic colour only on the client's extremes. Relative:
+                    // 100 = leader (green), < 30 critical (red). Absolute:
+                    // the standard score bands (scoreColor).
                     const color =
                       isMe && rounded !== null
-                        ? rounded >= 100
-                          ? B.success
-                          : rounded < 30
-                            ? B.error
-                            : B.ink
+                        ? absolute
+                          ? scoreColor(rounded)
+                          : rounded >= 100
+                            ? B.success
+                            : rounded < 30
+                              ? B.error
+                              : B.ink
                         : B.ink
                     return (
                       <td
@@ -1166,6 +1247,14 @@ function OverviewCard({
       >
         {fmt(score)}
       </div>
+
+      {/* Review 9: in vista Assoluta un driver solo-relativo lo dichiara
+          anche qui, non solo dentro la sua tab. */}
+      {view === 'absolute' && !hasAbs && (
+        <div style={{ fontSize: '13px', fontWeight: 600, color: B.warning, marginTop: '6px' }}>
+          {t('v4res.card_relative_only')}
+        </div>
+      )}
 
       {/* Misura reale (mai un 100 relativo senza il suo raw) + leader del set. */}
       <div style={{ fontSize: '14px', color: B.muted, marginTop: '8px', lineHeight: 1.5 }}>

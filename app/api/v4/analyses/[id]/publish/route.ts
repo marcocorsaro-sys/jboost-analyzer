@@ -220,7 +220,7 @@ export async function GET(
       .limit(200),
     supabase
       .from('driver_runs')
-      .select('id, driver_key, enabled, status')
+      .select('id, driver_key, enabled, status, edited')
       .eq('analysis_id', analysisId),
   ])
 

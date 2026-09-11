@@ -53,6 +53,7 @@ import {
   buildDriverUserPrompt,
   buildSummarySystemPrompt,
   buildSummaryUserPrompt,
+  globalNotesClause,
   systemPromptFor,
 } from './prompts'
 
@@ -103,6 +104,16 @@ export interface CumulativeContext {
 export interface GenerateInsightsOptions {
   /** Cooperative time budget; when exceeded the run returns { next: true }. */
   budgetMs?: number
+  /**
+   * Targeted generation (review item 3/13): when set, ONLY these drivers are
+   * generated; every other driver of the sequence is left untouched (its
+   * stored insight, when present, still feeds the cumulative context), and
+   * the Executive Summary is NOT generated if absent (a per-driver
+   * regeneration must not silently spend the summary call). The caller is
+   * responsible for clearing llm_insight on the drivers to REgenerate:
+   * the engine itself stays idempotent and skips stored 'done' insights.
+   */
+  onlyDrivers?: string[]
   /** Test seam: replaces the Anthropic call. */
   callModel?: (
     prompt: string,
@@ -396,6 +407,7 @@ interface AnalysisRow {
   user_id: string | null
   client_id: string | null
   llm_guardrails: Record<string, unknown> | null
+  v4_setup: Record<string, unknown> | null
   v4_executive_summary: Record<string, unknown> | null
 }
 
@@ -588,7 +600,7 @@ export async function generateInsights(
   const { data: analysisData, error: analysisError } = await db
     .from('analyses')
     .select(
-      'id, domain, industry_preset, country, output_language, user_id, client_id, llm_guardrails, v4_executive_summary',
+      'id, domain, industry_preset, country, output_language, user_id, client_id, llm_guardrails, v4_setup, v4_executive_summary',
     )
     .eq('id', analysisId)
     .single()
@@ -633,6 +645,15 @@ export async function generateInsights(
   const guardrailBlocklist = Array.isArray(guardrails.blocklist)
     ? guardrails.blocklist.filter((w): w is string => typeof w === 'string' && w.trim() !== '')
     : []
+  // Global project notes (results page "Note" panel, review item 12): one
+  // clause appended to EVERY insight user prompt of this analysis.
+  const globalNotes =
+    typeof analysis.v4_setup?.global_notes === 'string' ? analysis.v4_setup.global_notes : null
+  const notesClause = globalNotesClause(globalNotes)
+
+  // Targeted generation (review item 3/13): restrict the sequential loop to
+  // the requested drivers; everything else only contributes context.
+  const only = options.onlyDrivers && options.onlyDrivers.length > 0 ? new Set(options.onlyDrivers) : null
 
   // --- Cumulative context: AI Visibility seed + replay of persisted work --
   const ctx: CumulativeContext = { already_mentioned_items: [], other_drivers_context: [] }
@@ -641,6 +662,9 @@ export async function generateInsights(
 
   // --- The sequential per-driver calls (sheet 16 A/B) ---------------------
   for (const run of ordered) {
+    if (only && !only.has(run.driver_key)) {
+      continue // targeted run: not requested — its stored insight (if any) already fed the context
+    }
     if (run.llm_insight?.status === 'done') {
       result.skippedExisting.push(run.driver_key)
       continue // context already replayed above
@@ -672,19 +696,20 @@ export async function generateInsights(
       what: `V4 insight ${def.label}`,
       operation: `v4_driver_insight_${run.driver_key}`,
       system: systemPromptFor(def.family, outputLanguage, guardrailBlocklist),
-      userPrompt: buildDriverUserPrompt({
-        driverKey: run.driver_key,
-        driverName: def.label,
-        family: def.family,
-        domain,
-        industryPreset: analysis.industry_preset,
-        outputLanguage,
-        score: run.score_relative,
-        driverPayloadJson: payloadJson,
-        otherDriversContextJson: otherCtxJson,
-        alreadyMentionedItemsJson: alreadyJson,
-        tier,
-      }),
+      userPrompt:
+        buildDriverUserPrompt({
+          driverKey: run.driver_key,
+          driverName: def.label,
+          family: def.family,
+          domain,
+          industryPreset: analysis.industry_preset,
+          outputLanguage,
+          score: run.score_relative,
+          driverPayloadJson: payloadJson,
+          otherDriversContextJson: otherCtxJson,
+          alreadyMentionedItemsJson: alreadyJson,
+          tier,
+        }) + notesClause,
       model: driverModel,
       maxTokens: DRIVER_CALL_MAX_TOKENS,
       temperature: DRIVER_CALL_TEMPERATURE,
@@ -736,6 +761,11 @@ export async function generateInsights(
   // --- Final call: Executive Summary (sheet 16 C) -------------------------
   if (analysis.v4_executive_summary) {
     result.summaryDone = true // idempotent: never regenerate a stored summary
+  } else if (only) {
+    // Targeted run: only the requested drivers were asked for. An absent
+    // summary stays absent; the full generation (no drivers filter) or the
+    // Executive Summary tab produces it.
+    result.summaryDone = false
   } else {
     if (Date.now() - t0 > budgetMs) {
       return { ...result, completed: false, next: true, status: 'running' }
@@ -782,15 +812,16 @@ export async function generateInsights(
       what: 'V4 Executive Summary',
       operation: 'v4_executive_summary',
       system: buildSummarySystemPrompt(outputLanguage, guardrailBlocklist),
-      userPrompt: buildSummaryUserPrompt({
-        domain,
-        industryPreset: analysis.industry_preset,
-        country: analysis.country,
-        outputLanguage,
-        driversScoreSummaryJson: scoreSummaryJson,
-        allDriversOutputJson: allOutputsJson,
-        competitorsSummaryJson: competitorsJson,
-      }),
+      userPrompt:
+        buildSummaryUserPrompt({
+          domain,
+          industryPreset: analysis.industry_preset,
+          country: analysis.country,
+          outputLanguage,
+          driversScoreSummaryJson: scoreSummaryJson,
+          allDriversOutputJson: allOutputsJson,
+          competitorsSummaryJson: competitorsJson,
+        }) + notesClause,
       model: summaryModel,
       maxTokens: SUMMARY_MAX_TOKENS,
       temperature: SUMMARY_TEMPERATURE,

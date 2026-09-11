@@ -21,6 +21,8 @@ export interface InsightsDispatchResult {
 export async function dispatchInsightsJob(
   baseUrl: string,
   analysisId: string,
+  /** Targeted generation: restrict the run to these drivers (review item 3/13). */
+  drivers?: string[],
 ): Promise<InsightsDispatchResult> {
   const secret = runnerSecret()
   if (!secret) {
@@ -34,7 +36,7 @@ export async function dispatchInsightsJob(
         'content-type': 'application/json',
         authorization: `Bearer ${secret}`,
       },
-      body: JSON.stringify({ analysisId }),
+      body: JSON.stringify({ analysisId, ...(drivers && drivers.length > 0 ? { drivers } : {}) }),
       // Only the ack matters: the run itself may take minutes.
       signal: AbortSignal.timeout(10_000),
     })

@@ -35,6 +35,11 @@ export interface RerunEditSlice {
   published: boolean
 }
 
+/** RerunRunSlice + the human-review flag (driver_runs.edited). */
+export interface EditedRunSlice extends RerunRunSlice {
+  edited?: boolean
+}
+
 export interface RerunSelection {
   /** Driver keys to re-queue, unique, in Business-first UI order. */
   rerun: Array<{ id: string; driver_key: string }>
@@ -91,4 +96,39 @@ export function selectRerunDrivers(
   ineligible.sort((a, b) => order(a.driver_key) - order(b.driver_key))
 
   return { rerun, ineligible }
+}
+
+/**
+ * Which drivers Save & Publish may offer to REGENERATE INSIGHTS for (review
+ * item 3/13): the drivers a human touched — driver_runs.edited = true, or at
+ * least one DRAFT edit (score or comment) pending publish — that can actually
+ * be narrated right now: enabled, 'done', and part of the LLM sequence
+ * (llmSequence !== null; AI Visibility's insight is paste-driven, never
+ * regenerable here).
+ *
+ * Pure and shared between the PublishDialog (the checkbox and its count) and
+ * any server-side caller, so the dialog can never promise a driver the
+ * insights route would then refuse.
+ */
+export function selectEditedInsightDrivers(
+  runs: EditedRunSlice[],
+  edits: RerunEditSlice[],
+): string[] {
+  const draftRunIds = new Set<string>()
+  for (const e of edits) {
+    if (!e.published && e.driver_run_id) draftRunIds.add(e.driver_run_id)
+  }
+
+  const out: string[] = []
+  for (const run of runs) {
+    if (!run.enabled || run.status !== 'done') continue
+    if (!(run.edited === true || draftRunIds.has(run.id))) continue
+    const def = getV4Driver(run.driver_key)
+    if (!def || def.llmSequence === null) continue
+    if (!out.includes(run.driver_key)) out.push(run.driver_key)
+  }
+
+  const order = (key: string) => getV4Driver(key)?.uiOrder ?? 99
+  out.sort((a, b) => order(a) - order(b))
+  return out
 }

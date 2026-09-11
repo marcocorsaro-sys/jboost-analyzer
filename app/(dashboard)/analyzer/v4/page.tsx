@@ -13,10 +13,13 @@ export const dynamic = 'force-dynamic'
  * V4 setup — the entry point of the Driver Intelligence Platform pipeline
  * (UX-UI Bibbia 04, "New Audit (Setup)": 5 steps, Save draft + resume).
  *
- * ?resume=<id> reopens a saved draft: the row is loaded HERE, server-side
+ * ?resume=<id> reopens a saved setup: the row is loaded HERE, server-side
  * through the user-scoped client (RLS is the access check), reshaped into the
- * wizard's initial state and handed to the client island. A draft whose run
- * already started has nothing to resume — it redirects to its results page.
+ * wizard's initial state and handed to the client island. A NOT-yet-launched
+ * draft resumes as before; a LAUNCHED analysis opens the wizard in
+ * edit-post-lancio mode (review item 6): fields editable, save updates
+ * setup + configs without resetting the measures, and a final step lets the
+ * analyst relaunch chosen drivers with the new setup.
  */
 export default async function V4SetupPage({
   searchParams,
@@ -47,7 +50,15 @@ export default async function V4SetupPage({
           marginBottom: '10px',
         }}
       >
-        <T k={initialDraft ? 'v4setup.resume_title' : 'v4setup.title'} />
+        <T
+          k={
+            initialDraft
+              ? initialDraft.launched
+                ? 'v4setup.edit_title'
+                : 'v4setup.resume_title'
+              : 'v4setup.title'
+          }
+        />
       </h1>
       <p style={{ fontSize: '16px', lineHeight: 1.55, color: B.muted, marginBottom: '28px' }}>
         <T k="v4setup.subtitle" />
@@ -72,12 +83,14 @@ async function loadDraft(analysisId: string): Promise<WizardInitial> {
     .maybeSingle()
   if (!analysis) redirect('/audits')
 
-  // A started run has driver_runs: its setup is immutable, nothing to resume.
+  // A started run has driver_runs: the wizard opens in edit-post-lancio mode
+  // (review item 6) instead of redirecting away — fields stay editable, the
+  // save updates the setup without touching the measures.
   const { count } = await supabase
     .from('driver_runs')
     .select('id', { count: 'exact', head: true })
     .eq('analysis_id', analysisId)
-  if ((count ?? 0) > 0) redirect(`/results/v4/${analysisId}`)
+  const launched = (count ?? 0) > 0
 
   const { data: templateRows } = await supabase
     .from('template_configs')
@@ -117,6 +130,7 @@ async function loadDraft(analysisId: string): Promise<WizardInitial> {
 
   return {
     analysisId: a.id,
+    launched,
     clientDomain: a.domain ?? '',
     clientBrand: a.brand_name ?? '',
     brandVariants: (a.brand_variants ?? []).join(', '),

@@ -12,12 +12,14 @@ import {
   buildSetup,
   buildTemplates,
   buildV4SetupJson,
+  changedDriverConfigs,
   driverConfigFromSetup,
   isHttpUrl,
   mergeV4Setup,
   withMandatoryDrivers,
   MANDATORY_DRIVER_KEYS,
   TEMPLATE_KEYS,
+  type DriverSetupSnapshot,
 } from './setup'
 import type { AnalysisSite } from './runner/types'
 
@@ -331,4 +333,65 @@ test('isHttpUrl: only http(s) absolute URLs', () => {
   assert.equal(isHttpUrl('ftp://a.com'), false)
   assert.equal(isHttpUrl('a.com'), false)
   assert.equal(isHttpUrl('javascript:alert(1)'), false)
+})
+
+// ---------------------------------------------------------------------------
+// Edit post-lancio (review 6) — per-driver config diff
+// ---------------------------------------------------------------------------
+
+function snap(over: Partial<DriverSetupSnapshot> = {}): DriverSetupSnapshot {
+  return {
+    jhorizonAnswer: 'recap',
+    thematicClusters: ['a', 'b', 'c'],
+    driverTemplates: { speed: ['homepage', 'pdp'], schema: ['homepage'] },
+    templates: { client: { homepage: 'https://client.com', pdp: 'https://client.com/p/1' } },
+    attachments: [
+      { kind: 'authority_backlinks', path: 'v4-setup/x/authority_backlinks/1_a.csv' },
+      { kind: 'compliance_crawl', path: 'v4-setup/x/compliance_crawl/1_c.csv' },
+    ],
+    ...over,
+  }
+}
+
+test('changedDriverConfigs: identical snapshots change nothing', () => {
+  assert.deepEqual(changedDriverConfigs(snap(), snap()), [])
+})
+
+test('changedDriverConfigs: jhorizon answer -> ai_visibility, clusters -> discoverability', () => {
+  assert.deepEqual(changedDriverConfigs(snap(), snap({ jhorizonAnswer: 'nuovo recap' })), ['ai_visibility'])
+  assert.deepEqual(changedDriverConfigs(snap(), snap({ thematicClusters: ['a', 'b', 'z'] })), ['discoverability'])
+  // Order and surrounding blanks do not count as a change.
+  assert.deepEqual(changedDriverConfigs(snap(), snap({ thematicClusters: ['c', ' b ', 'a', ''] })), [])
+  assert.deepEqual(changedDriverConfigs(snap(), snap({ jhorizonAnswer: '  recap  ' })), [])
+})
+
+test('changedDriverConfigs: per-driver template flags change only that driver', () => {
+  const after = snap({ driverTemplates: { speed: ['homepage'], schema: ['homepage'] } })
+  assert.deepEqual(changedDriverConfigs(snap(), after), ['speed'])
+})
+
+test('changedDriverConfigs: a shared template URL change flags all four page drivers', () => {
+  const after = snap({ templates: { client: { homepage: 'https://client.com', pdp: 'https://client.com/p/2' } } })
+  assert.deepEqual(changedDriverConfigs(snap(), after), ['accessibility', 'content', 'schema', 'speed'])
+  // A blank URL added is NOT a change (blank = template absent).
+  const blank = snap({ templates: { client: { homepage: 'https://client.com', pdp: 'https://client.com/p/1', faq: ' ' } } })
+  assert.deepEqual(changedDriverConfigs(snap(), blank), [])
+})
+
+test('changedDriverConfigs: re-uploaded files flag their driver (path changes)', () => {
+  const after = snap({
+    attachments: [
+      { kind: 'authority_backlinks', path: 'v4-setup/x/authority_backlinks/2_b.csv' },
+      { kind: 'compliance_crawl', path: 'v4-setup/x/compliance_crawl/1_c.csv' },
+    ],
+  })
+  assert.deepEqual(changedDriverConfigs(snap(), after), ['authority'])
+})
+
+test('mergeV4Setup: a wizard save never wipes the global project notes (review 12)', () => {
+  const existing = { attachments: [], global_notes: 'nota trasversale' }
+  const merged = mergeV4Setup(existing, buildV4SetupJson(base()))
+  assert.equal(merged.global_notes, 'nota trasversale')
+  // Absent notes stay absent, no placeholder key invented.
+  assert.equal('global_notes' in mergeV4Setup({}, buildV4SetupJson(base())), false)
 })

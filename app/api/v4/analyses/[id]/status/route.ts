@@ -66,6 +66,13 @@ export async function GET(
     clientId: linkedClientId(
       analysis as { client_id: string | null; v4_setup: Record<string, unknown> | null },
     ),
+    // Note globali di progetto (review 12): lette dal jsonb del setup, il
+    // pannello Note della pagina risultati le mostra e le salva via PATCH.
+    globalNotes:
+      typeof (analysis as { v4_setup: Record<string, unknown> | null }).v4_setup?.global_notes ===
+      'string'
+        ? ((analysis as { v4_setup: Record<string, unknown> }).v4_setup.global_notes as string)
+        : null,
     sites: sites.map((s) => ({
       site_ref: s.site_ref,
       domain: s.domain,

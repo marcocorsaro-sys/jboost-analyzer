@@ -11,6 +11,8 @@ import { runnerSecret, resolveBaseUrl } from '@/lib/v4/runner/dispatch'
 
 const Body = z.object({
   analysisId: z.string().uuid(),
+  /** Targeted generation (review item 3/13): only these drivers are processed. */
+  drivers: z.array(z.string().min(1)).optional(),
 })
 
 /**
@@ -56,12 +58,14 @@ export async function POST(request: Request) {
   // Vercel kills the invocation.
   const result = await generateInsights(db, parsed.analysisId, {
     budgetMs: (maxDuration - 60) * 1000,
+    onlyDrivers: parsed.drivers,
   })
 
-  // Continuation: still work to do -> hand it to a fresh invocation.
+  // Continuation: still work to do -> hand it to a fresh invocation (with the
+  // same drivers filter, so a targeted run stays targeted across hops).
   let continuation: { dispatched: boolean; error?: string } | null = null
   if (result.next) {
-    continuation = await dispatchInsightsJob(resolveBaseUrl(request), parsed.analysisId)
+    continuation = await dispatchInsightsJob(resolveBaseUrl(request), parsed.analysisId, parsed.drivers)
     if (!continuation.dispatched) {
       // A broken chain must be visible, not a silently stuck 'running'.
       await db

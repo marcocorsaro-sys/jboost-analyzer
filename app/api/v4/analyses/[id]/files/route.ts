@@ -11,6 +11,7 @@ import {
   type AttachmentKind,
   type SetupAttachment,
 } from '@/lib/v4/setup'
+import { parseBacklinksBuffer, BACKLINK_EXPECTED_COLUMNS } from '@/lib/v4/backlinks'
 
 /**
  * Setup uploads (UX-UI Bibbia 04 fields #15, #20, #23): Screaming Frog crawl
@@ -149,9 +150,36 @@ export async function POST(
   }
   if (buffer.length > MAX_BYTES) {
     return NextResponse.json(
-      { error: `file too large (${buffer.length} bytes, max ${MAX_BYTES})` },
+      {
+        error:
+          `file troppo grande (${(buffer.length / (1024 * 1024)).toFixed(1)} MB, ` +
+          `massimo ${MAX_BYTES / (1024 * 1024)} MB)`,
+      },
       { status: 400 },
     )
+  }
+
+  // Review item 5: the Ahrefs backlink export is parsed AT UPLOAD, with an
+  // explicit error (expected columns + size limit) when it does not parse —
+  // a standard Ahrefs .csv/.xlsx export must never fail here again. The
+  // parsed data (columns, row count, raw sample) is saved on the attachment
+  // and reaches the Authority driver config via driverConfigFromSetup;
+  // the qualitative use of these rows in the analysis comes downstream.
+  let parsed: SetupAttachment['parsed'] = null
+  if (kind === 'authority_backlinks') {
+    const result = parseBacklinksBuffer(buffer)
+    if (!result.ok) {
+      return NextResponse.json(
+        {
+          error:
+            `export backlink non valido: ${result.error}. ` +
+            `Requisiti: file .csv o .xlsx esportato da Ahrefs, colonne principali ${BACKLINK_EXPECTED_COLUMNS}, ` +
+            `dimensione massima ${MAX_BYTES / (1024 * 1024)} MB.`,
+        },
+        { status: 400 },
+      )
+    }
+    parsed = result.parsed
   }
 
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, '_')
@@ -175,6 +203,7 @@ export async function POST(
     path,
     size: buffer.length,
     uploaded_at: new Date().toISOString(),
+    ...(parsed ? { parsed } : {}),
   }
   const next = [...kept, attachment]
 

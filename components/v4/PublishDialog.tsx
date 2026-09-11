@@ -15,9 +15,9 @@
 import { useMemo, useState } from 'react'
 import { useLocale } from '@/lib/i18n'
 import { getV4Driver } from '@/lib/scoring/registry'
-import { selectRerunDrivers } from '@/lib/v4/publish'
+import { selectRerunDrivers, selectEditedInsightDrivers } from '@/lib/v4/publish'
 import type { EditsResponse } from './results-shared'
-import { card, sectionTitle, mutedLabel, pill, primaryButton, ghostButton } from './results-shared'
+import { card, sectionTitle, mutedLabel, pill, primaryButton, ghostButton, fill } from './results-shared'
 import { B } from '@/lib/brand'
 
 interface PublishDialogProps {
@@ -30,6 +30,7 @@ interface PublishDialogProps {
 export default function PublishDialog({ analysisId, editsInfo, onClose, onPublished }: PublishDialogProps) {
   const { t } = useLocale()
   const [rerun, setRerun] = useState(true)
+  const [regenInsights, setRegenInsights] = useState(true)
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -43,6 +44,31 @@ export default function PublishDialog({ analysisId, editsInfo, onClose, onPublis
         drafts.map((e) => ({ driver_run_id: e.driver_run_id, field: e.field, published: e.published })),
       ),
     [editsInfo.runs, drafts],
+  )
+
+  // Review item 3/13: drivers touched by the human review (edited flag or
+  // draft comment/score edits) whose insight can be regenerated right now.
+  // A driver being re-MEASURED in this same publish is excluded: its insight
+  // regenerates once the new measurement is done, not against stale data.
+  const editedInsightDrivers = useMemo(
+    () =>
+      selectEditedInsightDrivers(
+        editsInfo.runs,
+        drafts.map((e) => ({ driver_run_id: e.driver_run_id, field: e.field, published: e.published })),
+      ),
+    [editsInfo.runs, drafts],
+  )
+  const rerunKeySet = useMemo(
+    () => new Set(selection.rerun.map((r) => r.driver_key)),
+    [selection.rerun],
+  )
+  const regenList = useMemo(
+    () => (rerun ? editedInsightDrivers.filter((k) => !rerunKeySet.has(k)) : editedInsightDrivers),
+    [rerun, editedInsightDrivers, rerunKeySet],
+  )
+  const regenExcluded = useMemo(
+    () => (rerun ? editedInsightDrivers.filter((k) => rerunKeySet.has(k)) : []),
+    [rerun, editedInsightDrivers, rerunKeySet],
   )
 
   const label = (key: string) => getV4Driver(key)?.label ?? key
@@ -63,10 +89,31 @@ export default function PublishDialog({ analysisId, editsInfo, onClose, onPublis
         return
       }
       const rerunKeys: string[] = body.rerun?.drivers ?? []
-      setResult(
+      let message =
         `${body.editsPublished} ${t('v4res.pub_done')}` +
-          (rerunKeys.length > 0 ? ` ${t('v4res.pub_rerun_started')} ${rerunKeys.map(label).join(', ')}.` : ''),
-      )
+        (rerunKeys.length > 0 ? ` ${t('v4res.pub_rerun_started')} ${rerunKeys.map(label).join(', ')}.` : '')
+
+      // Targeted insight regeneration of the edited drivers (review 3/13):
+      // fired AFTER the publish, only for drivers not being re-measured now.
+      if (regenInsights && regenList.length > 0) {
+        try {
+          const regenRes = await fetch(`/api/v4/analyses/${analysisId}/insights`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ drivers: regenList }),
+          })
+          const regenBody = await regenRes.json()
+          message += regenRes.ok
+            ? ` ${t('v4res.pub_regen_started')} ${regenList.map(label).join(', ')}.`
+            : ` ${t('v4res.pub_regen_failed')}: ${regenBody.error ?? regenRes.status}`
+        } catch (regenErr) {
+          message += ` ${t('v4res.pub_regen_failed')}: ${
+            regenErr instanceof Error ? regenErr.message : 'network error'
+          }`
+        }
+      }
+
+      setResult(message)
       onPublished()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'network error')
@@ -141,10 +188,42 @@ export default function PublishDialog({ analysisId, editsInfo, onClose, onPublis
               </div>
             </div>
 
-            <label style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '16px', cursor: 'pointer' }}>
+            <label style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px', cursor: 'pointer' }}>
               <input type="checkbox" checked={rerun} onChange={(e) => setRerun(e.target.checked)} />
               <span style={{ fontSize: '15px', color: B.ink }}>{t('v4res.pub_rerun_toggle')}</span>
             </label>
+
+            {/* Review 3/13: propose the targeted insight regeneration of the
+                drivers the human review touched. No forced full re-run. */}
+            {editedInsightDrivers.length > 0 && (
+              <div style={{ marginBottom: '16px' }}>
+                <label
+                  style={{
+                    display: 'flex',
+                    gap: '10px',
+                    alignItems: 'center',
+                    cursor: regenList.length > 0 ? 'pointer' : 'default',
+                    opacity: regenList.length > 0 ? 1 : 0.6,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={regenInsights && regenList.length > 0}
+                    disabled={regenList.length === 0}
+                    onChange={(e) => setRegenInsights(e.target.checked)}
+                  />
+                  <span style={{ fontSize: '15px', color: B.ink }}>
+                    {fill(t('v4res.pub_regen_toggle'), { n: regenList.length })}
+                    {regenList.length > 0 ? `: ${regenList.map(label).join(', ')}` : ''}
+                  </span>
+                </label>
+                {regenExcluded.length > 0 && (
+                  <div style={{ marginTop: '6px', fontSize: '14px', color: B.muted }}>
+                    {t('v4res.pub_regen_excluded')} {regenExcluded.map(label).join(', ')}
+                  </div>
+                )}
+              </div>
+            )}
           </>
         )}
 

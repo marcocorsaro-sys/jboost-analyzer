@@ -184,3 +184,61 @@ test('publish: no drafts means nothing re-runs', () => {
   const runs = [run({ id: 'r1' })]
   assert.deepEqual(selectRerunDrivers(runs, []).rerun, [])
 })
+
+// ---------------------------------------------------------------------------
+// Save & Publish — edited-driver insight regeneration selection (review 3/13)
+// ---------------------------------------------------------------------------
+
+import { selectEditedInsightDrivers, type EditedRunSlice } from './publish'
+
+const erun = (over: Partial<EditedRunSlice>): EditedRunSlice => ({
+  id: 'r-authority',
+  driver_key: 'authority',
+  enabled: true,
+  status: 'done',
+  edited: false,
+  ...over,
+})
+
+test('edited insights: the edited flag alone selects a done driver', () => {
+  const runs = [erun({ id: 'r1', driver_key: 'authority', edited: true })]
+  assert.deepEqual(selectEditedInsightDrivers(runs, []), ['authority'])
+})
+
+test('edited insights: a draft comment/score edit selects the driver, deduped with the flag', () => {
+  const runs = [
+    erun({ id: 'r1', driver_key: 'authority', edited: true }),
+    erun({ id: 'r2', driver_key: 'speed' }),
+  ]
+  const edits = [
+    { driver_run_id: 'r1', field: 'comment_relative', published: false },
+    { driver_run_id: 'r2', field: 'score_relative', published: false },
+    { driver_run_id: 'r2', field: 'comment_relative', published: false },
+  ]
+  const out = selectEditedInsightDrivers(runs, edits)
+  assert.deepEqual(out.sort(), ['authority', 'speed'])
+})
+
+test('edited insights: published edits are history, they select nothing', () => {
+  const runs = [erun({ id: 'r1' })]
+  const edits = [{ driver_run_id: 'r1', field: 'score_relative', published: true }]
+  assert.deepEqual(selectEditedInsightDrivers(runs, edits), [])
+})
+
+test('edited insights: disabled, non-done and out-of-sequence drivers are excluded', () => {
+  const runs = [
+    erun({ id: 'r1', driver_key: 'authority', edited: true, enabled: false }),
+    erun({ id: 'r2', driver_key: 'speed', edited: true, status: 'error' }),
+    erun({ id: 'r3', driver_key: 'ai_visibility', edited: true }), // llmSequence null
+    erun({ id: 'r4', driver_key: 'compliance', edited: true }),
+  ]
+  assert.deepEqual(selectEditedInsightDrivers(runs, []), ['compliance'])
+})
+
+test('edited insights: Business-first UI order, like the tabs and the re-run batch', () => {
+  const runs = [
+    erun({ id: 'r1', driver_key: 'authority', edited: true }),
+    erun({ id: 'r2', driver_key: 'discoverability', edited: true }),
+  ]
+  assert.deepEqual(selectEditedInsightDrivers(runs, []), ['discoverability', 'authority'])
+})

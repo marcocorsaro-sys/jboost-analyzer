@@ -283,6 +283,19 @@ export function blocklistClause(blocklist: string[] | null | undefined): string 
   )
 }
 
+/**
+ * Global project notes (analyses.v4_setup.global_notes): free-form notes the
+ * analyst keeps on the results page. When present they are appended to EVERY
+ * insight user prompt (drivers and Executive Summary alike) as an explicit
+ * `global_notes` field, so the model reads them as project-wide context.
+ * Empty/blank notes add nothing: the prompt stays byte-identical.
+ */
+export function globalNotesClause(notes: string | null | undefined): string {
+  const text = notes?.trim()
+  if (!text) return ''
+  return `\n\nglobal_notes (cross-project notes from the analyst, extra context for this analysis):\n${text}`
+}
+
 export function systemPromptFor(
   family: 'business' | 'development',
   outputLanguage: string,

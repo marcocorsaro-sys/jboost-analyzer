@@ -37,9 +37,11 @@ import {
   SITE_TYPE_LABELS,
   TEMPLATE_KEYS,
   TEMPLATE_LABELS,
+  changedDriverConfigs,
   isHttpUrl,
   withMandatoryDrivers,
   type AttachmentKind,
+  type DriverSetupSnapshot,
   type IndustryPreset,
   type SetupAttachment,
 } from '@/lib/v4/setup'
@@ -122,6 +124,8 @@ interface CompetitorRow {
 /** The saved draft, reshaped for the wizard (built server-side on ?resume). */
 export interface WizardInitial {
   analysisId: string
+  /** True when the run already started: edit-post-lancio mode (review 6). */
+  launched: boolean
   clientDomain: string
   clientBrand: string
   brandVariants: string
@@ -282,6 +286,23 @@ export default function SetupWizard({
   const [launching, setLaunching] = useState(false)
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [errors, setErrors] = useState<string[]>([])
+
+  // ---- edit-post-lancio (review 6) ----
+  const launched = d?.launched === true
+  // The snapshot the diff compares against: what was loaded from the server.
+  const baselineSnapshot = useRef<DriverSetupSnapshot>({
+    jhorizonAnswer: d?.jhorizonAnswer ?? '',
+    thematicClusters: d?.thematicClusters ?? [],
+    driverTemplates: d?.driverTemplates ?? {},
+    templates: d?.templates ?? {},
+    attachments: (d?.attachments ?? []).map((a) => ({ kind: a.kind, path: a.path })),
+  })
+  const baselineDrivers = useRef<string[]>(d?.enabledDrivers ?? [])
+  const [postSaveOpen, setPostSaveOpen] = useState(false)
+  const [relaunchSel, setRelaunchSel] = useState<Record<string, boolean>>({})
+  const [relaunching, setRelaunching] = useState(false)
+  const [relaunchNote, setRelaunchNote] = useState<string | null>(null)
+  const [relaunchDone, setRelaunchDone] = useState(false)
 
   // ---- STEP 1 · Project data ----
   const [clientDomain, setClientDomain] = useState(d?.clientDomain ?? '')
@@ -467,6 +488,87 @@ export default function SetupWizard({
     } finally {
       setLaunching(false)
     }
+  }
+
+  // ---- edit-post-lancio: save without measuring, then offer the relaunch ----
+
+  const currentSnapshot = (): DriverSetupSnapshot => ({
+    jhorizonAnswer,
+    thematicClusters: clusters,
+    driverTemplates,
+    templates,
+    attachments: attachments.map((a) => ({ kind: a.kind, path: a.path })),
+  })
+
+  const saveChanges = async () => {
+    setLaunching(true)
+    setErrors([])
+    setRelaunchNote(null)
+    try {
+      const id = await persist('launch')
+      if (!id) return
+      // Preselect the drivers whose config changed (simple, honest diff) plus
+      // the ones enabled only now (their run row was just seeded 'queued').
+      const changed = changedDriverConfigs(baselineSnapshot.current, currentSnapshot())
+      const newlyEnabled = selectedDrivers.filter((k) => !baselineDrivers.current.includes(k))
+      const pre = new Set([...changed, ...newlyEnabled])
+      setRelaunchSel(Object.fromEntries(selectedDrivers.map((k) => [k, pre.has(k)])))
+      setPostSaveOpen(true)
+      setRelaunchDone(false)
+      setSavedAt(new Date().toLocaleTimeString())
+      // The saved state becomes the new baseline for further edits.
+      baselineSnapshot.current = currentSnapshot()
+      baselineDrivers.current = [...selectedDrivers]
+    } catch (err) {
+      setErrors([err instanceof Error ? err.message : t('v4setup.err_network')])
+    } finally {
+      setLaunching(false)
+    }
+  }
+
+  /** One retry call per selected driver ({driver, force:true}): the existing
+   *  single-driver relaunch route, untouched runner logic. */
+  const relaunchSelected = async () => {
+    if (!analysisId) return
+    const keys = selectedDrivers.filter((k) => relaunchSel[k])
+    if (keys.length === 0) {
+      setRelaunchNote(t('v4setup.relaunch_none'))
+      return
+    }
+    setRelaunching(true)
+    setRelaunchNote(null)
+    const ok: string[] = []
+    const failed: string[] = []
+    for (const key of keys) {
+      try {
+        const res = await fetch(`/api/v4/analyses/${analysisId}/retry`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ driver: key, force: true }),
+        })
+        const body = await res.json()
+        if (res.ok || res.status === 207) {
+          ok.push(key)
+          if (Array.isArray(body.dispatchErrors) && body.dispatchErrors.length > 0) {
+            failed.push(`${key}: ${body.dispatchErrors.join(' | ')}`)
+          }
+        } else {
+          failed.push(`${key}: ${body.error ?? res.status}`)
+        }
+      } catch (err) {
+        failed.push(`${key}: ${err instanceof Error ? err.message : t('v4setup.err_network')}`)
+      }
+    }
+    setRelaunching(false)
+    setRelaunchDone(ok.length > 0)
+    setRelaunchNote(
+      [
+        ok.length > 0 ? `${t('v4setup.relaunch_done')} ${ok.join(', ')}.` : null,
+        failed.length > 0 ? `${t('v4setup.relaunch_failed')}: ${failed.join('; ')}` : null,
+      ]
+        .filter(Boolean)
+        .join(' '),
+    )
   }
 
   // ---------------------------------------------------------------------
@@ -686,38 +788,58 @@ export default function SetupWizard({
       {attachmentsOf(kind).map((a) => (
         <div key={a.path} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
           <span style={chipStyle}>{a.name}</span>
-          <button
-            type="button"
-            onClick={() => removeFile(a.path)}
-            style={{ ...ghostButton, padding: '2px 10px', fontSize: '14px' }}
-          >
-            {t('v4setup.remove')}
-          </button>
+          {typeof a.parsed?.row_count === 'number' && (
+            <span style={{ fontSize: '14px', color: B.muted }}>
+              {a.parsed.row_count} {t('v4setup.parsed_rows')}
+            </span>
+          )}
+          {!launched && (
+            <button
+              type="button"
+              onClick={() => removeFile(a.path)}
+              style={{ ...ghostButton, padding: '2px 10px', fontSize: '14px' }}
+            >
+              {t('v4setup.remove')}
+            </button>
+          )}
         </div>
       ))}
-      <input
-        type="file"
-        accept={accept}
-        disabled={uploading !== null}
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          if (file) void uploadFile(kind, file)
-          e.target.value = ''
-        }}
-        style={{ fontSize: '15px', color: B.muted }}
-      />
-      <div style={smallHint}>
-        {uploading === kind ? t('v4setup.uploading') : hint} {t('v4setup.upload_parse_note')}
-      </div>
+      {launched ? (
+        // The files route only accepts uploads on a not-yet-started setup;
+        // saying so here beats a server error after the pick.
+        <div style={smallHint}>{t('v4setup.uploads_locked')}</div>
+      ) : (
+        <>
+          <input
+            type="file"
+            accept={accept}
+            disabled={uploading !== null}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) void uploadFile(kind, file)
+              e.target.value = ''
+            }}
+            style={{ fontSize: '15px', color: B.muted }}
+          />
+          <div style={smallHint}>
+            {uploading === kind ? t('v4setup.uploading') : hint} {t('v4setup.upload_parse_note')}
+          </div>
+        </>
+      )}
     </div>
   )
 
   const templateSelector = (driverKey: string, withImport: boolean) => {
     const selected = driverTemplates[driverKey] ?? []
+    const driverLabel = drivers.find((x) => x.key === driverKey)?.label ?? driverKey
     return (
       <div style={{ marginTop: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-          <label style={{ ...labelStyle, marginBottom: 0 }}>{t('v4setup.templates_label')}</label>
+        {/* Titolo esplicito della sezione (setup review: il KO sui template
+            Speed era "not immediately clear"). */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' }}>
+          <label style={{ ...labelStyle, marginBottom: 0 }}>
+            {t('v4setup.templates_label')} · {driverLabel}
+          </label>
           {withImport && (
             <button
               type="button"
@@ -735,6 +857,9 @@ export default function SetupWizard({
             </button>
           )}
         </div>
+        {/* Come funziona, detto prima dei checkbox: flag → 1 URL di esempio
+            per template, URL condivise tra i quattro driver di pagina. */}
+        <div style={{ ...smallHint, marginTop: 0, marginBottom: '8px' }}>{t('v4setup.templates_explain')}</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
           {TEMPLATE_KEYS.map((key) => (
             <label
@@ -778,6 +903,11 @@ export default function SetupWizard({
               </div>
             ))}
             <div style={smallHint}>{t('v4setup.template_urls_shared')}</div>
+          </div>
+        )}
+        {selected.length === 0 && (
+          <div style={{ fontSize: '14px', color: B.warning, marginTop: '8px' }}>
+            {t('v4setup.templates_none')}
           </div>
         )}
       </div>
@@ -1325,8 +1455,8 @@ export default function SetupWizard({
 
   const step5 = (
     <section style={sectionStyle}>
-      <h2 style={sectionTitleStyle}>5 · {t('v4setup.step5')}</h2>
-      <p style={hintStyle}>{t('v4setup.step5_hint')}</p>
+      <h2 style={sectionTitleStyle}>5 · {t(launched ? 'v4setup.edit_title' : 'v4setup.step5')}</h2>
+      <p style={hintStyle}>{t(launched ? 'v4setup.edit_hint' : 'v4setup.step5_hint')}</p>
 
       <div style={{ fontSize: '15px', color: B.ink, lineHeight: 2 }}>
         <div>
@@ -1374,13 +1504,15 @@ export default function SetupWizard({
         </div>
       )}
 
-      <div style={{ marginTop: '20px', fontSize: '14px', color: B.muted }}>
-        {t('v4setup.launch_note')}
-      </div>
+      {!launched && (
+        <div style={{ marginTop: '20px', fontSize: '14px', color: B.muted }}>
+          {t('v4setup.launch_note')}
+        </div>
+      )}
 
       <button
         type="button"
-        onClick={launch}
+        onClick={launched ? saveChanges : launch}
         disabled={!canLaunch}
         style={{
           marginTop: '20px',
@@ -1395,8 +1527,79 @@ export default function SetupWizard({
           transition: B.transition,
         }}
       >
-        {launching ? t('v4setup.launching') : t('v4setup.launch_cta')}
+        {launching
+          ? t(launched ? 'v4setup.saving_changes' : 'v4setup.launching')
+          : t(launched ? 'v4setup.save_changes' : 'v4setup.launch_cta')}
       </button>
+
+      {/* Edit-post-lancio (review 6): dopo il salvataggio, il passo "quali
+          driver rilanciare col nuovo setup" — checkbox preselezionati sui
+          driver il cui config è cambiato, rilancio via retry {force:true}. */}
+      {launched && postSaveOpen && (
+        <div
+          style={{
+            marginTop: '20px',
+            padding: '16px 20px',
+            background: B.primarySoft,
+            border: `1px solid ${B.primary}33`,
+            borderRadius: '10px',
+          }}
+        >
+          <div style={{ fontSize: '16px', fontWeight: 700, color: B.ink, marginBottom: '4px' }}>
+            {t('v4setup.relaunch_title')}
+          </div>
+          <div style={{ ...smallHint, marginTop: 0, marginBottom: '10px' }}>{t('v4setup.relaunch_hint')}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
+            {drivers
+              .filter((dr) => selectedDrivers.includes(dr.key))
+              .map((dr) => (
+                <label
+                  key={dr.key}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px', color: B.ink, cursor: 'pointer' }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={relaunchSel[dr.key] ?? false}
+                    onChange={(e) => setRelaunchSel((prev) => ({ ...prev, [dr.key]: e.target.checked }))}
+                  />
+                  {dr.label}
+                </label>
+              ))}
+          </div>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => void relaunchSelected()}
+              disabled={relaunching}
+              style={{
+                padding: '12px 20px',
+                background: relaunching ? B.surface2 : B.primary,
+                color: relaunching ? B.muted : B.onPrimary,
+                border: 'none',
+                borderRadius: B.radius.control,
+                fontSize: '15px',
+                fontWeight: 650,
+                cursor: relaunching ? 'default' : 'pointer',
+                transition: B.transition,
+              }}
+            >
+              {relaunching ? t('v4setup.relaunching') : t('v4setup.relaunch_cta')}
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push(`/results/v4/${analysisId}`)}
+              style={ghostButton}
+            >
+              {t('v4setup.go_results')} →
+            </button>
+          </div>
+          {relaunchNote && (
+            <div style={{ marginTop: '10px', fontSize: '14px', color: relaunchDone ? B.primary : B.warning }}>
+              {relaunchNote}
+            </div>
+          )}
+        </div>
+      )}
     </section>
   )
 
@@ -1491,22 +1694,26 @@ export default function SetupWizard({
         <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
           {savedAt && (
             <span style={{ fontSize: '14px', color: B.muted }}>
-              {t('v4setup.draft_saved')} {savedAt}
+              {t(launched ? 'v4setup.changes_saved_at' : 'v4setup.draft_saved')} {savedAt}
             </span>
           )}
-          <button
-            type="button"
-            onClick={() => void saveDraft()}
-            disabled={!canSaveDraft}
-            style={{
-              ...ghostButton,
-              opacity: canSaveDraft ? 1 : 0.5,
-              cursor: canSaveDraft ? 'pointer' : 'default',
-            }}
-            title={canSaveDraft ? '' : t('v4setup.draft_needs_domain')}
-          >
-            {saving ? t('v4setup.saving') : t('v4setup.save_draft')}
-          </button>
+          {/* Post-lancio non esistono bozze: si salva solo il setup completo
+              dallo STEP 5 (il server rifiuta un draft su analisi lanciata). */}
+          {!launched && (
+            <button
+              type="button"
+              onClick={() => void saveDraft()}
+              disabled={!canSaveDraft}
+              style={{
+                ...ghostButton,
+                opacity: canSaveDraft ? 1 : 0.5,
+                cursor: canSaveDraft ? 'pointer' : 'default',
+              }}
+              title={canSaveDraft ? '' : t('v4setup.draft_needs_domain')}
+            >
+              {saving ? t('v4setup.saving') : t('v4setup.save_draft')}
+            </button>
+          )}
         </span>
       </div>
     </div>

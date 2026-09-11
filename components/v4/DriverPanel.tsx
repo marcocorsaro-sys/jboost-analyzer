@@ -59,6 +59,8 @@ interface DriverPanelProps {
   insight: InsightRecord | null
   insightsRunning: boolean
   onGenerateInsights: () => void
+  /** Targeted generation (review 3/13): insight of THIS driver only. */
+  onGenerateDriverInsight: () => void
   onChanged: () => void
 }
 
@@ -70,6 +72,7 @@ export default function DriverPanel({
   insight,
   insightsRunning,
   onGenerateInsights,
+  onGenerateDriverInsight,
   onChanged,
 }: DriverPanelProps) {
   const { t } = useLocale()
@@ -150,8 +153,15 @@ export default function DriverPanel({
               </button>
             )}
             {row.status === 'done' && (
-              <button type="button" onClick={() => setEditing(!editing)} style={ghostButton}>
-                {editing ? t('v4res.close') : t('v4res.edit_button')}
+              // Review item 11 (CRITICAL): the edit affordance must be
+              // explicit, a labelled button in primary color, never only an
+              // icon. It opens the existing DriverEditor unchanged.
+              <button
+                type="button"
+                onClick={() => setEditing(!editing)}
+                style={{ ...ghostButton, borderColor: `${B.primary}55`, color: B.primary, fontWeight: 650 }}
+              >
+                {editing ? t('v4res.close') : `✎ ${t('v4res.edit_button')}`}
               </button>
             )}
           </span>
@@ -263,7 +273,9 @@ export default function DriverPanel({
               <div key={a.path ?? a.name} style={{ fontSize: '15px', color: B.ink, lineHeight: 1.7 }}>
                 {a.name}
                 <span style={{ color: B.muted, marginLeft: '8px', fontSize: '14px' }}>
-                  {t('v4res.attachment_pending')}
+                  {typeof a.parsed?.row_count === 'number'
+                    ? fill(t('v4res.attachment_parsed'), { n: a.parsed.row_count })
+                    : t('v4res.attachment_pending')}
                 </span>
               </div>
             ))}
@@ -304,6 +316,7 @@ export default function DriverPanel({
           effectiveView={effectiveView}
           insightsRunning={insightsRunning}
           onGenerateInsights={onGenerateInsights}
+          onGenerateDriverInsight={onGenerateDriverInsight}
         />
       </div>
 
@@ -541,6 +554,7 @@ function SummaryBody({
   effectiveView,
   insightsRunning,
   onGenerateInsights,
+  onGenerateDriverInsight,
 }: {
   row: DriverRow
   output: Record<string, unknown> | null
@@ -548,6 +562,7 @@ function SummaryBody({
   effectiveView: ScoreView
   insightsRunning: boolean
   onGenerateInsights: () => void
+  onGenerateDriverInsight: () => void
 }) {
   const { t } = useLocale()
 
@@ -573,10 +588,30 @@ function SummaryBody({
       )
     : []
 
+  // Ghost CTA, review 3/13: generate (or regenerate) the insight of THIS
+  // driver only, near the existing insight or in its place when absent.
+  const driverInsightButton = row.status === 'done' && (
+    <button
+      type="button"
+      onClick={onGenerateDriverInsight}
+      disabled={insightsRunning}
+      style={{ ...ghostButton, alignSelf: 'flex-start', opacity: insightsRunning ? 0.6 : 1 }}
+    >
+      {insightsRunning
+        ? t('v4res.gen_insights_running')
+        : output
+          ? t('v4res.regen_driver_insight')
+          : t('v4res.gen_driver_insight')}
+    </button>
+  )
+
   if (insight?.status === 'error') {
     return (
-      <div style={{ fontSize: '15px', color: B.error, lineHeight: 1.5 }}>
-        {t('v4res.insights_error')}: {insight.error}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div style={{ fontSize: '15px', color: B.error, lineHeight: 1.5 }}>
+          {t('v4res.insights_error')}: {insight.error}
+        </div>
+        {driverInsightButton}
       </div>
     )
   }
@@ -593,16 +628,19 @@ function SummaryBody({
           {x}
         </div>
       ))}
-      {!output && row.status === 'done' && (
-        <button
-          type="button"
-          onClick={onGenerateInsights}
-          disabled={insightsRunning}
-          style={{ ...primaryButton(!insightsRunning), alignSelf: 'flex-start' }}
-        >
-          {insightsRunning ? t('v4res.gen_insights_running') : t('v4res.gen_insights')}
-        </button>
-      )}
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+        {!output && row.status === 'done' && (
+          <button
+            type="button"
+            onClick={onGenerateInsights}
+            disabled={insightsRunning}
+            style={primaryButton(!insightsRunning)}
+          >
+            {insightsRunning ? t('v4res.gen_insights_running') : t('v4res.gen_insights')}
+          </button>
+        )}
+        {driverInsightButton}
+      </div>
     </div>
   )
 }

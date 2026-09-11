@@ -651,3 +651,73 @@ test('engine: real Anthropic wire format — no temperature for sonnet-5, 0.4 fo
   assert.equal(bodies[1].max_tokens, 4000)
   assert.ok(typeof bodies[0].system === 'string' && (bodies[0].system as string).length > 0)
 })
+
+test('engine: global project notes (review 12) reach EVERY insight user prompt', async () => {
+  const state = makeState([irun('awareness'), irun('authority')], {
+    v4_setup: { global_notes: 'Il cliente sta migrando a Shopify nel Q4.' },
+  })
+  const stub = modelStub([
+    JSON.stringify(bizOutput()),
+    JSON.stringify(devOutput()),
+    JSON.stringify({ headline_dominante: 'ok', scorecard_overview: 'ok', correlazioni_chiave: [], priorita_strategiche: [], alert_critici: [] }),
+  ])
+
+  const result = await generateInsights(fakeDb(state), 'analysis-1', {
+    callModel: stub.fn,
+    spendStatus: spendOk,
+  })
+  assert.equal(result.status, 'done')
+  assert.equal(stub.calls.length, 3) // 2 drivers + summary
+  for (const call of stub.calls) {
+    assert.match(call.prompt, /global_notes/)
+    assert.match(call.prompt, /migrando a Shopify nel Q4/)
+  }
+})
+
+test('engine: without global notes the prompts carry no global_notes clause', async () => {
+  const state = makeState([irun('authority')], {
+    v4_setup: { global_notes: '   ' },
+    v4_executive_summary: { status: 'done', output: {}, model: 'x', generated_at: 'y', attempts: 1 },
+  })
+  const stub = modelStub([JSON.stringify(devOutput())])
+  await generateInsights(fakeDb(state), 'analysis-1', { callModel: stub.fn, spendStatus: spendOk })
+  assert.doesNotMatch(stub.calls[0].prompt, /global_notes/)
+})
+
+test('engine: onlyDrivers (review 3/13) generates just the requested driver, no summary spend', async () => {
+  const stored: LlmInsightRecord = {
+    status: 'done',
+    output: bizOutput({
+      insights: [{ titolo: 'Titolo discoverability persistito', spiegazione: 'Da prima.', rilevanza_strategica: 'alta' }],
+    }),
+    model: 'claude-sonnet-5',
+    generated_at: '2026-08-11T00:00:00.000Z',
+    attempts: 1,
+  }
+  const state = makeState([
+    irun('awareness'), // done, NO insight — must stay untouched in targeted mode
+    irun('discoverability', { llm_insight: stored }),
+    irun('authority'), // the target (its llm_insight was cleared by the route)
+  ])
+  const stub = modelStub([JSON.stringify(devOutput())])
+
+  const result = await generateInsights(fakeDb(state), 'analysis-1', {
+    callModel: stub.fn,
+    spendStatus: spendOk,
+    onlyDrivers: ['authority'],
+  })
+
+  assert.equal(result.status, 'done')
+  assert.deepEqual(result.processed, ['authority'])
+  // Exactly ONE model call: no awareness, no Executive Summary.
+  assert.equal(stub.calls.length, 1)
+  assert.equal(stub.calls[0].what, 'V4 insight Authority')
+  // The other drivers' stored insights still feed the cumulative context.
+  assert.match(stub.calls[0].prompt, /Titolo discoverability persistito/)
+  // Awareness (no insight yet) was NOT generated and NOT marked skipped.
+  assert.equal(state.runs[0].llm_insight, null)
+  // No summary was written; the terminal status is still 'done'.
+  assert.equal(state.analysis.v4_executive_summary, null)
+  assert.equal(state.analysis.v4_insights_status, 'done')
+  assert.equal(result.summaryDone, false)
+})

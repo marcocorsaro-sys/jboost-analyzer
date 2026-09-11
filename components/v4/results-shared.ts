@@ -64,7 +64,7 @@ export interface EditsResponse {
   edits: EditRow[]
   drafts: number
   lastPublishedAt: string | null
-  runs: Array<{ id: string; driver_key: string; enabled: boolean; status: string }>
+  runs: Array<{ id: string; driver_key: string; enabled: boolean; status: string; edited?: boolean }>
 }
 
 // Executive Summary output (sheet 16 C schema, as prompted).
