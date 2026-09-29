@@ -57,6 +57,23 @@ export default async function ClientsPage() {
     }
   }
 
+  // Sprint 1 item 4c: analyses run on the client's SAME DOMAIN but never
+  // linked (client_id null) are counted as "da associare" — the audit exists,
+  // it just was not tied to the client row. One extra query, grouped here.
+  const domains = [...new Set(clientList.map(c => c.domain).filter((d): d is string => !!d))]
+  const unlinkedByDomain = new Map<string, number>()
+  if (domains.length > 0) {
+    const { data: unlinked } = await supabase
+      .from('analyses')
+      .select('id, domain')
+      .is('client_id', null)
+      .in('domain', domains)
+    for (const a of unlinked ?? []) {
+      if (!a.domain) continue
+      unlinkedByDomain.set(a.domain, (unlinkedByDomain.get(a.domain) ?? 0) + 1)
+    }
+  }
+
   const enriched: ClientData[] = clientList.map(c => {
     const stats = statsByClient.get(c.id)
     return {
@@ -67,6 +84,7 @@ export default async function ClientsPage() {
       status: (c.status as 'active' | 'archived') ?? 'active',
       lifecycle_stage: c.lifecycle_stage,
       analyses_count: stats?.count ?? 0,
+      unlinked_count: c.domain ? (unlinkedByDomain.get(c.domain) ?? 0) : 0,
       latest_score: stats?.latest_score ?? null,
       previous_score: stats?.previous_score ?? null,
       latest_analysis_at: stats?.latest_analysis_at ?? null,

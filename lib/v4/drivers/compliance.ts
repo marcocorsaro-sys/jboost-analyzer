@@ -82,14 +82,92 @@ export function computeCompliance(
   return { siteHealth, topIssues }
 }
 
+/**
+ * Manual Semrush export uploads bound to this run (Sprint 1 item 4b).
+ *
+ * The files route parses the export at upload (lib/v4/semrush-export.ts) and
+ * records the result on the attachment ({kind: 'compliance_semrush',
+ * site_ref, parsed: {site_health, issues, ...}}); driverConfigFromSetup (or
+ * the post-start merge in the files route) carries it into
+ * driver_runs.config.attachments. Pure: config in, per-site map out.
+ */
+export function readManualSemrushUploads(
+  config: Record<string, unknown> | null | undefined,
+): Map<string, { site_health: number; issues: SemrushSiteIssue[]; name: string }> {
+  const out = new Map<string, { site_health: number; issues: SemrushSiteIssue[]; name: string }>()
+  const attachments = Array.isArray((config as { attachments?: unknown })?.attachments)
+    ? ((config as { attachments: unknown[] }).attachments as Array<Record<string, unknown>>)
+    : []
+
+  for (const att of attachments) {
+    if (att?.kind !== 'compliance_semrush') continue
+    const siteRef = typeof att.site_ref === 'string' ? att.site_ref : 'client'
+    const parsed = (att.parsed ?? null) as { site_health?: unknown; issues?: unknown } | null
+    const health = Number(parsed?.site_health)
+    if (!Number.isFinite(health) || health < 0 || health > 100) continue
+    const issues: SemrushSiteIssue[] = Array.isArray(parsed?.issues)
+      ? (parsed!.issues as Array<Record<string, unknown>>).map((i, idx) => ({
+          id: String(i.id ?? idx),
+          title: String(i.title ?? ''),
+          type: (['error', 'warning', 'notice'].includes(String(i.type))
+            ? String(i.type)
+            : 'warning') as SemrushSiteIssue['type'],
+          pages_count: Number(i.pages_count) || 0,
+        }))
+      : []
+    // Later uploads win (the files route replaces per site anyway).
+    out.set(siteRef, {
+      site_health: health,
+      issues,
+      name: typeof att.name === 'string' ? att.name : 'export Semrush',
+    })
+  }
+  return out
+}
+
 export const complianceWorker: DriverWorker = async (ctx) => {
-  const errors: string[] = []
+  /** Per-domain failure reasons, so the client's own error can be told apart. */
+  const errorsByDomain = new Map<string, string>()
+  const manual = readManualSemrushUploads(ctx.config)
 
   const sites = await mapPool(ctx.sites, 2, async (site): Promise<SiteRawValue | null> => {
+    // Manual export (item 4b) beats the API for that site: the analyst
+    // uploaded it exactly because the API has no project for the domain.
+    const upload = manual.get(site.site_ref)
+    if (upload) {
+      try {
+        const computed = computeCompliance(upload.site_health, upload.issues)
+        return {
+          site_ref: site.site_ref,
+          domain: site.domain,
+          raw: computed.siteHealth,
+          score_absolute: Math.round(computed.siteHealth),
+          evidence: {
+            method: 'manual_upload',
+            source_file: upload.name,
+            site_health: computed.siteHealth,
+            top_issues: computed.topIssues,
+            note:
+              'score = Site Health dall’export Semrush caricato manualmente; ' +
+              'issues qualitative, mai nel punteggio',
+          },
+        }
+      } catch (err) {
+        errorsByDomain.set(site.domain, err instanceof Error ? err.message : String(err))
+        return null
+      }
+    }
+
     try {
       assertDeadline(ctx.deadlineAt, `Compliance for ${site.domain}`)
+      // The three Semrush requests share a per-request abort coherent with
+      // the job deadline (Sprint 1 item 1c): never hang past the budget.
+      const timeoutMs = Math.max(
+        5_000,
+        Math.min(60_000, ctx.deadlineAt - Date.now() - 10_000),
+      )
       const health = requireLive(
-        await fetchSiteHealth(site.domain),
+        await fetchSiteHealth(site.domain, { timeoutMs }),
         `Compliance for ${site.domain}`,
       )
       const computed = computeCompliance(health.site_health_score, health.issues)
@@ -99,6 +177,7 @@ export const complianceWorker: DriverWorker = async (ctx) => {
         raw: computed.siteHealth,
         score_absolute: Math.round(computed.siteHealth),
         evidence: {
+          method: 'semrush_api',
           site_health: computed.siteHealth,
           site_health_delta: health.site_health_delta,
           pages_crawled: health.pages_crawled,
@@ -108,22 +187,41 @@ export const complianceWorker: DriverWorker = async (ctx) => {
         },
       }
     } catch (err) {
-      errors.push(err instanceof Error ? err.message : String(err))
+      errorsByDomain.set(site.domain, err instanceof Error ? err.message : String(err))
       return null
     }
   })
 
   const measured = sites.filter((s): s is SiteRawValue => s !== null)
+  const errors = [...errorsByDomain.entries()].map(([domain, msg]) => `${domain}: ${msg}`)
 
-  const clientRef = ctx.sites.find((s) => s.is_client)?.site_ref
+  const clientSite = ctx.sites.find((s) => s.is_client)
+  const clientRef = clientSite?.site_ref
   if (!measured.some((s) => s.site_ref === clientRef)) {
+    // Item 4a: the error names the CLIENT domain and the client's OWN
+    // failure reason — the old message said "for the client site" while
+    // quoting a competitor's error.
+    const clientDomain = clientSite?.domain ?? 'sconosciuto'
+    const clientReason = clientSite ? errorsByDomain.get(clientSite.domain) : undefined
     return {
       status: 'error',
       error:
-        `Compliance could not be measured for the client site. ${errors.join(' | ') || 'no reason reported'}`,
+        `Compliance non misurabile per il sito cliente ${clientDomain}: serve un progetto ` +
+        `Semrush Site Audit per quel dominio (con un crawl completato), oppure carica ` +
+        `l'export Semrush Site Audit del cliente dal setup o dalla tab Compliance. ` +
+        `Dettaglio: ${clientReason ?? 'nessuna risposta dalla fonte'}`,
       rawPayload: { errors },
     }
   }
+
+  // Item 4a: competitors without a Semrush project no longer fail the run.
+  // The partial coverage is DECLARED, in the payload and in the UI.
+  const missing = ctx.sites.filter((s) => !measured.some((m) => m.site_ref === s.site_ref))
+  const partialNote =
+    missing.length > 0
+      ? `misurato ${measured.length} siti su ${ctx.sites.length}; mancano progetti Semrush per: ` +
+        missing.map((s) => s.domain).join(', ')
+      : null
 
   return {
     status: 'done',
@@ -131,11 +229,11 @@ export const complianceWorker: DriverWorker = async (ctx) => {
     rawPayload: {
       source: 'semrush:site-audit',
       note:
-        'Score = Site Health, read from the user-provisioned Semrush project (the app never ' +
-        'starts crawls). Domains without a project are reported as unmeasured, never scored.',
-      unmeasured: ctx.sites
-        .filter((s) => !measured.some((m) => m.site_ref === s.site_ref))
-        .map((s) => s.domain),
+        'Score = Site Health, read from the user-provisioned Semrush project or from a ' +
+        'manually uploaded Site Audit export (the app never starts crawls). Domains without ' +
+        'a project are reported as unmeasured, never scored.',
+      unmeasured: missing.map((s) => s.domain),
+      ...(partialNote ? { partial_note: partialNote } : {}),
       errors,
     },
   }

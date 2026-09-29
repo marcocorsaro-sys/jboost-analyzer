@@ -50,7 +50,9 @@ export function selectStaleRuns(
     if (row.attempts >= row.max_attempts) {
       fail.push({
         row,
-        error: `driver job abandoned after ${row.attempts} attempt(s): worker lease expired at ${new Date(expiresAt).toISOString()}`,
+        error:
+          `il worker si è interrotto senza completare la misura, tentativi esauriti ` +
+          `(${row.attempts} su ${row.max_attempts}; lease scaduto alle ${new Date(expiresAt).toISOString()})`,
       })
     } else {
       requeue.push(row)

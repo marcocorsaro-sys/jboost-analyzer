@@ -26,6 +26,10 @@ import { useLocale } from '@/lib/i18n'
 import type { TranslationKey } from '@/lib/i18n'
 import { driversInUiOrder } from '@/lib/scoring/registry'
 import UrlAutocompleteInput from '@/components/v4/UrlAutocompleteInput'
+// Pure prompt builder shared with the AI Visibility worker (Sprint 1 item
+// 20b: the copy-prompt is visible already in setup, same text as the pause).
+import { buildJhorizonPrompt } from '@/lib/v4/drivers/jhorizon-extract'
+import type { AnalysisSite } from '@/lib/v4/runner/types'
 import type { SitemapUrlEntry } from '@/lib/v4/url-autocomplete'
 import {
   ANALYSIS_COUNTRIES,
@@ -345,6 +349,7 @@ export default function SetupWizard({
   const [showSiteUrls, setShowSiteUrls] = useState(false)
   const [attachments, setAttachments] = useState<SetupAttachment[]>(d?.attachments ?? [])
   const [uploading, setUploading] = useState<AttachmentKind | null>(null)
+  const [jhPromptCopied, setJhPromptCopied] = useState(false)
 
   // ---- STEP 4 · Additional parameters ----
   const [blocklist, setBlocklist] = useState<string[]>(d?.blocklist ?? [])
@@ -575,7 +580,7 @@ export default function SetupWizard({
   // Uploads (references only — parsing is downstream)
   // ---------------------------------------------------------------------
 
-  const uploadFile = async (kind: AttachmentKind, file: File) => {
+  const uploadFile = async (kind: AttachmentKind, file: File, siteRef?: string) => {
     setErrors([])
     setUploading(kind)
     try {
@@ -584,6 +589,7 @@ export default function SetupWizard({
       if (!id) return
       const form = new FormData()
       form.set('kind', kind)
+      if (siteRef) form.set('site_ref', siteRef)
       form.set('file', file)
       const res = await fetch(`/api/v4/analyses/${id}/files`, { method: 'POST', body: form })
       const data = await res.json()
@@ -829,6 +835,66 @@ export default function SetupWizard({
     </div>
   )
 
+  /**
+   * Per-site Semrush Site Audit export (Sprint 1 item 4b): one file per
+   * site, parsed at upload — it becomes the Compliance measurement for that
+   * site when the API has no project for the domain.
+   */
+  const semrushUploadBlock = () => (
+    <div style={{ marginTop: '12px' }}>
+      <label style={labelStyle}>{t('v4setup.semrush_upload_label')}</label>
+      <div style={{ ...smallHint, marginTop: 0, marginBottom: '8px' }}>
+        {t('v4setup.semrush_upload_hint')}
+      </div>
+      {sites.map((site) => {
+        const existing = attachments.find(
+          (a) => a.kind === 'compliance_semrush' && (a.site_ref ?? 'client') === site.site_ref,
+        )
+        return (
+          <div
+            key={site.site_ref}
+            style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '8px' }}
+          >
+            <span style={{ fontSize: '14px', color: B.muted, minWidth: '220px' }}>{site.label}</span>
+            {existing && (
+              <>
+                <span style={chipStyle}>{existing.name}</span>
+                {typeof existing.parsed?.site_health === 'number' && (
+                  <span style={{ fontSize: '14px', color: B.muted }}>
+                    Site Health {existing.parsed.site_health}
+                  </span>
+                )}
+                {!launched && (
+                  <button
+                    type="button"
+                    onClick={() => removeFile(existing.path)}
+                    style={{ ...ghostButton, padding: '2px 10px', fontSize: '14px' }}
+                  >
+                    {t('v4setup.remove')}
+                  </button>
+                )}
+              </>
+            )}
+            <input
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              disabled={uploading !== null}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) void uploadFile('compliance_semrush', file, site.site_ref)
+                e.target.value = ''
+              }}
+              style={{ fontSize: '14px', color: B.muted }}
+            />
+          </div>
+        )
+      })}
+      {sites.length === 0 && (
+        <div style={smallHint}>{t('v4setup.jhorizon_copy_needs_domain')}</div>
+      )}
+    </div>
+  )
+
   const templateSelector = (driverKey: string, withImport: boolean) => {
     const selected = driverTemplates[driverKey] ?? []
     const driverLabel = drivers.find((x) => x.key === driverKey)?.label ?? driverKey
@@ -916,9 +982,46 @@ export default function SetupWizard({
 
   const driverConfigBlock = (key: string) => {
     switch (key) {
-      case 'ai_visibility':
+      case 'ai_visibility': {
+        // Item 20b: the copy-prompt is explicit ALREADY IN SETUP, built with
+        // the same function the worker uses on pause, from the current set.
+        const promptSites: AnalysisSite[] = sites.map((site) => {
+          const isClient = site.site_ref === 'client'
+          const comp = isClient
+            ? null
+            : filledCompetitors.find((c) => bareDomain(c.domain) === site.domain)
+          const brand = isClient ? clientBrand.trim() : (comp?.brandName?.trim() ?? '')
+          return {
+            site_ref: site.site_ref as AnalysisSite['site_ref'],
+            domain: site.domain,
+            name: brand || site.domain,
+            is_client: isClient,
+            brand_name: brand || null,
+            brand_variants: [],
+          }
+        })
+        const jhPrompt = promptSites.length > 0 ? buildJhorizonPrompt(promptSites) : null
         return (
           <div style={{ marginTop: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '8px' }}>
+              <button
+                type="button"
+                disabled={!jhPrompt}
+                onClick={() => {
+                  if (!jhPrompt) return
+                  navigator.clipboard?.writeText(jhPrompt).then(() => {
+                    setJhPromptCopied(true)
+                    setTimeout(() => setJhPromptCopied(false), 2000)
+                  })
+                }}
+                style={{ ...ghostButton, opacity: jhPrompt ? 1 : 0.5 }}
+              >
+                {jhPromptCopied ? t('v4setup.jhorizon_copied') : t('v4setup.jhorizon_copy_prompt')}
+              </button>
+              <span style={smallHint}>
+                {jhPrompt ? t('v4setup.jhorizon_copy_hint') : t('v4setup.jhorizon_copy_needs_domain')}
+              </span>
+            </div>
             <label style={labelStyle}>{t('v4setup.jhorizon_label')}</label>
             <textarea
               style={{ ...inputStyle, minHeight: '110px', resize: 'vertical' }}
@@ -929,6 +1032,7 @@ export default function SetupWizard({
             <div style={smallHint}>{t('v4setup.jhorizon_hint')}</div>
           </div>
         )
+      }
       case 'discoverability':
         return (
           <div style={{ marginTop: '12px' }}>
@@ -950,11 +1054,16 @@ export default function SetupWizard({
           </div>
         )
       case 'compliance':
-        return uploadBlock(
-          'compliance_crawl',
-          t('v4setup.crawl_upload_label'),
-          '.csv,.xlsx,.xls',
-          t('v4setup.crawl_upload_hint'),
+        return (
+          <>
+            {uploadBlock(
+              'compliance_crawl',
+              t('v4setup.crawl_upload_label'),
+              '.csv,.xlsx,.xls',
+              t('v4setup.crawl_upload_hint'),
+            )}
+            {semrushUploadBlock()}
+          </>
         )
       case 'authority':
         return uploadBlock(

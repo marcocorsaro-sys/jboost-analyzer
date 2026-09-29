@@ -160,15 +160,24 @@ export async function fetchBrandAwareness(
   }
 }
 
-/** SEMrush Site Health — Site Audit Management API */
+/** SEMrush Site Health — Site Audit Management API.
+ *
+ * `opts.timeoutMs` (default 60s) aborts each of the three sequential
+ * requests (V4 Sprint 1 item 1c): without it a hanging Semrush call kept a
+ * whole Compliance invocation alive past its budget, leaving the run
+ * 'running' with nobody working on it. On abort the catch below returns the
+ * usual mock envelope, which V4's requireLive turns into an explicit error.
+ */
 export async function fetchSiteHealth(
-  domain: string
+  domain: string,
+  opts: { timeoutMs?: number } = {}
 ): Promise<ApiResponse<SemrushSiteHealth>> {
   const source = 'semrush_site_health'
+  const timeoutMs = opts.timeoutMs ?? 60_000
   try {
     // Step 1: List projects to find the one matching this domain
     const listUrl = `https://api.semrush.com/management/v1/projects?key=${getApiKey()}`
-    const listRes = await fetch(listUrl)
+    const listRes = await fetch(listUrl, { signal: AbortSignal.timeout(timeoutMs) })
     if (!listRes.ok) throw new Error(`SEMrush projects ${listRes.status}`)
     const projects = await listRes.json()
 
@@ -186,7 +195,7 @@ export async function fetchSiteHealth(
 
     // Step 2: Get latest audit snapshot
     const auditUrl = `https://api.semrush.com/management/v1/projects/${project.project_id}/siteaudit/info?key=${getApiKey()}`
-    const auditRes = await fetch(auditUrl)
+    const auditRes = await fetch(auditUrl, { signal: AbortSignal.timeout(timeoutMs) })
     if (!auditRes.ok) throw new Error(`SEMrush audit ${auditRes.status}`)
     const audit = await auditRes.json()
 
@@ -196,7 +205,7 @@ export async function fetchSiteHealth(
 
     // Step 3: Get issues
     const issuesUrl = `https://api.semrush.com/management/v1/projects/${project.project_id}/siteaudit/issues?key=${getApiKey()}&limit=50`
-    const issuesRes = await fetch(issuesUrl)
+    const issuesRes = await fetch(issuesUrl, { signal: AbortSignal.timeout(timeoutMs) })
     let issues: SemrushSiteIssue[] = []
     if (issuesRes.ok) {
       const issuesData = await issuesRes.json()

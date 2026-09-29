@@ -1182,6 +1182,32 @@ function OverviewCard({
   // ---- queued / running ---------------------------------------------------
   if (row.status === 'queued' || row.status === 'running') {
     const s = STATUS_STYLE[row.status]
+    // Sprint 1 item 1b: a running card says HOW LONG (started_at -> minutes),
+    // a recovered card says "in coda (nuovo tentativo K di N)", and the two
+    // PSI drivers say WHAT the sweep is measuring.
+    const minutes =
+      row.status === 'running' && row.started_at
+        ? Math.max(0, Math.round((Date.now() - new Date(row.started_at).getTime()) / 60_000))
+        : null
+    const detailLines: string[] = []
+    if (minutes !== null) detailLines.push(fill(t('v4res.running_since'), { n: minutes }))
+    if (row.status === 'queued' && row.attempts > 0) {
+      detailLines.push(
+        fill(t('v4res.queued_retry'), {
+          k: Math.min(row.attempts + 1, row.max_attempts),
+          n: row.max_attempts,
+        }),
+      )
+    }
+    if (
+      (row.driver_key === 'speed' || row.driver_key === 'accessibility') &&
+      row.psi_plan &&
+      row.psi_plan.pages > 0
+    ) {
+      detailLines.push(
+        fill(t('v4res.psi_running_note'), { p: row.psi_plan.pages, s: row.psi_plan.sites }),
+      )
+    }
     return (
       <div
         className="jk-card-hover"
@@ -1196,6 +1222,11 @@ function OverviewCard({
           <span style={pill(s.color)}>{s.label}</span>
         </div>
         <div style={{ fontSize: '14px', color: B.muted, lineHeight: 1.5 }}>{t('v4res.card_queued_note')}</div>
+        {detailLines.map((line, i) => (
+          <div key={i} style={{ fontSize: '14px', color: B.teal, lineHeight: 1.5 }}>
+            {line}
+          </div>
+        ))}
       </div>
     )
   }
@@ -1276,6 +1307,13 @@ function OverviewCard({
           </>
         )}
       </div>
+
+      {/* Copertura parziale dichiarata (Sprint 1 4a): visibile già in card. */}
+      {row.partial_note && (
+        <div style={{ fontSize: '13px', fontWeight: 600, color: B.warning, marginTop: '6px', lineHeight: 1.4 }}>
+          {clipText(row.partial_note, 120)}
+        </div>
+      )}
 
       {/* Minibar proporzionale, sempre sul relativo (proporzione vs leader). */}
       <div style={{ marginTop: 'auto' }}>

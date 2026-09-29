@@ -442,6 +442,7 @@ export function changedDriverConfigs(
 
   for (const [kind, driver] of [
     ['compliance_crawl', 'compliance'],
+    ['compliance_semrush', 'compliance'],
     ['authority_backlinks', 'authority'],
   ] as const) {
     if (attachmentsKey(before.attachments, kind) !== attachmentsKey(after.attachments, kind)) {
@@ -465,8 +466,15 @@ export function isHttpUrl(value: string): boolean {
 // V4 setup persistence (analyses.v4_setup) + downstream driver wiring
 // ---------------------------------------------------------------------------
 
-/** Upload kinds of the setup (fields #15, #20, #23). Parsing is downstream. */
-export const ATTACHMENT_KINDS = ['compliance_crawl', 'authority_backlinks', 'knowledge_doc'] as const
+/** Upload kinds of the setup (fields #15, #20, #23). Parsing is downstream,
+ * except the Ahrefs backlink export (review item 5) and the Semrush Site
+ * Audit export (Sprint 1 item 4b), parsed at upload. */
+export const ATTACHMENT_KINDS = [
+  'compliance_crawl',
+  'compliance_semrush',
+  'authority_backlinks',
+  'knowledge_doc',
+] as const
 export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number]
 
 /** One uploaded file, as recorded in analyses.v4_setup.attachments. */
@@ -478,21 +486,32 @@ export interface SetupAttachment {
   size: number | null
   uploaded_at: string
   /**
-   * Parsed content of the upload, when the kind supports it (today: the
-   * Ahrefs backlink export, review item 5): columns, row count and a sample
-   * of the raw rows. Travels into driver_runs.config via
-   * driverConfigFromSetup, so the driver sees the data, not just the path.
+   * The site this upload measures (Sprint 1 item 4b: the Semrush export is
+   * PER SITE). Only set for kind 'compliance_semrush'; absent means client.
+   */
+  site_ref?: string
+  /**
+   * Parsed content of the upload, when the kind supports it: the Ahrefs
+   * backlink export (columns/row_count/sample, review item 5) and the
+   * Semrush Site Audit export (site_health + issues, Sprint 1 item 4b).
+   * Travels into driver_runs.config via driverConfigFromSetup, so the
+   * driver sees the data, not just the path.
    */
   parsed?: {
     columns: string[]
     row_count: number
-    sample: Array<Record<string, unknown>>
+    sample?: Array<Record<string, unknown>>
+    /** Semrush export only: the Site Health score, 0-100. */
+    site_health?: number
+    /** Semrush export only: top issues (title/type/pages_count). */
+    issues?: Array<{ title: string; type: string; pages_count: number }>
   } | null
 }
 
 /** Which driver tab lists an upload kind ('knowledge_doc' is global). */
 export const ATTACHMENT_DRIVER: Record<AttachmentKind, string | null> = {
   compliance_crawl: 'compliance',
+  compliance_semrush: 'compliance',
   authority_backlinks: 'authority',
   knowledge_doc: null,
 }

@@ -52,6 +52,40 @@ export default function ExecutiveSummaryTab({ record, insightsRunning, onGenerat
     )
   }
 
+  // Sprint 1 item 2c: summary degradato — testo grezzo con nota ambra e
+  // possibilità di rigenerare, mai una tab vuota.
+  if (record.json_degraded === true) {
+    const rawText = typeof record.output.summary === 'string' ? record.output.summary : ''
+    return (
+      <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div
+          style={{
+            padding: '8px 12px',
+            background: `${B.warning}15`,
+            border: `1px solid ${B.warning}40`,
+            borderRadius: '8px',
+            fontSize: '14px',
+            color: B.warning,
+            alignSelf: 'flex-start',
+          }}
+        >
+          {t('v4res.insight_degraded')}
+        </div>
+        <div style={{ fontSize: '16px', color: B.ink, lineHeight: 1.6, maxWidth: '80ch', whiteSpace: 'pre-wrap' }}>
+          {rawText}
+        </div>
+        <button
+          type="button"
+          onClick={onGenerate}
+          disabled={insightsRunning}
+          style={{ ...primaryButton(!insightsRunning), alignSelf: 'flex-start' }}
+        >
+          {insightsRunning ? t('v4res.gen_insights_running') : t('v4res.gen_insights')}
+        </button>
+      </div>
+    )
+  }
+
   const out = record.output as ExecSummaryOutput
   const alerts = Array.isArray(out.alert_critici) ? out.alert_critici : []
   const correlations = Array.isArray(out.correlazioni_chiave) ? out.correlazioni_chiave : []

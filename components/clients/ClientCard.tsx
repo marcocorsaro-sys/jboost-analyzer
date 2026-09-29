@@ -17,6 +17,8 @@ interface ClientCardProps {
   status: 'active' | 'archived'
   lifecycle_stage?: ClientLifecycleStage
   analyses_count: number
+  /** Analyses with the client's same domain not yet linked (Sprint 1 4c). */
+  unlinked_count?: number
   latest_score: number | null
   /** Score of the run before the latest one, for the "vs previous" delta. */
   previous_score?: number | null
@@ -49,7 +51,7 @@ const STAGE_LABEL_KEYS: Record<ClientLifecycleStage, TranslationKey> = {
 }
 
 export default function ClientCard({
-  id, name, domain, industry, status, lifecycle_stage, analyses_count, latest_score, previous_score, latest_analysis_at, onDeleted,
+  id, name, domain, industry, status, lifecycle_stage, analyses_count, unlinked_count, latest_score, previous_score, latest_analysis_at, onDeleted,
 }: ClientCardProps) {
   const { t, locale } = useLocale()
   const [deleting, setDeleting] = useState(false)
@@ -176,7 +178,14 @@ export default function ClientCard({
 
           {/* Stats row */}
           <div className="flex items-center gap-4 text-[13px] text-muted-foreground pt-3 border-t border-border">
-            <span>{analyses_count} {t('clients.analysisCount')}</span>
+            <span>
+              {analyses_count} {t('clients.analysisCount')}
+              {(unlinked_count ?? 0) > 0 && (
+                <span style={{ color: B.warning, marginLeft: '6px' }}>
+                  +{unlinked_count} {t('clients.toAssociate')}
+                </span>
+              )}
+            </span>
             {latest_analysis_at && (
               <span>
                 {t('clients.lastAnalysis')}: {formatLocalDate(latest_analysis_at, locale, { day: '2-digit', month: 'short' })}

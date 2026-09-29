@@ -141,7 +141,30 @@ test('reaper: an expired lease out of attempts fails with the real reason', () =
   const { requeue, fail } = selectStaleRuns([row({ attempts: 3, max_attempts: 3 })], NOW)
   assert.equal(requeue.length, 0)
   assert.equal(fail.length, 1)
-  assert.match(fail[0].error, /abandoned after 3 attempt/)
+  // Explicit Italian message (Sprint 1 item 1a): the analyst reads this in
+  // the driver tab, so it says what happened and that attempts ran out.
+  assert.match(fail[0].error, /il worker si è interrotto senza completare la misura/)
+  assert.match(fail[0].error, /tentativi esauriti/)
+  assert.match(fail[0].error, /3 su 3/)
+})
+
+// ---------------------------------------------------------------------------
+// on-demand recovery (status route) — same pure selection as the cron reaper
+// ---------------------------------------------------------------------------
+
+test('recovery: selectStaleRuns is the shared judge for the status route too', () => {
+  // A run whose worker died 5 minutes ago is recoverable at the next poll:
+  // the status route requeues it with the SAME selection the cron uses.
+  const dead = row({ lease_expires_at: '2026-07-21T10:05:00.000Z', attempts: 1 })
+  const { requeue, fail } = selectStaleRuns([dead], NOW, { graceMs: 30_000 })
+  assert.equal(requeue.length, 1)
+  assert.equal(fail.length, 0)
+
+  // Idempotence at selection level: a run already back in the queue is not
+  // running, so a second concurrent poll selects nothing.
+  const requeued = { ...dead, status: 'queued' as const }
+  const second = selectStaleRuns([requeued], NOW, { graceMs: 30_000 })
+  assert.equal(second.requeue.length + second.fail.length, 0)
 })
 
 test('reaper: a live lease is left alone (and the grace period is honoured)', () => {

@@ -33,7 +33,7 @@ import {
   markDispatched,
   updateDriverRun,
 } from './store'
-import type { DriverJobContext, DriverJobOutcome } from './types'
+import type { DriverJobContext, DriverJobOutcome, DriverRunRow } from './types'
 
 /** Lease length. Must exceed the route's maxDuration, or the reaper races a live worker. */
 export const DEFAULT_LEASE_SECS = 330
@@ -257,6 +257,94 @@ export interface ReapSummary {
 }
 
 /**
+ * Apply a ReapDecision to the DB — the ONE place a stale run is moved out of
+ * 'running', shared by the cron reaper and the on-demand recovery of the
+ * status route (Sprint 1 item 1a: same logic, extracted, never duplicated).
+ *
+ * Idempotence and concurrency: both writes are guarded with
+ * .eq('status', 'running'), so when two pollers (or the poller and the cron)
+ * race on the same dead run, exactly one write lands and the loser is a
+ * no-op. attempts is NOT touched here: the claim RPC is what increments it,
+ * so a requeue costs nothing until a worker actually picks the job up again.
+ */
+async function applyReapDecision(
+  db: SupabaseClient,
+  decision: ReturnType<typeof selectStaleRuns>,
+  now: Date,
+  summary: ReapSummary,
+): Promise<void> {
+  for (const { row, error } of decision.fail) {
+    const { error: updateError } = await db
+      .from('driver_runs')
+      .update({
+        status: 'error',
+        error,
+        lease_expires_at: null,
+        completed_at: now.toISOString(),
+      })
+      .eq('id', row.id)
+      .eq('status', 'running')
+    if (updateError) summary.errors.push(`fail ${row.driver_key}: ${updateError.message}`)
+    else summary.failed += 1
+  }
+
+  for (const row of decision.requeue) {
+    const { error: updateError } = await db
+      .from('driver_runs')
+      .update({
+        status: 'queued',
+        lease_expires_at: null,
+        dispatched_at: null,
+      })
+      .eq('id', row.id)
+      .eq('status', 'running')
+    if (updateError) summary.errors.push(`requeue ${row.driver_key}: ${updateError.message}`)
+    else summary.requeued += 1
+  }
+}
+
+/**
+ * On-demand recovery for ONE analysis (Sprint 1 item 1a).
+ *
+ * Called by the status route the results page already polls every 5s: a run
+ * left 'running' by a dead worker is recovered at the NEXT POLL instead of
+ * waiting for the 04:00 UTC cron (the bug: Speed/Accessibility stuck
+ * "running" for hours). Selection is the same pure selectStaleRuns the cron
+ * uses (30s grace past lease expiry); requeued jobs are re-dispatched
+ * immediately through the normal worker route, whose atomic claim makes a
+ * duplicate dispatch harmless.
+ */
+export async function recoverAnalysisStaleRuns(
+  db: SupabaseClient,
+  analysisId: string,
+  rows: DriverRunRow[],
+  baseUrl: string,
+  now: Date = new Date(),
+): Promise<ReapSummary> {
+  const summary: ReapSummary = { requeued: 0, failed: 0, redispatched: 0, errors: [] }
+
+  const decision = selectStaleRuns(
+    rows.filter((r) => r.analysis_id === analysisId),
+    now,
+  )
+  if (decision.requeue.length === 0 && decision.fail.length === 0) return summary
+
+  await applyReapDecision(db, decision, now, summary)
+
+  for (const row of decision.requeue) {
+    const result = await dispatchDriverJob(baseUrl, analysisId, row.driver_key)
+    if (result.dispatched) {
+      summary.redispatched += 1
+      await markDispatched(db, analysisId, [row.driver_key])
+    } else {
+      summary.errors.push(`dispatch ${row.driver_key}: ${result.error ?? 'unknown'}`)
+    }
+  }
+
+  return summary
+}
+
+/**
  * Cron-side recovery pass (reuse map §6 — hosted by the existing cron, no new
  * infrastructure).
  *
@@ -277,28 +365,9 @@ export async function reapStaleRuns(
   const { rows: running, error: runningError } = await listRunningRuns(db)
   if (runningError) summary.errors.push(`listRunningRuns: ${runningError}`)
 
-  const { requeue, fail } = selectStaleRuns(running, now)
-
-  for (const { row, error } of fail) {
-    const { error: updateError } = await updateDriverRun(db, row.id, {
-      status: 'error',
-      error,
-      lease_expires_at: null,
-      completed_at: now.toISOString(),
-    })
-    if (updateError) summary.errors.push(`fail ${row.driver_key}: ${updateError}`)
-    else summary.failed += 1
-  }
-
-  for (const row of requeue) {
-    const { error: updateError } = await updateDriverRun(db, row.id, {
-      status: 'queued',
-      lease_expires_at: null,
-      dispatched_at: null,
-    })
-    if (updateError) summary.errors.push(`requeue ${row.driver_key}: ${updateError}`)
-    else summary.requeued += 1
-  }
+  const decision = selectStaleRuns(running, now)
+  const { requeue } = decision
+  await applyReapDecision(db, decision, now, summary)
 
   // Re-dispatch: what we just requeued, plus anything that was queued long
   // enough that the original fan-out clearly never arrived.

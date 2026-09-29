@@ -29,7 +29,7 @@ import {
   type LlmInsightRecord,
 } from './orchestrator'
 import type { AnthropicCallOptions, AnthropicCallResult } from '@/lib/v4/drivers/jhorizon-extract'
-import { blocklistClause, buildSummarySystemPrompt, systemPromptFor } from './prompts'
+import { DRIVER_CALL_MAX_TOKENS, blocklistClause, buildSummarySystemPrompt, systemPromptFor } from './prompts'
 
 // ---------------------------------------------------------------------------
 // fixtures
@@ -349,7 +349,7 @@ test('engine: sequence order, cumulative context growth, AI Visibility seed, sum
   assert.equal(stub.calls[3].options?.model, 'claude-opus-4-8')
   assert.equal(stub.calls[3].options?.maxTokens, 4000)
   assert.equal(stub.calls[3].options?.temperature, 0.4)
-  assert.equal(stub.calls[0].options?.maxTokens, 2500)
+  assert.equal(stub.calls[0].options?.maxTokens, DRIVER_CALL_MAX_TOKENS)
 
   // The summary receives every driver output + the AI Visibility comments.
   assert.match(stub.calls[3].prompt, /Titolo awareness uno/)
@@ -419,6 +419,64 @@ test('engine: JSON never parses -> per-driver error persisted, run continues to 
   assert.equal(result.failed.length, 1)
   assert.equal(state.runs[0].llm_insight?.status, 'error')
   assert.match(String(state.analysis.v4_insights_error), /authority/)
+})
+
+test('engine: a TRUNCATED response is repaired deterministically, no retry burned (Sprint 1 2b)', async () => {
+  const state = makeState([irun('authority')], {
+    v4_executive_summary: { status: 'done', output: {}, model: 'x', generated_at: 'y', attempts: 1 },
+  })
+  // The position-5099 shape: valid JSON cut mid-string inside the items array.
+  const truncated =
+    '{"score_relative": 62, "commento_relative": "Sopra la media del set analizzato.", ' +
+    '"items": [{"titolo": "Profilo backlink concentrato", "spiegazione": "Nucleo ristretto di 12847 referring domain.", "priorita": "alta"}, ' +
+    '{"titolo": "Anchor text poco vari", "spiegazione": "La distribuzione mostra 20000 anch'
+  const stub = modelStub([truncated])
+
+  const result = await generateInsights(fakeDb(state), 'analysis-1', {
+    callModel: stub.fn,
+    spendStatus: spendOk,
+  })
+
+  assert.equal(stub.calls.length, 1) // repaired on the FIRST attempt, zero retries
+  assert.equal(result.failed.length, 0)
+  const insight = state.runs[0].llm_insight
+  assert.equal(insight?.status, 'done')
+  assert.equal((insight as { json_repaired?: boolean }).json_repaired, true)
+  const output = (insight as { output: Record<string, unknown> }).output
+  const items = output.items as Array<Record<string, unknown>>
+  // The first item survives whole; the second keeps only the fields that
+  // were COMPLETE before the cut (its truncated spiegazione is dropped).
+  assert.equal(items.length, 2)
+  assert.equal(items[0].titolo, 'Profilo backlink concentrato')
+  assert.equal(items[0].spiegazione, 'Nucleo ristretto di 12847 referring domain.')
+  assert.equal(items[1].titolo, 'Anchor text poco vari')
+  assert.equal('spiegazione' in items[1], false)
+})
+
+test('engine: unparsable but USABLE text becomes a degraded insight, not a dry error (Sprint 1 2c)', async () => {
+  const state = makeState([irun('authority')], {
+    v4_executive_summary: { status: 'done', output: {}, model: 'x', generated_at: 'y', attempts: 1 },
+  })
+  const prose =
+    'Il profilo backlink del cliente mostra una concentrazione rilevante su pochi domini ' +
+    'con autorevolezza media; il leader del set mantiene un vantaggio strutturale.'
+  const stub = modelStub([prose, prose, prose])
+
+  const result = await generateInsights(fakeDb(state), 'analysis-1', {
+    callModel: stub.fn,
+    spendStatus: spendOk,
+  })
+
+  assert.equal(stub.calls.length, 3) // the retries still run first
+  assert.equal(result.failed.length, 0)
+  assert.equal(result.processed.includes('authority'), true)
+  const insight = state.runs[0].llm_insight
+  assert.equal(insight?.status, 'done')
+  assert.equal((insight as { json_degraded?: boolean }).json_degraded, true)
+  assert.match(
+    String((insight as { output: Record<string, unknown> }).output.summary),
+    /profilo backlink/i,
+  )
 })
 
 test('engine: em dashes are replaced in the persisted output, never a retry reason', async () => {
@@ -645,7 +703,7 @@ test('engine: real Anthropic wire format — no temperature for sonnet-5, 0.4 fo
   assert.equal(bodies.length, 2)
   assert.equal(bodies[0].model, 'claude-sonnet-5')
   assert.ok(!('temperature' in bodies[0]), 'sonnet-5 must not receive temperature (commit #42)')
-  assert.equal(bodies[0].max_tokens, 2500)
+  assert.equal(bodies[0].max_tokens, DRIVER_CALL_MAX_TOKENS)
   assert.equal(bodies[1].model, 'claude-opus-4-8')
   assert.equal(bodies[1].temperature, 0.4)
   assert.equal(bodies[1].max_tokens, 4000)

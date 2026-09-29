@@ -40,8 +40,15 @@ export const DEFAULT_DRIVER_MODEL = 'claude-sonnet-5'
 export const DEFAULT_SUMMARY_MODEL = 'claude-opus-4-8'
 /** Sheet 15 A: temperature 0.3 for the per-driver calls (when the model accepts it). */
 export const DRIVER_CALL_TEMPERATURE = 0.3
-/** Sheet 15 A: max_tokens 2500 per driver call. */
-export const DRIVER_CALL_MAX_TOKENS = 2500
+/**
+ * Sheet 15 A wrote max_tokens 2500 per driver call; in production that
+ * budget TRUNCATED real responses mid-array ("unparsable JSON ... position
+ * 5099" on Content and Awareness, Sprint 1 item 2a), burning all retries on
+ * an unfixable cut. Operational override: doubled to 5000, paired with the
+ * explicit length limits appended to every driver user prompt
+ * (RESPONSE_LENGTH_CLAUSE) so the answer fits the budget by construction.
+ */
+export const DRIVER_CALL_MAX_TOKENS = 5000
 /** Sheet 16 C: temperature 0.4 for the Executive Summary. */
 export const SUMMARY_TEMPERATURE = 0.4
 /** Sheet 15 A / 16 C: max_tokens 4000 for the final Executive Summary. */
@@ -336,8 +343,21 @@ export function buildDriverUserPrompt(input: DriverPromptInput): string {
   const parts = [core]
   if (note) parts.push(`DRIVER-SPECIFIC NOTE:\n${note}`)
   parts.push(`OUTPUT JSON SCHEMA:\n${schema}`)
+  parts.push(RESPONSE_LENGTH_CLAUSE)
   return parts.join('\n\n')
 }
+
+/**
+ * Operational addition (Sprint 1 item 2a, not sheet text): explicit length
+ * limits so the whole JSON stays inside the token budget. The schema already
+ * caps items (5) and insights (3); this makes the CONSEQUENCE binding — a
+ * truncated JSON is a failed response, a shorter one is not.
+ */
+export const RESPONSE_LENGTH_CLAUSE = `RESPONSE LENGTH (binding):
+- produce at most the number of items/insights the schema allows (3 to 5 items for Development, up to 3 insights for Business); fewer strong entries beat many weak ones;
+- keep every spiegazione/soluzione within the character ranges of the schema, with short direct sentences;
+- never pad with repetition; never exceed the schema field set;
+- the ENTIRE response must be one complete JSON object: if you are running out of space, write fewer items rather than truncating the JSON.`
 
 export interface SummaryPromptInput {
   domain: string

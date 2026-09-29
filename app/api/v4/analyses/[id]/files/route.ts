@@ -12,6 +12,13 @@ import {
   type SetupAttachment,
 } from '@/lib/v4/setup'
 import { parseBacklinksBuffer, BACKLINK_EXPECTED_COLUMNS } from '@/lib/v4/backlinks'
+import * as XLSX from 'xlsx'
+import {
+  parseSemrushCsvText,
+  parseSemrushMatrix,
+  SEMRUSH_EXPECTED_COLUMNS,
+  type SemrushParseResult,
+} from '@/lib/v4/semrush-export'
 
 /**
  * Setup uploads (UX-UI Bibbia 04 fields #15, #20, #23): Screaming Frog crawl
@@ -26,6 +33,13 @@ import { parseBacklinksBuffer, BACKLINK_EXPECTED_COLUMNS } from '@/lib/v4/backli
  * Single-file kinds (crawl, backlinks) replace the previous upload; knowledge
  * documents accumulate. Uploads are only accepted while the setup is still a
  * draft, same rule as PATCH: a started run's configuration is immutable.
+ *
+ * EXCEPTION (Sprint 1 item 4b): kind 'compliance_semrush' is a per-site
+ * MEASUREMENT input (Semrush Site Audit export), parsed at upload
+ * (lib/v4/semrush-export.ts) and accepted also after launch — the
+ * Compliance tab offers it on error/partial coverage, followed by a force
+ * re-measure. Post-launch it is merged into driver_runs.config too, since
+ * the run's config was seeded at start.
  */
 
 const MAX_BYTES = 20 * 1024 * 1024
@@ -33,19 +47,55 @@ const MAX_BYTES = 20 * 1024 * 1024
 /** Per-kind extension allowlist (the sheet says .csv/.xlsx for the drivers). */
 const ALLOWED_EXT: Record<AttachmentKind, string[]> = {
   compliance_crawl: ['.csv', '.xlsx', '.xls'],
+  compliance_semrush: ['.csv', '.xlsx', '.xls'],
   authority_backlinks: ['.csv', '.xlsx', '.xls'],
   knowledge_doc: ['.pdf', '.docx', '.doc', '.txt', '.md', '.pptx', '.xlsx', '.xls', '.csv'],
 }
 
 const SINGLE_KINDS: AttachmentKind[] = ['compliance_crawl', 'authority_backlinks']
 
+/** Valid site_ref values for the per-site Semrush export (Sprint 1 4b). */
+const SITE_REFS = ['client', 'competitor_1', 'competitor_2', 'competitor_3', 'competitor_4']
+
+/**
+ * Semrush export -> parsed measurement. CSV goes through the pure text
+ * parser; .xlsx/.xls are decoded with the XLSX reader this route already
+ * uses for the Ahrefs export and fed to the same pure matrix parser.
+ */
+function parseSemrushUpload(buffer: Buffer, ext: string): SemrushParseResult {
+  if (ext === '.csv') {
+    // Semrush exports UTF-8; a UTF-16 BOM round-trip is handled too.
+    const text =
+      buffer[0] === 0xff && buffer[1] === 0xfe
+        ? buffer.toString('utf16le')
+        : buffer.toString('utf8')
+    return parseSemrushCsvText(text)
+  }
+  try {
+    const workbook = XLSX.read(buffer, { type: 'buffer', raw: false })
+    const sheetName = workbook.SheetNames[0]
+    const sheet = sheetName ? workbook.Sheets[sheetName] : undefined
+    if (!sheet) return { ok: false, error: 'il file non contiene alcun foglio dati' }
+    const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null })
+    return parseSemrushMatrix(matrix)
+  } catch (err) {
+    return {
+      ok: false,
+      error: `file non leggibile come XLSX (${err instanceof Error ? err.message : String(err)})`,
+    }
+  }
+}
+
 interface Authorized {
   db: ReturnType<typeof createAdminClient>
   v4Setup: Record<string, unknown>
+  /** True when driver_runs already exist (the analysis was launched). */
+  started: boolean
 }
 
 async function authorize(
   analysisId: string,
+  opts: { allowStarted?: boolean } = {},
 ): Promise<{ ok: Authorized | null; response: NextResponse | null }> {
   const supabase = await createClient()
   const {
@@ -73,7 +123,8 @@ async function authorize(
     .from('driver_runs')
     .select('id', { count: 'exact', head: true })
     .eq('analysis_id', analysisId)
-  if ((count ?? 0) > 0) {
+  const started = (count ?? 0) > 0
+  if (started && !opts.allowStarted) {
     return {
       ok: null,
       response: NextResponse.json(
@@ -86,6 +137,7 @@ async function authorize(
   return {
     ok: {
       db,
+      started,
       v4Setup: ((analysis as { v4_setup: Record<string, unknown> | null }).v4_setup ?? {}) as Record<
         string,
         unknown
@@ -113,8 +165,6 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ) {
   const { id: analysisId } = await context.params
-  const { ok, response } = await authorize(analysisId)
-  if (!ok) return response!
 
   let form: FormData
   try {
@@ -132,6 +182,29 @@ export async function POST(
     )
   }
   const kind = kindRaw as AttachmentKind
+
+  // Per-site Semrush export (Sprint 1 item 4b). Unlike the setup uploads it
+  // is a MEASUREMENT input, so it stays open after launch: the Compliance
+  // tab offers it on error/partial coverage, followed by a force re-measure.
+  const siteRefRaw = form.get('site_ref')
+  let siteRef = 'client'
+  if (kind === 'compliance_semrush') {
+    if (typeof siteRefRaw === 'string' && siteRefRaw.trim() !== '') {
+      if (!SITE_REFS.includes(siteRefRaw.trim())) {
+        return NextResponse.json(
+          { error: `site_ref non valido: atteso uno di ${SITE_REFS.join(', ')}` },
+          { status: 400 },
+        )
+      }
+      siteRef = siteRefRaw.trim()
+    }
+  }
+
+  const { ok, response } = await authorize(analysisId, {
+    allowStarted: kind === 'compliance_semrush',
+  })
+  if (!ok) return response!
+
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'file is required (multipart File field)' }, { status: 400 })
   }
@@ -166,6 +239,30 @@ export async function POST(
   // and reaches the Authority driver config via driverConfigFromSetup;
   // the qualitative use of these rows in the analysis comes downstream.
   let parsed: SetupAttachment['parsed'] = null
+  if (kind === 'compliance_semrush') {
+    // Parsed at upload (lib/v4/semrush-export.ts, pure): the extracted Site
+    // Health IS the measurement the Compliance worker will use for this
+    // site (evidence method 'manual_upload'). Unrecognized format = explicit
+    // error naming the expected columns, never a stored blob nobody reads.
+    const result = parseSemrushUpload(buffer, ext)
+    if (!result.ok) {
+      return NextResponse.json(
+        {
+          error:
+            `export Semrush Site Audit non valido: ${result.error}. ` +
+            `Requisiti: ${SEMRUSH_EXPECTED_COLUMNS}, ` +
+            `dimensione massima ${MAX_BYTES / (1024 * 1024)} MB.`,
+        },
+        { status: 400 },
+      )
+    }
+    parsed = {
+      columns: result.parsed.columns,
+      row_count: result.parsed.row_count,
+      site_health: result.parsed.site_health,
+      issues: result.parsed.issues,
+    }
+  }
   if (kind === 'authority_backlinks') {
     const result = parseBacklinksBuffer(buffer)
     if (!result.ok) {
@@ -194,8 +291,13 @@ export async function POST(
 
   const existing = readAttachments(ok.v4Setup)
   // Single-file kinds replace their previous upload (and clean the object).
-  const replaced = SINGLE_KINDS.includes(kind) ? existing.filter((a) => a.kind === kind) : []
-  const kept = SINGLE_KINDS.includes(kind) ? existing.filter((a) => a.kind !== kind) : existing
+  // The Semrush export replaces PER SITE: one measurement per site_ref.
+  const isReplacing = (a: SetupAttachment): boolean =>
+    kind === 'compliance_semrush'
+      ? a.kind === kind && (a.site_ref ?? 'client') === siteRef
+      : SINGLE_KINDS.includes(kind) && a.kind === kind
+  const replaced = existing.filter(isReplacing)
+  const kept = existing.filter((a) => !isReplacing(a))
 
   const attachment: SetupAttachment = {
     kind,
@@ -203,6 +305,7 @@ export async function POST(
     path,
     size: buffer.length,
     uploaded_at: new Date().toISOString(),
+    ...(kind === 'compliance_semrush' ? { site_ref: siteRef } : {}),
     ...(parsed ? { parsed } : {}),
   }
   const next = [...kept, attachment]
@@ -213,6 +316,30 @@ export async function POST(
     // so remove it rather than leaving an upload nobody can see.
     await ok.db.storage.from('client-files').remove([path])
     return NextResponse.json({ error: `could not record the upload: ${saveError}` }, { status: 500 })
+  }
+
+  // Post-launch Semrush upload (item 4b): the run's config was seeded at
+  // start, so the new attachment must ALSO reach driver_runs.config, or the
+  // force re-measure would still not see it.
+  if (ok.started && kind === 'compliance_semrush') {
+    const { data: runRow } = await ok.db
+      .from('driver_runs')
+      .select('id, config')
+      .eq('analysis_id', analysisId)
+      .eq('driver_key', 'compliance')
+      .maybeSingle()
+    if (runRow) {
+      const config = ((runRow as { config: Record<string, unknown> | null }).config ??
+        {}) as Record<string, unknown>
+      const list = Array.isArray(config.attachments)
+        ? (config.attachments as SetupAttachment[])
+        : []
+      const merged = [...list.filter((a) => !isReplacing(a)), attachment]
+      await ok.db
+        .from('driver_runs')
+        .update({ config: { ...config, attachments: merged } })
+        .eq('id', (runRow as { id: string }).id)
+    }
   }
 
   // Best-effort cleanup of the replaced object; the reference is already gone.

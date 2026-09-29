@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { getScoreBand } from '@/lib/constants'
 import { calcDelta } from '@/lib/trends/calculate'
 import ClientAnalysesList from '@/components/clients/ClientAnalysesList'
+import UnlinkedAnalyses from '@/components/clients/UnlinkedAnalyses'
 import T from '@/components/ui/T'
 import type { TranslationKey } from '@/lib/i18n'
 import { B } from '@/lib/brand'
@@ -48,6 +49,19 @@ export default async function ClientOverviewPage({
     .order('created_at', { ascending: false })
 
   const allAnalyses = analyses ?? []
+
+  // Sprint 1 item 4c: analyses on the SAME domain never linked to this
+  // client (client_id null). Counted in the stat card as "da associare" and
+  // listed with the one-click Associa action.
+  const { data: unlinkedRows } = client.domain
+    ? await supabase
+        .from('analyses')
+        .select('id, domain, status, created_at, ref_date')
+        .is('client_id', null)
+        .eq('domain', client.domain)
+        .order('created_at', { ascending: false })
+    : { data: [] as never[] }
+  const unlinked = unlinkedRows ?? []
   const completed = allAnalyses
     .filter((a) => a.status === 'completed')
     .sort((a, b) => (b.completed_at ?? '').localeCompare(a.completed_at ?? ''))
@@ -120,6 +134,11 @@ export default async function ClientOverviewPage({
           </div>
           <div className="font-mono text-4xl font-bold text-foreground">
             {completed.length}
+            {unlinked.length > 0 && (
+              <span className="ml-2 align-middle text-sm font-semibold" style={{ color: B.warning }}>
+                +{unlinked.length} da associare
+              </span>
+            )}
           </div>
           {latest?.completed_at && (
             <div className="mt-1 text-sm text-muted-foreground">
@@ -129,6 +148,12 @@ export default async function ClientOverviewPage({
           )}
         </div>
       </div>
+
+      {/* Analisi con lo stesso dominio non ancora associate (Sprint 1 4c). */}
+      <UnlinkedAnalyses
+        clientId={params.id}
+        analyses={unlinked as React.ComponentProps<typeof UnlinkedAnalyses>['analyses']}
+      />
 
       {/* Analyses list + "Nuova Analisi" action (the CTA inside the list
           header links to /analyzer/v4?client=<id>) */}

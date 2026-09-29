@@ -371,7 +371,94 @@ test('compliance: a domain with no SEMrush project is unmeasured, not scored', a
       const out = await complianceWorker(ctx())
       assert.equal(out.status, 'error')
       if (out.status !== 'error') return
+      // Sprint 1 item 4a: the message names the CLIENT domain and the
+      // client's own reason, never a competitor's.
+      assert.match(out.error, /sito cliente client\.com/)
       assert.match(out.error, /no live data/)
     },
   )
+})
+
+test('compliance: missing COMPETITOR projects mean partial done, not error (Sprint 1 4a)', async () => {
+  process.env.SEMRUSH_API_KEY = 'test-key'
+  await withFetch(
+    (url) => {
+      if (url.includes('/projects?')) {
+        // Only the client has a Semrush project.
+        return { body: [{ project_url: 'https://client.com', project_id: 1 }] }
+      }
+      if (url.includes('siteaudit/info')) {
+        return { body: { quality: { value: 82, delta: 0 }, pages_crawled: 900 } }
+      }
+      return { body: { issues: [] } }
+    },
+    async () => {
+      const out = await complianceWorker(ctx())
+      assert.equal(out.status, 'done')
+      if (out.status !== 'done') return
+      assert.equal(out.sites.length, 1)
+      assert.equal(out.sites[0].site_ref, 'client')
+      const payload = out.rawPayload as { partial_note?: string; unmeasured?: string[] }
+      assert.match(payload.partial_note ?? '', /misurato 1 siti su 2/)
+      assert.match(payload.partial_note ?? '', /comp1\.com/)
+      assert.deepEqual(payload.unmeasured, ['comp1.com'])
+    },
+  )
+})
+
+test('compliance: a manual Semrush export upload measures the site (Sprint 1 4b)', async () => {
+  process.env.SEMRUSH_API_KEY = 'test-key'
+  await withFetch(
+    (url) => {
+      if (url.includes('/projects?')) {
+        return { body: [{ project_url: 'https://client.com', project_id: 1 }] }
+      }
+      if (url.includes('siteaudit/info')) {
+        return { body: { quality: { value: 82, delta: 0 }, pages_crawled: 900 } }
+      }
+      return { body: { issues: [] } }
+    },
+    async () => {
+      const out = await complianceWorker(
+        ctx({
+          config: {
+            attachments: [
+              {
+                kind: 'compliance_semrush',
+                site_ref: 'competitor_1',
+                name: 'comp1-site-audit.csv',
+                parsed: {
+                  site_health: 71,
+                  issues: [{ title: 'Broken internal links', type: 'error', pages_count: 12 }],
+                },
+              },
+            ],
+          },
+        }),
+      )
+      assert.equal(out.status, 'done')
+      if (out.status !== 'done') return
+      const comp = out.sites.find((s) => s.site_ref === 'competitor_1')
+      assert.equal(comp?.raw, 71)
+      assert.equal((comp?.evidence as { method: string }).method, 'manual_upload')
+      // Full coverage now: no partial note.
+      assert.equal((out.rawPayload as { partial_note?: string }).partial_note, undefined)
+    },
+  )
+})
+
+test('compliance: readManualSemrushUploads ignores junk and out-of-range values', async () => {
+  const { readManualSemrushUploads } = await import('./compliance')
+  const map = readManualSemrushUploads({
+    attachments: [
+      { kind: 'compliance_semrush', site_ref: 'client', parsed: { site_health: 88 } },
+      { kind: 'compliance_semrush', site_ref: 'competitor_1', parsed: { site_health: 130 } },
+      { kind: 'authority_backlinks', site_ref: 'client', parsed: { site_health: 50 } },
+      { kind: 'compliance_semrush', site_ref: 'competitor_2', parsed: null },
+    ],
+  })
+  assert.equal(map.get('client')?.site_health, 88)
+  assert.equal(map.has('competitor_1'), false)
+  assert.equal(map.has('competitor_2'), false)
+  assert.equal(map.size, 1)
 })

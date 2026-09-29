@@ -221,7 +221,7 @@ export default function DriverPanel({
             <div style={{ fontSize: '15px', color: B.error, lineHeight: 1.5 }}>{row.error ?? '—'}</div>
           </div>
         ) : row.status === 'queued' || row.status === 'running' ? (
-          <div style={{ marginTop: '14px', fontSize: '15px', color: B.teal }}>{t('v4res.driver_pending')}</div>
+          <PendingInfo row={row} />
         ) : (
           <div style={{ marginTop: '16px', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
             {/* Client headline: the big score NEVER without its view label —
@@ -251,6 +251,43 @@ export default function DriverPanel({
                 />
               ))}
           </div>
+        )}
+
+        {/* Copertura parziale dichiarata (Sprint 1 item 4a): nota ambra come
+            per la coverage note PSI, mai un numero senza il suo perimetro. */}
+        {row.partial_note && row.status === 'done' && (
+          <div
+            style={{
+              marginTop: '14px',
+              padding: '10px 14px',
+              background: `${B.warning}15`,
+              border: `1px solid ${B.warning}40`,
+              borderRadius: '8px',
+              fontSize: '14px',
+              color: B.warning,
+              lineHeight: 1.5,
+            }}
+          >
+            {t('v4res.partial_coverage')}: {row.partial_note}
+          </div>
+        )}
+
+        {/* Fallback manuale Compliance (Sprint 1 item 4b): upload export
+            Semrush per sito quando il driver è in errore o parziale. */}
+        {row.driver_key === 'compliance' &&
+          (row.status === 'error' || (row.status === 'done' && row.partial_note)) && (
+            <ComplianceUploadBox
+              analysisId={analysisId}
+              row={row}
+              sites={sites}
+              onChanged={onChanged}
+            />
+          )}
+
+        {/* Aggiorna dati J-Horizon (Sprint 1 item 3): sempre disponibile a
+            driver misurato, anche quando il decision_request non esiste più. */}
+        {row.driver_key === 'ai_visibility' && row.status === 'done' && (
+          <JhorizonUpdateBox analysisId={analysisId} row={row} onChanged={onChanged} />
         )}
 
         {/* Threshold transparency — the number never without its criterion. */}
@@ -568,12 +605,19 @@ function SummaryBody({
 
   const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() !== '' ? v : null)
 
+  // Insight degradato (Sprint 1 item 2c): niente JSON valido ma testo
+  // utilizzabile — si mostra il testo grezzo con la nota ambra e il bottone
+  // di rigenerazione resta disponibile.
+  const degraded = insight?.status === 'done' && insight.json_degraded === true
+
   // LLM comment for the current view; analyst comment as fallback; then
   // the explicit placeholder + "generate" CTA — never a silent blank.
   const llmComment = output
-    ? effectiveView === 'absolute'
-      ? (str(output.commento_absolute) ?? str(output.commento_relative))
-      : (str(output.commento_relative) ?? str(output.commento_absolute))
+    ? degraded
+      ? str(output.summary)
+      : effectiveView === 'absolute'
+        ? (str(output.commento_absolute) ?? str(output.commento_relative))
+        : (str(output.commento_relative) ?? str(output.commento_absolute))
     : null
   const analystComment =
     effectiveView === 'absolute'
@@ -618,6 +662,21 @@ function SummaryBody({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {degraded && (
+        <div
+          style={{
+            padding: '8px 12px',
+            background: `${B.warning}15`,
+            border: `1px solid ${B.warning}40`,
+            borderRadius: '8px',
+            fontSize: '14px',
+            color: B.warning,
+            alignSelf: 'flex-start',
+          }}
+        >
+          {t('v4res.insight_degraded')}
+        </div>
+      )}
       {comment ? (
         <div style={{ fontSize: '16px', color: B.ink, lineHeight: 1.6, maxWidth: '75ch' }}>{comment}</div>
       ) : (
@@ -896,4 +955,322 @@ function EvidenceArray({ name, list, noValueLabel }: { name: string; list: unkno
 
 function clip(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}…` : text
+}
+
+// ---------------------------------------------------------------------------
+// Pending info (Sprint 1 item 1b): a running driver says HOW LONG it has been
+// running; Speed/Accessibility say WHAT they are measuring; a recovered run
+// shows "in coda (nuovo tentativo K di N)" instead of a mute IN CODA.
+// ---------------------------------------------------------------------------
+
+function PendingInfo({ row }: { row: DriverRow }) {
+  const { t } = useLocale()
+
+  const minutes =
+    row.status === 'running' && row.started_at
+      ? Math.max(0, Math.round((Date.now() - new Date(row.started_at).getTime()) / 60_000))
+      : null
+
+  const lines: string[] = []
+  if (row.status === 'running' && minutes !== null) {
+    lines.push(fill(t('v4res.running_since'), { n: minutes }))
+  }
+  if (row.status === 'queued' && row.attempts > 0) {
+    lines.push(
+      fill(t('v4res.queued_retry'), {
+        k: Math.min(row.attempts + 1, row.max_attempts),
+        n: row.max_attempts,
+      }),
+    )
+  }
+  if (
+    (row.driver_key === 'speed' || row.driver_key === 'accessibility') &&
+    row.psi_plan &&
+    row.psi_plan.pages > 0
+  ) {
+    lines.push(fill(t('v4res.psi_running_note'), { p: row.psi_plan.pages, s: row.psi_plan.sites }))
+  }
+
+  return (
+    <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+      <div style={{ fontSize: '15px', color: B.teal }}>{t('v4res.driver_pending')}</div>
+      {lines.map((line, i) => (
+        <div key={i} style={{ fontSize: '14px', color: B.muted, lineHeight: 1.5 }}>
+          {line}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Aggiorna dati J-Horizon (Sprint 1 item 3): copy-prompt rigenerato lato
+// server (buildJhorizonPrompt sui siti correnti, via status route), textarea
+// per il nuovo paste, e un solo bottone che salva il paste come
+// decision_taken E forza la rimisura — la retry route estesa
+// ({driver:'ai_visibility', force:true, jhorizon_answer}) scrive il paste
+// PRIMA del reset, così la rimisura lo legge come una risposta di pausa.
+// ---------------------------------------------------------------------------
+
+function JhorizonUpdateBox({
+  analysisId,
+  row,
+  onChanged,
+}: {
+  analysisId: string
+  row: DriverRow
+  onChanged: () => void
+}) {
+  const { t } = useLocale()
+  const [open, setOpen] = useState(false)
+  const [paste, setPaste] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
+
+  const submit = async () => {
+    setBusy(true)
+    setNote(null)
+    try {
+      const res = await fetch(`/api/v4/analyses/${analysisId}/retry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          driver: 'ai_visibility',
+          force: true,
+          jhorizon_answer: paste.trim(),
+        }),
+      })
+      const body = await res.json()
+      if (!res.ok && res.status !== 207) {
+        setNote(body.error ?? `errore ${res.status}`)
+        return
+      }
+      if (Array.isArray(body.dispatchErrors) && body.dispatchErrors.length > 0) {
+        setNote(body.dispatchErrors.join(' | '))
+      }
+      setPaste('')
+      setOpen(false)
+      onChanged()
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : 'errore di rete')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{ marginTop: '14px' }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{ ...ghostButton, borderColor: `${B.primary}55`, color: B.primary }}
+      >
+        {open ? `− ${t('v4res.jh_update_title')}` : `+ ${t('v4res.jh_update_title')}`}
+      </button>
+      {open && (
+        <div
+          style={{
+            marginTop: '12px',
+            padding: '18px',
+            background: B.surface,
+            border: `1px solid ${B.border}`,
+            borderRadius: B.radius.control,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+          }}
+        >
+          <div style={{ fontSize: '14px', color: B.muted, lineHeight: 1.5, maxWidth: '75ch' }}>
+            {t('v4res.jh_update_hint')}
+          </div>
+          {row.jhorizon_prompt && (
+            <>
+              <textarea
+                readOnly
+                value={row.jhorizon_prompt}
+                style={{
+                  width: '100%',
+                  minHeight: '72px',
+                  padding: '10px 14px',
+                  background: B.bg,
+                  border: `1px solid ${B.border}`,
+                  borderRadius: '8px',
+                  color: B.muted,
+                  fontSize: '13px',
+                  fontFamily: 'inherit',
+                  resize: 'vertical',
+                }}
+              />
+              <button
+                type="button"
+                style={{ ...ghostButton, alignSelf: 'flex-start' }}
+                onClick={() => {
+                  navigator.clipboard?.writeText(row.jhorizon_prompt ?? '').then(() => {
+                    setCopied(true)
+                    setTimeout(() => setCopied(false), 2000)
+                  })
+                }}
+              >
+                {copied ? t('v4res.jh_copied') : t('v4res.jh_copy_prompt')}
+              </button>
+            </>
+          )}
+          <textarea
+            value={paste}
+            onChange={(e) => setPaste(e.target.value)}
+            placeholder={t('v4res.jh_paste_placeholder')}
+            style={{
+              width: '100%',
+              minHeight: '120px',
+              padding: '10px 14px',
+              background: B.bg,
+              border: `1px solid ${B.border}`,
+              borderRadius: '8px',
+              color: B.ink,
+              fontSize: '15px',
+              fontFamily: 'inherit',
+              resize: 'vertical',
+            }}
+          />
+          <button
+            type="button"
+            disabled={busy || paste.trim().length < 20}
+            onClick={() => void submit()}
+            style={{
+              ...primaryButton(!busy && paste.trim().length >= 20),
+              alignSelf: 'flex-start',
+            }}
+          >
+            {busy ? t('v4res.jh_saving') : t('v4res.jh_save_remeasure')}
+          </button>
+          {note && <div style={{ fontSize: '14px', color: B.warning }}>{note}</div>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Compliance — upload export Semrush per sito (Sprint 1 item 4b): visibile a
+// driver in errore o con copertura parziale. L'upload passa dalla files
+// route (kind 'compliance_semrush', aperta anche post-lancio) e al termine
+// forza la rimisura del solo driver Compliance.
+// ---------------------------------------------------------------------------
+
+function ComplianceUploadBox({
+  analysisId,
+  row,
+  sites,
+  onChanged,
+}: {
+  analysisId: string
+  row: DriverRow
+  sites: SiteMeta[]
+  onChanged: () => void
+}) {
+  const { t } = useLocale()
+  const [siteRef, setSiteRef] = useState<string>(sites[0]?.site_ref ?? 'client')
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
+
+  const upload = async (file: File) => {
+    setBusy(true)
+    setNote(null)
+    try {
+      const form = new FormData()
+      form.set('kind', 'compliance_semrush')
+      form.set('site_ref', siteRef)
+      form.set('file', file)
+      const res = await fetch(`/api/v4/analyses/${analysisId}/files`, {
+        method: 'POST',
+        body: form,
+      })
+      const body = await res.json()
+      if (!res.ok) {
+        setNote(body.error ?? `errore ${res.status}`)
+        return
+      }
+      setNote(t('v4res.compliance_upload_done'))
+      // Rimisura forzata del solo driver: il meccanismo single-retry
+      // esistente (force sui done, diretto sugli error).
+      const retryRes = await fetch(`/api/v4/analyses/${analysisId}/retry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          driver: 'compliance',
+          ...(row.status === 'done' ? { force: true } : {}),
+        }),
+      })
+      const retryBody = await retryRes.json()
+      if (!retryRes.ok && retryRes.status !== 207) {
+        setNote(retryBody.error ?? `errore ${retryRes.status}`)
+        return
+      }
+      onChanged()
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : 'errore di rete')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div
+      style={{
+        marginTop: '14px',
+        padding: '18px',
+        background: B.surface,
+        border: `1px dashed ${B.border}`,
+        borderRadius: B.radius.control,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px',
+      }}
+    >
+      <div style={{ fontSize: '15px', fontWeight: 650, color: B.ink }}>
+        {t('v4res.compliance_upload_title')}
+      </div>
+      <div style={{ fontSize: '14px', color: B.muted, lineHeight: 1.5, maxWidth: '75ch' }}>
+        {t('v4res.compliance_upload_hint')}
+      </div>
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <label style={{ fontSize: '14px', color: B.muted }}>
+          {t('v4res.compliance_upload_site')}
+        </label>
+        <select
+          value={siteRef}
+          onChange={(e) => setSiteRef(e.target.value)}
+          style={{
+            padding: '8px 12px',
+            background: B.bg,
+            border: `1px solid ${B.border}`,
+            borderRadius: '8px',
+            color: B.ink,
+            fontSize: '14px',
+            fontFamily: 'inherit',
+          }}
+        >
+          {sites.map((s) => (
+            <option key={s.site_ref} value={s.site_ref}>
+              {s.name} ({s.domain})
+            </option>
+          ))}
+        </select>
+        <input
+          type="file"
+          accept=".csv,.xlsx,.xls"
+          disabled={busy}
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) void upload(file)
+            e.target.value = ''
+          }}
+          style={{ fontSize: '14px', color: B.muted }}
+        />
+        {busy && <span style={{ fontSize: '14px', color: B.teal }}>{t('v4res.compliance_uploading')}</span>}
+      </div>
+      {note && <div style={{ fontSize: '14px', color: B.warning }}>{note}</div>}
+    </div>
+  )
 }

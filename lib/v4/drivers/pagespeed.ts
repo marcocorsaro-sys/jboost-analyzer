@@ -69,8 +69,20 @@ export async function fetchPageSpeedForUrl(
       if (deadlineAt && Date.now() + backoff + 30_000 > deadlineAt) break
       await sleep(backoff)
     }
+    // The per-request timeout is CAPPED by the job deadline (Sprint 1 item
+    // 1c): a 90s Lighthouse wait started with 20s of budget left used to
+    // sail past deadlineAt and get the whole invocation killed with the
+    // outcome unwritten — the "running for hours" rows. Below a minimal
+    // floor there is no point even starting the request.
+    const remaining = deadlineAt ? deadlineAt - Date.now() - 5_000 : Infinity
+    if (remaining < 10_000) {
+      throw new DriverSourceError(
+        `PageSpeed per ${url} (${strategy}): budget di tempo esaurito prima della richiesta, il job verrà ritentato`,
+      )
+    }
+    const timeoutMs = Math.min(90_000, remaining)
     try {
-      res = await fetch(endpoint, { signal: AbortSignal.timeout(90_000) })
+      res = await fetch(endpoint, { signal: AbortSignal.timeout(timeoutMs) })
     } catch (err) {
       lastError = `PageSpeed request failed for ${url} (${strategy}): ${err instanceof Error ? err.message : String(err)}`
       res = null

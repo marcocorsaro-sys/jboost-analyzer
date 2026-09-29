@@ -64,6 +64,44 @@ export async function PATCH(
     return NextResponse.json({ error: 'invalid body' }, { status: 400 })
   }
 
+  // --- Shape 0: link-to-client patch (Sprint 1 item 4c, "Associa") --------
+  // Body { client_id }: ties an UNLINKED analysis (client_id null, same
+  // domain shown as "da associare" in the client panel) to an existing
+  // client. Conditional claim on client_id IS NULL, same rule as the promote
+  // route, so a concurrent double-click loses loudly instead of relinking.
+  const linkBody = raw as { client_id?: unknown }
+  if (linkBody && typeof linkBody === 'object' && 'client_id' in linkBody) {
+    if (typeof linkBody.client_id !== 'string' || !linkBody.client_id) {
+      return NextResponse.json({ error: 'client_id deve essere una stringa' }, { status: 400 })
+    }
+    // The user must be able to see the target client (RLS via client_members).
+    const { data: clientRow, error: clientError } = await supabase
+      .from('clients')
+      .select('id')
+      .eq('id', linkBody.client_id)
+      .maybeSingle()
+    if (clientError || !clientRow) {
+      return NextResponse.json({ error: 'cliente non trovato o non accessibile' }, { status: 404 })
+    }
+    const db = createAdminClient()
+    const { data: linked, error: linkError } = await db
+      .from('analyses')
+      .update({ client_id: linkBody.client_id })
+      .eq('id', analysisId)
+      .is('client_id', null)
+      .select('id')
+    if (linkError) {
+      return NextResponse.json({ error: linkError.message }, { status: 500 })
+    }
+    if (!linked || linked.length === 0) {
+      return NextResponse.json(
+        { error: 'analisi già associata a un cliente' },
+        { status: 409 },
+      )
+    }
+    return NextResponse.json({ analysisId, clientId: linkBody.client_id, linked: true })
+  }
+
   // --- Shape 1: notes-only patch (review 12) ------------------------------
   const notesBody = raw as { global_notes?: unknown }
   if (notesBody && typeof notesBody === 'object' && 'global_notes' in notesBody) {

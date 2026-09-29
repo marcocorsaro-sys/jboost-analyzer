@@ -15,6 +15,10 @@ export interface ClientData {
   status: 'active' | 'archived'
   lifecycle_stage: ClientLifecycleStage
   analyses_count: number
+  /** Analyses on the client's same domain never linked to it (client_id
+      null) — shown as "da associare" (Sprint 1 item 4c). Optional: legacy
+      callers do not compute it. */
+  unlinked_count?: number
   latest_score: number | null
   /** Score of the run before the latest one (delta "vs previous" on cards).
       Optional: legacy callers (pre-sales prospects) do not compute it. */

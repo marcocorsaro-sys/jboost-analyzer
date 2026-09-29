@@ -37,6 +37,14 @@ export interface DriverRow {
   attempts: number
   max_attempts: number
   error: string | null
+  /** When the current run was claimed: feeds "in esecuzione da N min". */
+  started_at?: string | null
+  /** Worker-declared partial coverage (Compliance 4a), shown as amber note. */
+  partial_note?: string | null
+  /** Speed/Accessibility only: what the PSI sweep measures (pages × sites). */
+  psi_plan?: { pages: number; sites: number } | null
+  /** AI Visibility only: the copy-prompt, regenerated from the current set. */
+  jhorizon_prompt?: string | null
   sites: SiteScore[]
   decision_request: unknown
   /** Setup uploads bound to this driver. Backlink exports carry the parsed

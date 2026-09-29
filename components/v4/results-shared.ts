@@ -25,6 +25,11 @@ export type InsightRecord =
       generated_at: string
       attempts: number
       hallucination_flags?: string[]
+      /** Sprint 1 2b: JSON recovered by the deterministic repair. */
+      json_repaired?: boolean
+      /** Sprint 1 2c: degraded insight — output = { summary: raw text },
+       *  shown with the amber "modalità ridotta" note. */
+      json_degraded?: boolean
     }
   | { status: 'error'; error: string; model: string; generated_at: string; attempts: number }
 

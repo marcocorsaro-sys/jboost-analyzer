@@ -42,6 +42,7 @@ import {
 } from '@/lib/v4/drivers/jhorizon-extract'
 import { loadAnalysisSites } from '@/lib/v4/runner/store'
 import { estimateCost } from '@/lib/tracking/pricing'
+import { repairJson } from './json-repair'
 import {
   DEFAULT_DRIVER_MODEL,
   DEFAULT_SUMMARY_MODEL,
@@ -87,6 +88,13 @@ export type LlmInsightRecord =
       /** Sheet 14 anti-hallucination default mode is FLAG: numbers the final
        *  attempt still cited without payload backing, kept visible. */
       hallucination_flags?: string[]
+      /** Sprint 1 item 2b: the JSON was recovered by the deterministic
+       *  repair (truncated response completed mechanically). */
+      json_repaired?: boolean
+      /** Sprint 1 item 2c: no valid JSON survived the retries, but the raw
+       *  text was usable — output holds { summary: <raw text> } and the UI
+       *  shows the amber "modalità ridotta" note. */
+      json_degraded?: boolean
     }
   | { status: 'error'; error: string; model: string; generated_at: string; attempts: number }
 
@@ -457,6 +465,14 @@ interface AttemptResult {
   attempts: number
   model: string
   hallucinationFlags: string[]
+  /** True when the accepted output came from the deterministic JSON repair. */
+  repaired?: boolean
+  /**
+   * Item 2c: when every attempt failed to yield valid JSON but the model DID
+   * write usable text, the last raw text is kept for the degraded fallback
+   * ({summary: <text>, json_degraded}) instead of a dry error.
+   */
+  degradedText?: string | null
 }
 
 /**
@@ -485,6 +501,7 @@ async function guardedGenerate(args: {
 }): Promise<AttemptResult | { spendBlocked: string }> {
   let guidance = ''
   let lastError = 'no attempt ran'
+  let lastText: string | null = null
 
   for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
     const spend = await args.spendStatus(args.db)
@@ -518,13 +535,27 @@ async function guardedGenerate(args: {
       }
     }
     await logUsage(args.db, args.analysis, args.operation, call, attempt)
+    lastText = call.text
 
-    const { value, error: parseError } = extractJsonObject(call.text)
+    let { value, error: parseError } = extractJsonObject(call.text)
+    let repaired = false
+    if (!value) {
+      // Sprint 1 item 2b: deterministic repair BEFORE burning a retry. A
+      // response truncated at max_tokens is a valid prefix — closing the
+      // open scopes recovers everything the model finished writing, at zero
+      // token cost.
+      const fixed = repairJson(call.text)
+      if (fixed.value) {
+        value = fixed.value
+        repaired = true
+      }
+    }
     if (!value) {
       lastError = parseError ?? 'unparsable output'
       guidance =
         `\n\nYOUR PREVIOUS RESPONSE WAS REJECTED: ${lastError}. ` +
-        'Return ONLY one valid JSON object matching the schema. No markdown, no backticks, no text outside the JSON.'
+        'Return ONLY one valid JSON object matching the schema. No markdown, no backticks, no text outside the JSON. ' +
+        'If you are running out of space, produce FEWER items, never a truncated JSON.'
       continue
     }
 
@@ -541,7 +572,14 @@ async function guardedGenerate(args: {
       continue
     }
 
-    return { output, error: null, attempts: attempt, model: call.model, hallucinationFlags: invented }
+    return {
+      output,
+      error: null,
+      attempts: attempt,
+      model: call.model,
+      hallucinationFlags: invented,
+      repaired,
+    }
   }
 
   return {
@@ -550,6 +588,11 @@ async function guardedGenerate(args: {
     attempts: MAX_RETRIES + 1,
     model: args.model,
     hallucinationFlags: [],
+    // Item 2c: keep the last raw text so the caller can save a DEGRADED
+    // insight instead of a dry error when there is something readable. A
+    // short refusal ("I cannot...") is NOT usable text: the threshold keeps
+    // only responses where the model actually wrote content worth showing.
+    degradedText: lastText && lastText.trim().length >= 80 ? lastText.trim() : null,
   }
 }
 
@@ -732,14 +775,28 @@ export async function generateInsights(
           ...(generated.hallucinationFlags.length > 0
             ? { hallucination_flags: generated.hallucinationFlags }
             : {}),
+          ...(generated.repaired ? { json_repaired: true } : {}),
         }
-      : {
-          status: 'error',
-          error: generated.error ?? 'unknown generation failure',
-          model: generated.model,
-          generated_at: new Date().toISOString(),
-          attempts: generated.attempts,
-        }
+      : generated.degradedText
+        ? // Item 2c: the JSON never became valid but the text is usable —
+          // save a DEGRADED insight (raw text in summary) instead of a dry
+          // error. The UI shows it with the amber "modalità ridotta" note
+          // and the regenerate button stays available.
+          {
+            status: 'done',
+            output: { summary: generated.degradedText },
+            model: generated.model,
+            generated_at: new Date().toISOString(),
+            attempts: generated.attempts,
+            json_degraded: true,
+          }
+        : {
+            status: 'error',
+            error: generated.error ?? 'unknown generation failure',
+            model: generated.model,
+            generated_at: new Date().toISOString(),
+            attempts: generated.attempts,
+          }
 
     // Persist IMMEDIATELY: this is the crash-safe resume point.
     const { error: writeError } = await db
@@ -750,7 +807,11 @@ export async function generateInsights(
 
     if (record.status === 'done') {
       result.processed.push(run.driver_key)
-      updateCumulative(ctx, def.label, record.output, run.score_relative)
+      // A degraded record has no structured items/comment: feeding raw text
+      // into the cumulative context would only pollute the next prompts.
+      if (!record.json_degraded) {
+        updateCumulative(ctx, def.label, record.output, run.score_relative)
+      }
       run.llm_insight = record
     } else {
       result.failed.push({ driver: run.driver_key, error: record.error })
@@ -833,20 +894,32 @@ export async function generateInsights(
     })
 
     if ('spendBlocked' in generated) return fail(generated.spendBlocked)
-    if (!generated.output) {
+    if (!generated.output && !generated.degradedText) {
       return fail(`Executive Summary failed: ${generated.error ?? 'unknown'}`)
     }
 
-    const summaryRecord: LlmInsightRecord = {
-      status: 'done',
-      output: generated.output,
-      model: generated.model,
-      generated_at: new Date().toISOString(),
-      attempts: generated.attempts,
-      ...(generated.hallucinationFlags.length > 0
-        ? { hallucination_flags: generated.hallucinationFlags }
-        : {}),
-    }
+    const summaryRecord: LlmInsightRecord = generated.output
+      ? {
+          status: 'done',
+          output: generated.output,
+          model: generated.model,
+          generated_at: new Date().toISOString(),
+          attempts: generated.attempts,
+          ...(generated.hallucinationFlags.length > 0
+            ? { hallucination_flags: generated.hallucinationFlags }
+            : {}),
+          ...(generated.repaired ? { json_repaired: true } : {}),
+        }
+      : // Item 2c, same degraded fallback as the driver insights: usable raw
+        // text beats a dry error; the tab shows it with the amber note.
+        {
+          status: 'done',
+          output: { summary: generated.degradedText as string },
+          model: generated.model,
+          generated_at: new Date().toISOString(),
+          attempts: generated.attempts,
+          json_degraded: true,
+        }
     const { error: summaryWriteError } = await db
       .from('analyses')
       .update({ v4_executive_summary: summaryRecord })

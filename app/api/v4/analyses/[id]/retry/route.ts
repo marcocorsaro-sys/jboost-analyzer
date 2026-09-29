@@ -55,7 +55,9 @@ export async function POST(
   }
 
   // Optional body: {driver, force?} switches to the single-driver relaunch.
-  let body: { driver?: unknown; force?: unknown } = {}
+  // {driver:'ai_visibility', force:true, jhorizon_answer} additionally writes
+  // the new paste as decision_taken BEFORE the reset (Sprint 1 item 3).
+  let body: { driver?: unknown; force?: unknown; jhorizon_answer?: unknown } = {}
   try {
     body = (await request.json()) as typeof body
   } catch {
@@ -63,6 +65,16 @@ export async function POST(
   }
   const singleDriver = typeof body.driver === 'string' && body.driver.trim() !== '' ? body.driver.trim() : null
   const force = body.force === true
+  const jhorizonAnswer =
+    typeof body.jhorizon_answer === 'string' && body.jhorizon_answer.trim() !== ''
+      ? body.jhorizon_answer.trim()
+      : null
+  if (jhorizonAnswer && singleDriver !== 'ai_visibility') {
+    return NextResponse.json(
+      { error: 'jhorizon_answer è accettato solo con driver "ai_visibility"' },
+      { status: 400 },
+    )
+  }
 
   const db = createAdminClient()
 
@@ -91,6 +103,17 @@ export async function POST(
       error: null,
       lease_expires_at: null,
       dispatched_at: null,
+    }
+    // Sprint 1 item 3 ("J-Horizon sempre aggiornabile"): the fresh paste is
+    // written as decision_taken IN THE SAME UPDATE as the reset, so the
+    // requeued worker reads it via ctx.decisionTaken exactly like a pause
+    // answer. Chosen over the decision route because that route re-queues
+    // WITHOUT the force-remeasure wipe: on a 'done' row it would leave the
+    // old raw_payload/llm_insight around the new measurement. Here the wipe
+    // below (decision.remeasure) clears them and decision_taken is preserved
+    // by design (lib/v4/retry.ts contract).
+    if (jhorizonAnswer) {
+      update.decision_taken = { jhorizon_answer: jhorizonAnswer }
     }
     if (decision.remeasure) {
       // Re-measure as of today: the old measurement and its derived artifacts
