@@ -10,6 +10,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { getV4Driver } from '@/lib/scoring/registry'
+import { useLocale } from '@/lib/i18n'
+import { fill } from './results-shared'
 import { B } from '@/lib/brand'
 
 export interface SiteScore {
@@ -41,6 +43,10 @@ export interface DriverRow {
   started_at?: string | null
   /** Worker-declared partial coverage (Compliance 4a), shown as amber note. */
   partial_note?: string | null
+  /** Sprint 2 item 19: unmeasured domains with the recorded reason (null =
+   *  old run without one; the UI writes "misura non riuscita"). */
+  unmeasured_details?: Array<{ domain: string; reason: string | null }>
+
   /** Speed/Accessibility only: what the PSI sweep measures (pages × sites). */
   psi_plan?: { pages: number; sites: number } | null
   /** AI Visibility only: the copy-prompt, regenerated from the current set. */
@@ -610,15 +616,28 @@ export function DecisionForm({
   analysisId: string
   onAnswered: () => void
 }) {
+  const { t } = useLocale()
   const request = (row.decision_request ?? {}) as {
     reason?: string
     message?: string
     empty_players?: string[]
+    /** Item 21: true when the empty player is the client (never removable). */
+    empty_client?: boolean
+    client_domain?: string | null
+    /** Empty players that CAN leave the set (client excluded). */
+    removable_players?: string[]
+    tier?: string
+    tier_rule?: { position_max?: number; volume_min?: number }
     next_tier?: string | null
     copy_prompt?: string
     fields?: Array<{ key: string; label?: string; type?: string; domains?: string[] }>
     extracted_scores?: Array<{ site_ref?: number; geo_score?: number | null }>
   }
+  // Backward compatibility: an older pause has no removable_players — the
+  // client was never in empty_players in practice, so all of them count.
+  const removablePlayers =
+    request.removable_players ??
+    (request.empty_players ?? []).filter((d) => d !== request.client_domain)
   const [score, setScore] = useState('')
   const [comment, setComment] = useState('')
   const [busy, setBusy] = useState(false)
@@ -684,7 +703,45 @@ export function DecisionForm({
         gap: '12px',
       }}
     >
-      {request.message && (
+      {/* Item 21: PAUSA SPIEGATA. In linguaggio piano: chi ha zero keyword
+          qualificate, cosa significa, cosa fanno le tre scelte. Il messaggio
+          server-side resta come dettaglio sotto. */}
+      {request.reason === 'empty_tier' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <div style={{ fontSize: '16px', fontWeight: 700, color: B.ink }}>
+            {t('v4res.dec_empty_title')}
+          </div>
+          <div style={{ fontSize: '15px', color: B.ink, lineHeight: 1.6, maxWidth: '80ch' }}>
+            {fill(t('v4res.dec_empty_what'), {
+              players: (request.empty_players ?? []).join(', '),
+              tier: request.tier ?? row.tier_used ?? 'strict',
+              pos: request.tier_rule?.position_max ?? 10,
+              vol: request.tier_rule?.volume_min ?? 1000,
+            })}
+          </div>
+          <div style={{ fontSize: '14px', color: B.muted, lineHeight: 1.6, maxWidth: '80ch' }}>
+            {t('v4res.dec_empty_meaning')}
+          </div>
+          {request.empty_client ? (
+            <div style={{ fontSize: '15px', color: B.warning, lineHeight: 1.6, maxWidth: '80ch', fontWeight: 650 }}>
+              {request.next_tier ? t('v4res.dec_client_empty') : t('v4res.dec_client_empty_no_tier')}
+            </div>
+          ) : (
+            <ul style={{ margin: '4px 0 0', paddingLeft: '18px', fontSize: '14px', color: B.muted, lineHeight: 1.7, maxWidth: '80ch' }}>
+              <li>{t('v4res.dec_opt_remove')}</li>
+              <li>{t('v4res.dec_opt_replace')}</li>
+              <li>{t('v4res.dec_opt_extend')}</li>
+            </ul>
+          )}
+          {request.empty_client && request.next_tier && (
+            <div style={{ fontSize: '14px', color: B.muted, lineHeight: 1.6, maxWidth: '80ch' }}>
+              {t('v4res.dec_opt_extend')}
+            </div>
+          )}
+        </div>
+      )}
+
+      {request.message && request.reason !== 'empty_tier' && (
         <div style={{ fontSize: '15px', color: B.warning, lineHeight: 1.5 }}>{request.message}</div>
       )}
 
@@ -697,21 +754,25 @@ export function DecisionForm({
               onClick={() => send({ tier: request.next_tier })}
               style={decisionButton}
             >
-              Estendi al tier {request.next_tier} (tutto il set)
+              {fill(t('v4res.dec_extend_cta'), { tier: request.next_tier })}
             </button>
           )}
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => send({ removed: request.empty_players ?? [] })}
-            style={decisionButton}
-          >
-            Rimuovi {(request.empty_players ?? []).join(', ')} dal set
-          </button>
+          {/* Il cliente non è mai rimovibile: il bottone esiste solo per i
+              competitor vuoti. */}
+          {removablePlayers.length > 0 && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => send({ removed: removablePlayers })}
+              style={decisionButton}
+            >
+              {fill(t('v4res.dec_remove_cta'), { players: removablePlayers.join(', ') })}
+            </button>
+          )}
         </div>
       )}
 
-      {request.reason === 'empty_tier' && (request.empty_players ?? []).length > 0 && (
+      {request.reason === 'empty_tier' && removablePlayers.length > 0 && (
         // Replace (Bibbia): swap the empty competitor with another domain.
         // The whole audit re-runs from scratch — replacing a player changes
         // the SET every driver measured, so the route resets everything.
@@ -720,13 +781,13 @@ export function DecisionForm({
             style={{ ...editInput, minWidth: '200px' }}
             value={replaceTo}
             onChange={(e) => setReplaceTo(e.target.value)}
-            placeholder={`Nuovo dominio al posto di ${(request.empty_players ?? [])[0]}`}
+            placeholder={fill(t('v4res.dec_replace_placeholder'), { domain: removablePlayers[0] })}
           />
           <input
             style={{ ...editInput, minWidth: '140px' }}
             value={replaceBrand}
             onChange={(e) => setReplaceBrand(e.target.value)}
-            placeholder="Brand name (opz.)"
+            placeholder={t('v4res.dec_replace_brand')}
           />
           <button
             type="button"
@@ -734,7 +795,7 @@ export function DecisionForm({
             onClick={() =>
               send({
                 replace: {
-                  from: (request.empty_players ?? [])[0],
+                  from: removablePlayers[0],
                   to: replaceTo.trim(),
                   ...(replaceBrand.trim() ? { brand_name: replaceBrand.trim() } : {}),
                 },
@@ -742,7 +803,7 @@ export function DecisionForm({
             }
             style={decisionButton}
           >
-            Sostituisci (ri-esegue tutta l&apos;analisi)
+            {t('v4res.dec_replace_cta')}
           </button>
         </div>
       )}

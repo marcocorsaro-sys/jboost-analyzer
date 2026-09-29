@@ -38,6 +38,61 @@ export function readSites(row: DriverRunRow): SiteRawValue[] {
   return Array.isArray(sites) ? (sites as SiteRawValue[]) : []
 }
 
+/** One unmeasured site, with the best reason the payload records. */
+export interface UnmeasuredDetail {
+  domain: string
+  /** null = the run predates reason capture: the UI says "misura non riuscita". */
+  reason: string | null
+}
+
+/**
+ * Pure (Sprint 2 item 19): pair every domain the worker declared unmeasured
+ * with the most specific reason its payload carries — Traffic's
+ * coverage_alerts ({domain, reason}), Compliance's per-domain errors
+ * ("domain: message"), or the first generic error mentioning the domain.
+ * Nothing is invented: a domain with no recorded reason stays null.
+ */
+export function readUnmeasuredDetails(
+  rawPayload: Record<string, unknown> | null | undefined,
+): UnmeasuredDetail[] {
+  const p = rawPayload ?? {}
+  const unmeasured = Array.isArray(p.unmeasured)
+    ? (p.unmeasured as unknown[]).filter((d): d is string => typeof d === 'string' && d !== '')
+    : []
+  if (unmeasured.length === 0) return []
+
+  const alerts = Array.isArray(p.coverage_alerts)
+    ? (p.coverage_alerts as Array<{ domain?: unknown; reason?: unknown }>)
+    : []
+  const errors = Array.isArray(p.errors)
+    ? (p.errors as unknown[]).filter((e): e is string => typeof e === 'string')
+    : []
+  // Discoverability: a domain the analyst removed on a pause is not a
+  // failure — say what happened instead of "misura non riuscita".
+  const removedByAnalyst = new Set(
+    Array.isArray(p.removed_by_analyst)
+      ? (p.removed_by_analyst as unknown[]).filter((d): d is string => typeof d === 'string')
+      : [],
+  )
+
+  const clip = (text: string): string => (text.length > 160 ? `${text.slice(0, 159)}…` : text)
+
+  return unmeasured.map((domain) => {
+    if (removedByAnalyst.has(domain)) {
+      return { domain, reason: 'rimosso dal set su decisione dell\'analista' }
+    }
+    const alert = alerts.find((a) => a.domain === domain && typeof a.reason === 'string')
+    if (alert) return { domain, reason: clip(String(alert.reason)) }
+    const err = errors.find((e) => e.includes(domain))
+    if (err) {
+      // Compliance writes "domain: message" — keep only the message half.
+      const stripped = err.startsWith(`${domain}: `) ? err.slice(domain.length + 2) : err
+      return { domain, reason: clip(stripped) }
+    }
+    return { domain, reason: null }
+  })
+}
+
 /**
  * Normalize every completed driver of one analysis.
  *

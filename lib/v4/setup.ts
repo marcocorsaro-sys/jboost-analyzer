@@ -506,6 +506,21 @@ export interface SetupAttachment {
     /** Semrush export only: top issues (title/type/pages_count). */
     issues?: Array<{ title: string; type: string; pages_count: number }>
   } | null
+  /**
+   * knowledge_doc only (Sprint 2 item 18): text extracted at upload,
+   * truncated to KNOWLEDGE_EXTRACT_BUDGET. The orchestrator appends it to
+   * every insight prompt. null/absent = nothing extracted.
+   */
+  extracted_text?: string | null
+  /** True when the extract was cut at the budget. */
+  extract_truncated?: boolean
+  /** Full length of the extracted text before truncation. */
+  extract_chars?: number
+  /**
+   * Why no text is available: 'formato non estraibile (<ext>)' for formats
+   * this codebase cannot read, or the parser's error. The setup UI shows it.
+   */
+  extract_error?: string | null
 }
 
 /** Which driver tab lists an upload kind ('knowledge_doc' is global). */

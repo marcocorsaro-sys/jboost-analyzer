@@ -9,6 +9,35 @@ import { buildSetup, withMandatoryDrivers } from '@/lib/v4/setup'
 import { SetupBody, analysisColumnsFromSetup, toSetupInput } from '@/lib/v4/setup-request'
 import { planDriverRuns, computeRefDate } from '@/lib/v4/runner/planner'
 import { saveTemplateConfigs } from '@/lib/v4/runner/store'
+import { listV4Audits } from '@/lib/v4/audits'
+
+/**
+ * GET /api/v4/analyses — the audits visible to the caller (RLS decides:
+ * audits are team-visible), newest first. Read-only; it powers the wizard's
+ * "Importa setup da un audit esistente" select (Sprint 2 item 14) with the
+ * same listV4Audits the /audits page already uses.
+ */
+export async function GET() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+  if (authError || !user) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  }
+
+  const audits = await listV4Audits(supabase, { limit: 100 })
+  return NextResponse.json({
+    audits: audits.map((a) => ({
+      id: a.id,
+      name: a.name,
+      domain: a.domain,
+      createdAt: a.createdAt,
+      started: a.started,
+    })),
+  })
+}
 
 /**
  * POST /api/v4/analyses — create a V4 analysis from the setup wizard.

@@ -1061,6 +1061,46 @@ const en = {
   'v4res.head_waiting': '{n} waiting for input',
   'v4res.head_errors': '{n} failed',
 
+  // Sprint 2 item 21: Discoverability pause explained
+  'v4res.dec_empty_title': 'Why the analysis is paused',
+  'v4res.dec_empty_what':
+    '{players}: zero qualifying keywords at tier "{tier}" (position <= {pos}, monthly volume >= {vol}).',
+  'v4res.dec_empty_meaning':
+    'At these thresholds the site does not appear: the set comparison cannot be computed until you decide how to treat it. Thresholds stay the same for every site, so the comparison measures the same thing.',
+  'v4res.dec_opt_remove': 'Remove: the player leaves the set and the analysis continues without it.',
+  'v4res.dec_opt_replace':
+    'Replace: a new domain takes its place and the whole analysis restarts from scratch.',
+  'v4res.dec_opt_extend':
+    'Extend: relaxed thresholds for everyone, cascading top-10/1000 -> top-20/500 -> top-100/100.',
+  'v4res.dec_client_empty':
+    'The site with no keywords is the CLIENT: it can never be removed or replaced, the only choice is extending the thresholds for the whole set.',
+  'v4res.dec_client_empty_no_tier':
+    'The site with no keywords is the client and no looser thresholds are left to try: review domain, brand and country in the setup.',
+  'v4res.dec_extend_cta': 'Extend to tier {tier} (whole set)',
+  'v4res.dec_remove_cta': 'Remove {players} from the set',
+  'v4res.dec_replace_placeholder': 'New domain replacing {domain}',
+  'v4res.dec_replace_brand': 'Brand name (opt.)',
+  'v4res.dec_replace_cta': 'Replace (re-runs the whole analysis)',
+  'v4res.card_wait_disco_body':
+    '{players}: zero qualifying keywords in tier "{tier}". Open the tab to choose between Remove, Replace and Extend.',
+  'v4res.card_wait_disco_client': 'The empty site is the client: only Extend is available.',
+
+  // Sprint 2 item 19: partial coverage explained per site and per URL
+  'v4res.unmeasured_title': 'Not measured',
+  'v4res.unmeasured_generic': 'measurement failed',
+
+  // Sprint 2 item 17: readable Traffic + trend
+  'v4res.traffic_readable_title': 'Visits at a glance',
+  'v4res.traffic_avg_line': 'average of the last 3 available months: {n} visits/month',
+  'v4res.traffic_trend_line': 'Client trend, last 3 months vs previous 3: {pct}',
+  'v4res.traffic_trend_title': 'Visits per month, brand vs competitors',
+  'v4res.traffic_source_note': 'Similarweb estimates: indicative values, useful for comparisons and trends.',
+  'v4res.traffic_no_series': 'monthly series not available for',
+
+  // Sprint 2 item 16: URLs in the Discoverability ranking
+  'v4res.disco_url_hint':
+    'This run has no ranking page URLs: re-measure the driver to see them in the table.',
+
   // V4 setup wizard (Bibbia 04, sheet "New Audit (Setup)", 5 steps)
   'v4setup.title': 'New audit',
   'v4setup.resume_title': 'Resume setup',
@@ -1203,6 +1243,28 @@ const en = {
   'v4setup.ai_suggesting': 'Suggesting…',
   'v4setup.ai_suggest_hint': 'Homepage scrape + Sonnet: pre-fills brand, site type, sector, competitors, thematic clusters and template URLs from the sitemap. Everything stays editable — nothing is saved on its own.',
   'v4setup.ai_suggest_needs_domain': 'Enter a valid client domain first.',
+
+  // Sprint 2 item 14: import setup from an existing audit
+  'v4setup.import_title': 'Import setup from an existing audit',
+  'v4setup.import_hint':
+    'Prefills competitors, brand names, thematic clusters, templates and URLs, site type, sector and country from the chosen audit\'s setup. The client domain is not touched when a different one is already typed here; everything stays editable before launch.',
+  'v4setup.import_loading': 'Loading audits…',
+  'v4setup.import_empty': 'No other audit available to import from.',
+  'v4setup.import_cta': 'Import',
+  'v4setup.importing': 'Importing…',
+  'v4setup.import_done': 'Setup imported: review the fields and adjust what you need.',
+  'v4setup.import_done_no_domain':
+    'Setup imported. The client domain and the client template URLs were left untouched because a different domain is already typed here.',
+  'v4setup.import_failed': 'Import failed',
+
+  // Sprint 2 item 18: knowledge docs actually used
+  'v4setup.knowledge_extracted': 'text extracted for the AI',
+  'v4setup.knowledge_chars': 'characters',
+  'v4setup.knowledge_truncated': 'truncated',
+  'v4setup.knowledge_unreadable':
+    'content not readable by the model (format {format}): convert it to text (.txt/.md) so the AI can use it',
+  'v4setup.knowledge_legacy':
+    'uploaded before text extraction existed: re-upload it so the AI can read it',
   'v4setup.ai_suggest_done': 'Suggestions filled into the empty fields — review and correct them before saving.',
   'v4setup.ai_suggest_failed': 'AI suggestion failed',
   'v4setup.invalid_domain': 'Invalid domain: expected something like brand.com',

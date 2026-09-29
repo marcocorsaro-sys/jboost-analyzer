@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAnalysisProgress, recoverAnalysisStaleRuns } from '@/lib/v4/runner/execute'
 import { selectStaleRuns } from '@/lib/v4/runner/reaper'
-import { readSites } from '@/lib/v4/runner/normalize'
+import { readSites, readUnmeasuredDetails } from '@/lib/v4/runner/normalize'
 import { loadAnalysisSites, loadTemplateConfigs } from '@/lib/v4/runner/store'
 import { resolveBaseUrl } from '@/lib/v4/runner/dispatch'
 import { buildJhorizonPrompt } from '@/lib/v4/drivers/jhorizon-extract'
@@ -165,15 +165,26 @@ export async function GET(
       // Item 3: the AI Visibility tab can always rebuild the copy-prompt.
       ...(r.driver_key === 'ai_visibility' ? { jhorizon_prompt: jhorizonPrompt } : {}),
       sites: readSites(r),
+      // Copertura parziale spiegata PER SITO (Sprint 2 item 19): i domini
+      // dichiarati non misurati dal worker, ciascuno col motivo registrato
+      // nel payload (coverage alert, errore per dominio). null = run vecchia
+      // senza motivo: la UI scrive "misura non riuscita", mai un'invenzione.
+      unmeasured_details: readUnmeasuredDetails(r.raw_payload),
       // Setup uploads bound to this driver (Screaming Frog crawl, backlink
       // export): listed in the tab as "uploaded attachment". Parsing them is
       // a downstream TODO — the reference is the whole contract for now.
       attachments: Array.isArray((r.config as { attachments?: unknown })?.attachments)
         ? (r.config as { attachments: unknown[] }).attachments
         : [],
+      // Item 21: the pause payload lives in the decision_request COLUMN
+      // (writeOutcome); the old raw_payload read always answered null and the
+      // needs_decision card had nothing to explain. Column first, legacy
+      // payload location as fallback.
       decision_request:
         r.status === 'needs_decision'
-          ? ((r.raw_payload as { decision_request?: unknown })?.decision_request ?? null)
+          ? (r.decision_request ??
+            (r.raw_payload as { decision_request?: unknown })?.decision_request ??
+            null)
           : null,
     })),
   })

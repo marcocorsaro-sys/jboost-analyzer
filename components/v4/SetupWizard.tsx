@@ -356,6 +356,15 @@ export default function SetupWizard({
   const [maxInsights, setMaxInsights] = useState(d?.maxInsights ? String(d.maxInsights) : '')
   const [additionalNotes, setAdditionalNotes] = useState(d?.additionalNotes ?? '')
 
+  // ---- Importa setup da un audit esistente (Sprint 2 item 14) ----
+  const [importOpen, setImportOpen] = useState(false)
+  const [importList, setImportList] = useState<
+    Array<{ id: string; name: string; domain: string | null; createdAt: string }> | null
+  >(null)
+  const [importSel, setImportSel] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [importNote, setImportNote] = useState<string | null>(null)
+
   // ---- derived ----
   const filledCompetitors = competitors.filter((c) => bareDomain(c.domain))
   const hasCompetitor = filledCompetitors.length > 0
@@ -622,6 +631,115 @@ export default function SetupWizard({
   }
 
   // ---------------------------------------------------------------------
+  // Importa setup da un audit esistente (item 14): lista via GET
+  // /api/v4/analyses (read-only, gli audit sono visibili al team), dettaglio
+  // via GET /api/v4/analyses/[id]. Solo PREFILL lato client: niente viene
+  // salvato finché l'analista non salva/lancia. Il dominio cliente NON viene
+  // importato se qui ne è già scritto uno diverso.
+  // ---------------------------------------------------------------------
+
+  const openImport = async () => {
+    setImportOpen((v) => !v)
+    setImportNote(null)
+    if (importList !== null) return
+    try {
+      const res = await fetch('/api/v4/analyses')
+      const data = (await res.json()) as {
+        error?: string
+        audits?: Array<{ id: string; name: string; domain: string | null; createdAt: string }>
+      }
+      if (!res.ok) {
+        setImportNote(`${t('v4setup.import_failed')}: ${data.error ?? res.status}`)
+        setImportList([])
+        return
+      }
+      // Never offer the draft currently being edited as its own source.
+      setImportList((data.audits ?? []).filter((a) => a.id !== analysisId))
+    } catch (err) {
+      setImportNote(err instanceof Error ? err.message : t('v4setup.err_network'))
+      setImportList([])
+    }
+  }
+
+  const importFromAudit = async () => {
+    if (!importSel) return
+    setImporting(true)
+    setImportNote(null)
+    try {
+      const res = await fetch(`/api/v4/analyses/${importSel}`)
+      const data = (await res.json()) as {
+        error?: string
+        setup?: {
+          domain: string | null
+          brandName: string | null
+          brandVariants: string[]
+          country: string | null
+          countries: string[]
+          outputLanguage: 'it' | 'en'
+          siteType: string | null
+          industryPreset: string | null
+          sector: string | null
+          targetAudienceMode: string | null
+          targetAudience: string | null
+          seoMaturity: string | null
+          competitors: CompetitorRow[]
+          thematicClusters: string[]
+          driverTemplates: Record<string, string[]>
+          templates: Record<string, Record<string, string>>
+        }
+      }
+      if (!res.ok || !data.setup) {
+        setImportNote(`${t('v4setup.import_failed')}: ${data.error ?? res.status}`)
+        return
+      }
+      const s = data.setup
+
+      // Il dominio cliente: importato solo se il campo è vuoto o già uguale.
+      const current = bareDomain(clientDomain)
+      const imported = bareDomain(s.domain ?? '')
+      const importClient = current === '' || current === imported
+      if (importClient && imported) {
+        setClientDomain(imported)
+        if (s.brandName) setClientBrand(s.brandName)
+        if (s.brandVariants.length > 0) setBrandVariants(s.brandVariants.join(', '))
+      }
+
+      if (s.competitors.length > 0) {
+        setCompetitors(s.competitors.map((c) => ({ domain: c.domain, brandName: c.brandName })))
+      }
+      if (s.thematicClusters.length > 0) setClusters(s.thematicClusters)
+      if (s.siteType) setSiteType(s.siteType)
+      if (s.industryPreset) setIndustryPreset(s.industryPreset as IndustryPreset)
+      if (s.sector) setSector(s.sector)
+      if (s.targetAudienceMode) setTargetAudienceMode(s.targetAudienceMode)
+      if (s.targetAudience) setTargetAudience(s.targetAudience)
+      if (s.seoMaturity) setSeoMaturity(s.seoMaturity)
+      if (s.countries.length > 0) setCountries(s.countries)
+      else if (s.country) setCountries([s.country])
+      if (s.outputLanguage) setOutputLanguage(s.outputLanguage)
+      if (Object.keys(s.driverTemplates).length > 0) setDriverTemplates(s.driverTemplates)
+      if (Object.keys(s.templates).length > 0) {
+        // Le URL template del cliente valgono solo se il dominio coincide:
+        // altrimenti punterebbero al sito di un altro audit.
+        const next: Record<string, Record<string, string>> = {}
+        for (const [siteRef, byKey] of Object.entries(s.templates)) {
+          if (siteRef === 'client' && !importClient) continue
+          next[siteRef] = { ...byKey }
+        }
+        if (Object.keys(next).length > 0) setTemplates(next)
+      }
+
+      setImportNote(
+        importClient ? t('v4setup.import_done') : t('v4setup.import_done_no_domain'),
+      )
+    } catch (err) {
+      setImportNote(err instanceof Error ? err.message : t('v4setup.err_network'))
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  // ---------------------------------------------------------------------
   // "Suggerisci con AI" — POST /api/v4/analyses/suggest (Firecrawl + Sonnet,
   // adapted from the V1 pre-sales intake). Every suggestion is a PREFILL of
   // EMPTY fields only: what the analyst already typed always wins, and
@@ -791,25 +909,55 @@ export default function SetupWizard({
   const uploadBlock = (kind: AttachmentKind, label: string, accept: string, hint: string) => (
     <div style={{ marginTop: '12px' }}>
       <label style={labelStyle}>{label}</label>
-      {attachmentsOf(kind).map((a) => (
-        <div key={a.path} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-          <span style={chipStyle}>{a.name}</span>
-          {typeof a.parsed?.row_count === 'number' && (
-            <span style={{ fontSize: '14px', color: B.muted }}>
-              {a.parsed.row_count} {t('v4setup.parsed_rows')}
-            </span>
-          )}
-          {!launched && (
-            <button
-              type="button"
-              onClick={() => removeFile(a.path)}
-              style={{ ...ghostButton, padding: '2px 10px', fontSize: '14px' }}
-            >
-              {t('v4setup.remove')}
-            </button>
-          )}
-        </div>
-      ))}
+      {attachmentsOf(kind).map((a) => {
+        // Item 18: per i knowledge doc lo stato di estrazione è esplicito —
+        // o il testo raggiunge i prompt AI, o si dice chiaro che non può.
+        const ext = (a.name.match(/\.[^.]+$/)?.[0] ?? '').toLowerCase()
+        const knowledgeStatus =
+          kind !== 'knowledge_doc'
+            ? null
+            : typeof a.extracted_text === 'string' && a.extracted_text !== ''
+              ? {
+                  ok: true,
+                  text: `${t('v4setup.knowledge_extracted')} (${(a.extract_chars ?? a.extracted_text.length).toLocaleString()} ${t('v4setup.knowledge_chars')}${a.extract_truncated ? `, ${t('v4setup.knowledge_truncated')}` : ''})`,
+                }
+              : a.extract_error === undefined && a.extracted_text === undefined
+                ? // Upload fatto prima che l'estrazione esistesse: nessuna
+                  // bugia sul formato, solo l'invito a ricaricarlo.
+                  { ok: false, text: t('v4setup.knowledge_legacy') }
+                : {
+                    ok: false,
+                    text:
+                      t('v4setup.knowledge_unreadable').replace('{format}', ext || '?') +
+                      (a.extract_error && !a.extract_error.startsWith('formato non estraibile')
+                        ? ` (${a.extract_error})`
+                        : ''),
+                  }
+        return (
+          <div key={a.path} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', flexWrap: 'wrap' }}>
+            <span style={chipStyle}>{a.name}</span>
+            {typeof a.parsed?.row_count === 'number' && (
+              <span style={{ fontSize: '14px', color: B.muted }}>
+                {a.parsed.row_count} {t('v4setup.parsed_rows')}
+              </span>
+            )}
+            {knowledgeStatus && (
+              <span style={{ fontSize: '14px', color: knowledgeStatus.ok ? B.muted : B.warning }}>
+                {knowledgeStatus.text}
+              </span>
+            )}
+            {!launched && (
+              <button
+                type="button"
+                onClick={() => removeFile(a.path)}
+                style={{ ...ghostButton, padding: '2px 10px', fontSize: '14px' }}
+              >
+                {t('v4setup.remove')}
+              </button>
+            )}
+          </div>
+        )
+      })}
       {launched ? (
         // The files route only accepts uploads on a not-yet-started setup;
         // saying so here beats a server error after the pick.
@@ -1716,6 +1864,70 @@ export default function SetupWizard({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* Importa setup da un audit esistente (item 14): all'inizio del
+          wizard, solo prefill — tutto resta modificabile prima del lancio. */}
+      {!launched && (
+        <div
+          style={{
+            background: B.bg,
+            border: `1px dashed ${B.border}`,
+            borderRadius: B.radius.card,
+            padding: '16px 20px',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => void openImport()}
+            style={{ ...ghostButton, borderColor: `${B.primary}40`, color: B.primary }}
+          >
+            {importOpen ? `− ${t('v4setup.import_title')}` : `+ ${t('v4setup.import_title')}`}
+          </button>
+          {importOpen && (
+            <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={smallHint}>{t('v4setup.import_hint')}</div>
+              {importList === null ? (
+                <div style={{ fontSize: '14px', color: B.muted }}>{t('v4setup.import_loading')}</div>
+              ) : importList.length === 0 ? (
+                <div style={{ fontSize: '14px', color: B.muted }}>{t('v4setup.import_empty')}</div>
+              ) : (
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <select
+                    value={importSel}
+                    onChange={(e) => setImportSel(e.target.value)}
+                    style={{ ...inputStyle, maxWidth: '420px' }}
+                  >
+                    <option value="">—</option>
+                    {importList.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                        {a.domain && a.domain !== a.name ? ` (${a.domain})` : ''} ·{' '}
+                        {a.createdAt.slice(0, 10)}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => void importFromAudit()}
+                    disabled={importing || !importSel}
+                    style={{
+                      ...ghostButton,
+                      borderColor: `${B.primary}40`,
+                      color: importing || !importSel ? B.muted : B.primary,
+                      opacity: importing || !importSel ? 0.6 : 1,
+                    }}
+                  >
+                    {importing ? t('v4setup.importing') : t('v4setup.import_cta')}
+                  </button>
+                </div>
+              )}
+              {importNote && (
+                <div style={{ fontSize: '14px', color: B.primary }}>{importNote}</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Stepper — large, readable steps */}
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
         {stepLabels.map((k, i) => {

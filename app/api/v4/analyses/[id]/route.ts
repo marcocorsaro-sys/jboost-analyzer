@@ -11,6 +11,113 @@ import { planDriverRuns } from '@/lib/v4/runner/planner'
 import { saveTemplateConfigs, seedDriverRuns } from '@/lib/v4/runner/store'
 
 /**
+ * GET /api/v4/analyses/[id] — the saved setup of one audit, read-only,
+ * reshaped for the wizard (Sprint 2 item 14, "Importa setup da un audit
+ * esistente"). Same access model as everything else here: the user-scoped
+ * client reads the row, RLS decides. No attachment content, no measures:
+ * exactly the fields the wizard can prefill.
+ */
+export async function GET(
+  _request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const { id: analysisId } = await context.params
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+  if (authError || !user) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  }
+
+  const { data: analysis, error: fetchError } = await supabase
+    .from('analyses')
+    .select(
+      'id, domain, brand_name, brand_variants, country, output_language, site_type, ' +
+        'industry_preset, target_audience, seo_maturity, competitor_details, llm_guardrails, v4_setup',
+    )
+    .eq('id', analysisId)
+    .maybeSingle()
+  if (fetchError || !analysis) {
+    return NextResponse.json({ error: 'analysis not found or no access' }, { status: 404 })
+  }
+
+  const { data: templateRows } = await supabase
+    .from('template_configs')
+    .select('site_ref, template_key, url')
+    .eq('analysis_id', analysisId)
+
+  const a = analysis as unknown as {
+    id: string
+    domain: string | null
+    brand_name: string | null
+    brand_variants: string[] | null
+    country: string | null
+    output_language: string | null
+    site_type: string | null
+    industry_preset: string | null
+    target_audience: string | null
+    seo_maturity: string | null
+    competitor_details: Array<{ domain?: string; brand_name?: string | null }> | null
+    llm_guardrails: { blocklist?: unknown; max_insights?: unknown } | null
+    v4_setup: Record<string, unknown> | null
+  }
+  const setup = a.v4_setup ?? {}
+  const guardrails = a.llm_guardrails ?? {}
+  const asStrings = (v: unknown): string[] =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+
+  const templates: Record<string, Record<string, string>> = {}
+  for (const row of (templateRows ?? []) as Array<{
+    site_ref: string
+    template_key: string
+    url: string | null
+  }>) {
+    if (!row.url) continue
+    ;(templates[row.site_ref] ??= {})[row.template_key] = row.url
+  }
+
+  return NextResponse.json({
+    analysisId: a.id,
+    setup: {
+      domain: a.domain,
+      brandName: a.brand_name,
+      brandVariants: a.brand_variants ?? [],
+      country: a.country,
+      countries: asStrings(setup.countries),
+      outputLanguage: a.output_language === 'en' ? 'en' : 'it',
+      siteType: a.site_type,
+      industryPreset: a.industry_preset,
+      sector: typeof setup.sector === 'string' ? setup.sector : null,
+      targetAudienceMode:
+        typeof setup.target_audience_mode === 'string' ? setup.target_audience_mode : null,
+      targetAudience: a.target_audience,
+      seoMaturity: a.seo_maturity,
+      competitors: (a.competitor_details ?? []).map((c) => ({
+        domain: c.domain ?? '',
+        brandName: c.brand_name ?? '',
+      })),
+      enabledDrivers: asStrings(setup.enabled_drivers),
+      thematicClusters: asStrings(setup.thematic_clusters),
+      blocklist: asStrings(guardrails.blocklist),
+      maxInsights: typeof guardrails.max_insights === 'number' ? guardrails.max_insights : null,
+      driverTemplates:
+        setup.driver_templates && typeof setup.driver_templates === 'object'
+          ? Object.fromEntries(
+              Object.entries(setup.driver_templates as Record<string, unknown>).map(([k, v]) => [
+                k,
+                asStrings(v),
+              ]),
+            )
+          : {},
+      templates,
+    },
+  })
+}
+
+/**
  * PATCH /api/v4/analyses/[id] — three shapes, one route:
  *
  * 1. NOTES-ONLY body { global_notes }: writes analyses.v4_setup.global_notes

@@ -1061,6 +1061,46 @@ const it = {
   'v4res.head_waiting': '{n} in attesa di input',
   'v4res.head_errors': '{n} in errore',
 
+  // Sprint 2 item 21: pausa Discoverability spiegata
+  'v4res.dec_empty_title': 'Perché l\'analisi è in pausa',
+  'v4res.dec_empty_what':
+    '{players}: zero keyword qualificate al tier "{tier}" (posizione <= {pos}, volume mensile >= {vol}).',
+  'v4res.dec_empty_meaning':
+    'A queste soglie il sito non compare: il confronto del set non si può calcolare finché non decidi come trattarlo. Le soglie restano uguali per tutti i siti, per confrontare la stessa cosa.',
+  'v4res.dec_opt_remove': 'Rimuovi: il player esce dal set e l\'analisi prosegue senza di lui.',
+  'v4res.dec_opt_replace':
+    'Sostituisci: un nuovo dominio prende il suo posto e l\'analisi riparte da zero su tutto il set.',
+  'v4res.dec_opt_extend':
+    'Estendi: soglie rilassate uguali per tutti, in cascata top-10/1000 -> top-20/500 -> top-100/100.',
+  'v4res.dec_client_empty':
+    'Il sito senza keyword è il cliente: non è rimovibile né sostituibile, l\'unica scelta è estendere le soglie per tutto il set.',
+  'v4res.dec_client_empty_no_tier':
+    'Il sito senza keyword è il cliente e non ci sono soglie più larghe da provare: rivedi dominio, brand e paese nel setup.',
+  'v4res.dec_extend_cta': 'Estendi al tier {tier} (tutto il set)',
+  'v4res.dec_remove_cta': 'Rimuovi {players} dal set',
+  'v4res.dec_replace_placeholder': 'Nuovo dominio al posto di {domain}',
+  'v4res.dec_replace_brand': 'Brand name (opz.)',
+  'v4res.dec_replace_cta': 'Sostituisci (ri-esegue tutta l\'analisi)',
+  'v4res.card_wait_disco_body':
+    '{players}: zero keyword qualificate nel tier "{tier}". Apri la tab per scegliere tra Rimuovi, Sostituisci ed Estendi.',
+  'v4res.card_wait_disco_client': 'Il sito vuoto è il cliente: disponibile solo Estendi.',
+
+  // Sprint 2 item 19: parziali spiegati per sito e per URL
+  'v4res.unmeasured_title': 'Non misurati',
+  'v4res.unmeasured_generic': 'misura non riuscita',
+
+  // Sprint 2 item 17: Traffic leggibile + trend
+  'v4res.traffic_readable_title': 'Visite in chiaro',
+  'v4res.traffic_avg_line': 'media ultimi 3 mesi disponibili: {n} visite/mese',
+  'v4res.traffic_trend_line': 'Trend cliente, ultimi 3 mesi vs 3 precedenti: {pct}',
+  'v4res.traffic_trend_title': 'Visite per mese, brand vs competitor',
+  'v4res.traffic_source_note': 'Stime Similarweb: valori indicativi, utili per confronti e tendenze.',
+  'v4res.traffic_no_series': 'serie mensile non disponibile per',
+
+  // Sprint 2 item 16: URL nel ranking Discoverability
+  'v4res.disco_url_hint':
+    'Questa run non ha le URL delle pagine posizionate: rimisura il driver per vederle in tabella.',
+
   // Wizard di setup V4 (Bibbia 04, foglio "New Audit (Setup)", 5 step)
   'v4setup.title': 'Nuovo audit',
   'v4setup.resume_title': 'Riprendi setup',
@@ -1203,6 +1243,28 @@ const it = {
   'v4setup.ai_suggesting': 'Suggerisco…',
   'v4setup.ai_suggest_hint': 'Scrape della homepage + Sonnet: pre-compila brand, tipo sito, settore, competitor, cluster tematici e URL dei template dalla sitemap. Tutto resta modificabile — niente viene salvato da solo.',
   'v4setup.ai_suggest_needs_domain': 'Inserisci prima un dominio cliente valido.',
+
+  // Sprint 2 item 14: importa setup da un audit esistente
+  'v4setup.import_title': 'Importa setup da un audit esistente',
+  'v4setup.import_hint':
+    'Precompila competitor, brand name, cluster tematici, template e URL, tipo sito, settore e paese dal setup dell\'audit scelto. Il dominio cliente non viene toccato se qui ne hai già scritto uno diverso; tutto resta modificabile prima del lancio.',
+  'v4setup.import_loading': 'Carico gli audit…',
+  'v4setup.import_empty': 'Nessun altro audit disponibile da cui importare.',
+  'v4setup.import_cta': 'Importa',
+  'v4setup.importing': 'Importo…',
+  'v4setup.import_done': 'Setup importato: controlla i campi e adatta quello che serve.',
+  'v4setup.import_done_no_domain':
+    'Setup importato. Il dominio cliente e le URL template del cliente non sono stati toccati perché qui c\'è già un dominio diverso.',
+  'v4setup.import_failed': 'Import non riuscito',
+
+  // Sprint 2 item 18: knowledge doc davvero usati
+  'v4setup.knowledge_extracted': 'testo estratto per l\'AI',
+  'v4setup.knowledge_chars': 'caratteri',
+  'v4setup.knowledge_truncated': 'troncato',
+  'v4setup.knowledge_unreadable':
+    'contenuto non leggibile dal modello (formato {format}): convertilo in testo (.txt/.md) per farlo usare dall\'AI',
+  'v4setup.knowledge_legacy':
+    'caricato prima dell\'estrazione testo: ricaricalo per farlo leggere all\'AI',
   'v4setup.ai_suggest_done': 'Suggerimenti inseriti nei campi vuoti — verificali e correggili prima di salvare.',
   'v4setup.ai_suggest_failed': 'Suggerimento AI fallito',
   'v4setup.invalid_domain': 'Dominio non valido: atteso qualcosa come brand.com',

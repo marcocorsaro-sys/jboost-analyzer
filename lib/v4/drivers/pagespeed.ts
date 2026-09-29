@@ -142,11 +142,37 @@ export function urlsForSite(ctx: DriverJobContext, site: AnalysisSite): string[]
   return configured.length > 0 ? configured : [`https://${site.domain}`]
 }
 
+/**
+ * Pure (Sprint 2 item 19): compress a PSI failure message into the short
+ * reason the UI lists next to the unmeasured URL. It is a classification of
+ * the messages THIS module produces (fetchPageSpeedForUrl), so the mapping
+ * can stay honest: anything unrecognized keeps a clipped original.
+ */
+export function psiFailureReason(message: string): string {
+  if (/timeout|timed? ?out|abort/i.test(message)) return 'timeout'
+  if (/returned 429/.test(message)) return 'quota PSI (429)'
+  if (/returned 5\d\d/.test(message)) return 'errore PSI 5xx'
+  if (/returned 4\d\d/.test(message)) return 'richiesta rifiutata (4xx)'
+  if (/budget di tempo esaurito/.test(message)) return 'budget tempo esaurito'
+  if (/no lighthouseResult|incomplete Lighthouse/.test(message)) return 'risposta Lighthouse incompleta'
+  if (/request failed/i.test(message)) return 'errore di rete'
+  return message.length > 80 ? `${message.slice(0, 79)}…` : message
+}
+
+/** One (url, strategy) run that produced no measurement, with its reason. */
+export interface FailedRun {
+  url: string
+  strategy: (typeof STRATEGIES)[number]
+  reason: string
+}
+
 export interface PsiSetResult {
   sites: SiteRawValue[]
   errors: string[]
   measurements: PageMeasurement[]
   templatesConfigured: boolean
+  /** Item 19: every failed (url, strategy) run with its domain and reason. */
+  failedRuns?: Array<FailedRun & { domain: string }>
 }
 
 /**
@@ -161,6 +187,9 @@ export async function measureSet(
 ): Promise<PsiSetResult> {
   const errors: string[] = []
   const measurements: PageMeasurement[] = []
+  // Item 19: per-URL failures with the synthesized reason, keyed by site so
+  // each site's evidence lists exactly ITS unmeasured runs.
+  const failedBySite = new Map<string, FailedRun[]>()
 
   const jobs = ctx.sites.flatMap((site) =>
     urlsForSite(ctx, site).flatMap((url) =>
@@ -178,7 +207,11 @@ export async function measureSet(
       measurements.push(m)
       return { site_ref: job.site.site_ref, m }
     } catch (err) {
-      errors.push(err instanceof Error ? err.message : String(err))
+      const message = err instanceof Error ? err.message : String(err)
+      errors.push(message)
+      const list = failedBySite.get(job.site.site_ref) ?? []
+      list.push({ url: job.url, strategy: job.strategy, reason: psiFailureReason(message) })
+      failedBySite.set(job.site.site_ref, list)
       return null
     }
   })
@@ -193,6 +226,7 @@ export async function measureSet(
     const avg = mean(scores)
     if (avg === null) continue
 
+    const failed = failedBySite.get(site.site_ref) ?? []
     sites.push({
       site_ref: site.site_ref,
       domain: site.domain,
@@ -211,15 +245,23 @@ export async function measureSet(
         ...(own.length < attempted
           ? { coverage_note: `misurate ${own.length} combinazioni su ${attempted} tentate` }
           : {}),
+        // Item 19: WHICH runs failed and WHY (timeout, 5xx, quota) — the UI
+        // lists them under the score instead of a bare percentage.
+        ...(failed.length > 0 ? { failed_runs: failed } : {}),
       },
     })
   }
+
+  const failedRuns = ctx.sites.flatMap((site) =>
+    (failedBySite.get(site.site_ref) ?? []).map((f) => ({ ...f, domain: site.domain })),
+  )
 
   return {
     sites,
     errors,
     measurements,
     templatesConfigured: ctx.templates.some((t) => t.url),
+    ...(failedRuns.length > 0 ? { failedRuns } : {}),
   }
 }
 
@@ -254,6 +296,12 @@ export function psiOutcome(
       unmeasured: ctx.sites
         .filter((s) => !result.sites.some((m) => m.site_ref === s.site_ref))
         .map((s) => s.domain),
+      // Item 19: url-level failures with the synthesized reason, so a site
+      // that could not be measured AT ALL (absent from `sites`) still tells
+      // WHY per url in the payload the status route reads.
+      ...(result.failedRuns && result.failedRuns.length > 0
+        ? { failed_runs: result.failedRuns }
+        : {}),
       errors: result.errors,
     },
   }

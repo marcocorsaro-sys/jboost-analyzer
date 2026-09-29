@@ -1101,7 +1101,28 @@ function OverviewCard({
 
   // ---- needs_decision: card tratteggiata con invito + CTA -----------------
   if (row.status === 'needs_decision') {
-    const request = (row.decision_request ?? {}) as { message?: string }
+    const request = (row.decision_request ?? {}) as {
+      message?: string
+      reason?: string
+      empty_players?: string[]
+      empty_client?: boolean
+      tier?: string
+    }
+    // Item 21: la pausa Discoverability si spiega in card, in linguaggio
+    // piano — chi ha zero keyword qualificate e a quale tier — invece del
+    // solo messaggio tecnico clippato.
+    const emptyTierBody =
+      request.reason === 'empty_tier' && (request.empty_players ?? []).length > 0
+        ? [
+            fill(t('v4res.card_wait_disco_body'), {
+              players: (request.empty_players ?? []).join(', '),
+              tier: request.tier ?? row.tier_used ?? 'strict',
+            }),
+            request.empty_client ? t('v4res.card_wait_disco_client') : null,
+          ]
+            .filter(Boolean)
+            .join(' ')
+        : null
     const copy =
       row.driver_key === 'ai_visibility'
         ? {
@@ -1117,7 +1138,9 @@ function OverviewCard({
             }
           : {
               title: t('v4res.card_wait_generic_title'),
-              body: typeof request.message === 'string' ? clipText(request.message, 140) : '',
+              body:
+                emptyTierBody ??
+                (typeof request.message === 'string' ? clipText(request.message, 140) : ''),
               cta: t('v4res.card_wait_generic_cta'),
             }
     return (

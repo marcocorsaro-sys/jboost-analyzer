@@ -39,10 +39,20 @@ import {
   primaryButton,
 } from './results-shared'
 import type { HistogramSite } from './charts/V4Histogram'
+import type { TrendSeries } from './charts/V4TrendChart'
+import { formatInt, formatMonth, formatPct } from '@/lib/v4/format'
 import { B } from '@/lib/brand'
 
 // recharts stays in its own lazy chunk (same pattern as the V1 SpiderChart).
 const V4Histogram = nextDynamic(() => import('./charts/V4Histogram'), {
+  ssr: false,
+  loading: () => (
+    <div style={{ height: 300, background: B.surface, borderRadius: B.radius.card, border: `1px solid ${B.border}` }} aria-hidden />
+  ),
+})
+
+// Item 17: visits-per-month trend for the Traffic tab, same lazy pattern.
+const V4TrendChart = nextDynamic(() => import('./charts/V4TrendChart'), {
   ssr: false,
   loading: () => (
     <div style={{ height: 300, background: B.surface, borderRadius: B.radius.card, border: `1px solid ${B.border}` }} aria-hidden />
@@ -272,6 +282,11 @@ export default function DriverPanel({
           </div>
         )}
 
+        {/* Parziali spiegati per sito e per URL (Sprint 2 item 19): sotto lo
+            score, l'elenco compatto di chi non è stato misurato e perché.
+            Run vecchie senza motivo: "misura non riuscita", mai inventato. */}
+        {row.status === 'done' && <UnmeasuredList row={row} />}
+
         {/* Fallback manuale Compliance (Sprint 1 item 4b): upload export
             Semrush per sito quando il driver è in errore o parziale. */}
         {row.driver_key === 'compliance' &&
@@ -384,6 +399,13 @@ export default function DriverPanel({
             notMeasuredLabel={t('v4res.not_measured')}
             rawLabel={t('v4res.raw')}
           />
+        )}
+
+        {/* Traffic leggibile + trend (Sprint 2 item 17): media 3 mesi
+            formattata, grafico visite/mese brand vs competitor sui SOLI mesi
+            presenti nel payload, nota fonte Similarweb. */}
+        {row.driver_key === 'traffic' && row.status === 'done' && row.sites.length > 0 && (
+          <TrafficEvidence row={row} sites={sites} />
         )}
 
         {row.sites.length > 0 && <EvidenceCard row={row} sites={sites} />}
@@ -799,6 +821,152 @@ function readItems(
 }
 
 // ---------------------------------------------------------------------------
+// Non misurati (Sprint 2 item 19): compact per-site and per-URL list of what
+// could NOT be measured, with the reason the payload recorded. Site level
+// comes from unmeasured_details (status route); URL level from the PSI
+// evidence failed_runs of Speed/Accessibility.
+// ---------------------------------------------------------------------------
+
+interface PsiFailedRun {
+  url?: string
+  strategy?: string
+  reason?: string
+}
+
+function UnmeasuredList({ row }: { row: DriverRow }) {
+  const { t } = useLocale()
+
+  const siteEntries = (row.unmeasured_details ?? []).map((d) => ({
+    target: d.domain,
+    reason: d.reason ?? t('v4res.unmeasured_generic'),
+  }))
+
+  // Per-URL failures (Speed/Accessibility): read from each site's evidence.
+  const urlEntries =
+    row.driver_key === 'speed' || row.driver_key === 'accessibility'
+      ? row.sites.flatMap((s) => {
+          const failed = (s.evidence as { failed_runs?: unknown })?.failed_runs
+          if (!Array.isArray(failed)) return []
+          return (failed as PsiFailedRun[])
+            .filter((f) => typeof f.url === 'string')
+            .map((f) => ({
+              target: `${f.url}${f.strategy ? ` · ${f.strategy}` : ''}`,
+              reason:
+                typeof f.reason === 'string' && f.reason !== ''
+                  ? f.reason
+                  : t('v4res.unmeasured_generic'),
+            }))
+        })
+      : []
+
+  const entries = [...siteEntries, ...urlEntries]
+  if (entries.length === 0) return null
+
+  return (
+    <div
+      style={{
+        marginTop: '12px',
+        padding: '10px 14px',
+        background: B.bg,
+        border: `1px solid ${B.border}`,
+        borderRadius: '8px',
+      }}
+    >
+      <div style={{ ...mutedLabel, marginBottom: '6px' }}>{t('v4res.unmeasured_title')}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        {entries.map((e, i) => (
+          <div key={i} style={{ fontSize: '14px', color: B.muted, lineHeight: 1.5, overflowWrap: 'anywhere' }}>
+            <span style={{ color: B.ink }}>{e.target}</span> ({e.reason})
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Traffic leggibile + trend (Sprint 2 item 17). Numeri con separatore delle
+// migliaia, basi dichiarate ("media ultimi 3 mesi disponibili"), grafico
+// visite/mese SOLO sui mesi presenti nel payload (months_series quando la
+// run ha salvato la finestra completa, months_used altrimenti), nota fonte.
+// ---------------------------------------------------------------------------
+
+interface MonthlyPoint {
+  date?: string
+  visits?: number
+}
+
+function trafficMonths(evidence: Record<string, unknown> | undefined): Array<{ month: string; value: number }> {
+  const raw = (evidence?.months_series ?? evidence?.months_used) as unknown
+  if (!Array.isArray(raw)) return []
+  return (raw as MonthlyPoint[])
+    .filter((p) => typeof p.date === 'string' && typeof p.visits === 'number' && Number.isFinite(p.visits))
+    .map((p) => ({ month: (p.date as string).slice(0, 7), value: p.visits as number }))
+    .sort((a, b) => a.month.localeCompare(b.month))
+}
+
+function TrafficEvidence({ row, sites }: { row: DriverRow; sites: SiteMeta[] }) {
+  const { t, locale } = useLocale()
+
+  const nameOf = (s: SiteScore): string =>
+    sites.find((m) => m.site_ref === s.site_ref)?.name ?? s.domain
+
+  const series: TrendSeries[] = row.sites.map((s) => ({
+    name: nameOf(s),
+    isClient: s.site_ref === 'client',
+    points: trafficMonths(s.evidence),
+  }))
+
+  const clientTrend = (() => {
+    const ev = row.sites.find((s) => s.site_ref === 'client')?.evidence as
+      | { trend_3m_vs_prev_3m_pct?: unknown }
+      | undefined
+    return typeof ev?.trend_3m_vs_prev_3m_pct === 'number' ? ev.trend_3m_vs_prev_3m_pct : null
+  })()
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div style={card}>
+        <h4 style={{ ...sectionTitle, margin: '0 0 12px 0' }}>{t('v4res.traffic_readable_title')}</h4>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {row.sites.map((s) => {
+            const avg = (s.evidence as { visits_avg_3m?: unknown })?.visits_avg_3m
+            const value = typeof avg === 'number' ? avg : s.raw
+            return (
+              <div key={s.site_ref} style={{ fontSize: '15px', color: B.muted, lineHeight: 1.7 }}>
+                <span style={{ color: s.site_ref === 'client' ? B.primary : B.ink, fontWeight: 650 }}>
+                  {nameOf(s)}
+                </span>
+                {' · '}
+                {fill(t('v4res.traffic_avg_line'), { n: formatInt(value as number | null, locale) })}
+              </div>
+            )
+          })}
+        </div>
+        {clientTrend !== null && (
+          <div style={{ marginTop: '8px', fontSize: '14px', color: B.muted }}>
+            {fill(t('v4res.traffic_trend_line'), { pct: formatPct(clientTrend, locale) })}
+          </div>
+        )}
+        <div style={{ marginTop: '10px', fontSize: '14px', color: B.muted, fontStyle: 'italic' }}>
+          {t('v4res.traffic_source_note')}
+        </div>
+      </div>
+
+      {series.some((s) => s.points.length > 0) && (
+        <V4TrendChart
+          title={t('v4res.traffic_trend_title')}
+          series={series}
+          formatValue={(v) => formatInt(v, locale)}
+          formatMonthLabel={(m) => formatMonth(m, locale)}
+          notMeasuredLabel={t('v4res.traffic_no_series')}
+        />
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Evidence — generic renderer for SiteRawValue.evidence (scalars as rows,
 // arrays of objects as tables). The criteria captions repeat here as table
 // captions per the Bibbia ("show the thresholds as a caption on the data").
@@ -839,6 +1007,21 @@ function EvidenceCard({ row, sites }: { row: DriverRow; sites: SiteMeta[] }) {
         )}
       </div>
       <EvidenceBlock evidence={evidence} noValueLabel={t('v4res.no_value')} />
+      {/* Item 16: run misurate prima dell'estensione della select Ahrefs non
+          hanno la URL della pagina posizionata — dillo, senza errori. */}
+      {row.driver_key === 'discoverability' &&
+        (() => {
+          const kws = (evidence as { top_keywords?: unknown }).top_keywords
+          const missingUrls =
+            Array.isArray(kws) &&
+            kws.length > 0 &&
+            (kws as Array<Record<string, unknown>>).every((k) => typeof k.url !== 'string')
+          return missingUrls ? (
+            <div style={{ marginTop: '10px', fontSize: '14px', color: B.muted }}>
+              {t('v4res.disco_url_hint')}
+            </div>
+          ) : null
+        })()}
     </div>
   )
 }
@@ -933,11 +1116,34 @@ function EvidenceArray({ name, list, noValueLabel }: { name: string; list: unkno
                       key={c}
                       style={{ padding: '14px', color: B.ink, borderBottom: `1px solid ${B.surface2}` }}
                     >
-                      {v === null || v === undefined
-                        ? noValueLabel
-                        : typeof v === 'object'
-                          ? clip(JSON.stringify(v), 80)
-                          : String(v)}
+                      {v === null || v === undefined ? (
+                        noValueLabel
+                      ) : typeof v === 'string' && /^https?:\/\//.test(v) ? (
+                        // Item 16: URL values become links — truncated with
+                        // ellipsis, opened in a new tab.
+                        <a
+                          href={v}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          title={v}
+                          style={{
+                            color: B.primary,
+                            textDecoration: 'none',
+                            display: 'inline-block',
+                            maxWidth: '260px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            verticalAlign: 'bottom',
+                          }}
+                        >
+                          {v.replace(/^https?:\/\/(www\.)?/, '')}
+                        </a>
+                      ) : typeof v === 'object' ? (
+                        clip(JSON.stringify(v), 80)
+                      ) : (
+                        String(v)
+                      )}
                     </td>
                   )
                 })}

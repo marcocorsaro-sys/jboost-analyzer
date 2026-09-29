@@ -129,6 +129,10 @@ export const trafficWorker: DriverWorker = async (ctx) => {
     const evidence: Record<string, unknown> = {
       visits_avg_3m: round(m.avg, 1),
       months_used: m.used,
+      // Sprint 2 item 17: the FULL monthly series the API returned (up to 6
+      // months), so the results tab can chart the trend per month without a
+      // second fetch. months_used stays the 3-month basis of the raw.
+      months_series: m.rows.slice().sort((a, b) => a.date.localeCompare(b.date)),
       endpoint: 'similarweb:total-traffic-and-engagement/visits',
     }
     if (m.site.is_client) {

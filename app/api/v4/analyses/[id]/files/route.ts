@@ -19,6 +19,11 @@ import {
   SEMRUSH_EXPECTED_COLUMNS,
   type SemrushParseResult,
 } from '@/lib/v4/semrush-export'
+import {
+  decodeTextBuffer,
+  knowledgeExtractKind,
+  truncateExtract,
+} from '@/lib/v4/knowledge-extract'
 
 /**
  * Setup uploads (UX-UI Bibbia 04 fields #15, #20, #23): Screaming Frog crawl
@@ -82,6 +87,66 @@ function parseSemrushUpload(buffer: Buffer, ext: string): SemrushParseResult {
     return {
       ok: false,
       error: `file non leggibile come XLSX (${err instanceof Error ? err.message : String(err)})`,
+    }
+  }
+}
+
+/**
+ * Knowledge document -> extracted text (Sprint 2 item 18). Honest and
+ * dependency-free: .txt/.md/.csv are decoded directly; .pdf goes through the
+ * pdf-parse already in package.json (same v2 PDFParse pattern as
+ * lib/files/extract-text.ts); .docx through the mammoth already there. Any
+ * other accepted format keeps extract_error, and the UI says the model
+ * cannot read it. Never throws: an upload must not fail because its text
+ * could not be read.
+ */
+async function extractKnowledgeText(
+  buffer: Buffer,
+  ext: string,
+): Promise<{
+  extracted_text: string | null
+  extract_truncated?: boolean
+  extract_chars?: number
+  extract_error?: string
+}> {
+  const kind = knowledgeExtractKind(ext)
+  if (!kind) {
+    return {
+      extracted_text: null,
+      extract_error: `formato non estraibile (${ext || 'sconosciuto'})`,
+    }
+  }
+  try {
+    let text: string
+    if (kind === 'text') {
+      text = decodeTextBuffer(buffer)
+    } else if (kind === 'pdf') {
+      const { PDFParse } = await import('pdf-parse')
+      const parser = new PDFParse({ data: buffer })
+      try {
+        const result = await parser.getText()
+        text = result.text
+      } finally {
+        await parser.destroy().catch(() => {})
+      }
+    } else {
+      const mammoth = await import('mammoth')
+      const result = await mammoth.extractRawText({ buffer })
+      text = result.value
+    }
+    const cut = truncateExtract(text)
+    if (cut.text === '') {
+      return { extracted_text: null, extract_error: 'nessun testo estraibile dal file' }
+    }
+    return {
+      extracted_text: cut.text,
+      ...(cut.truncated ? { extract_truncated: true } : {}),
+      extract_chars: cut.chars,
+    }
+  } catch (err) {
+    return {
+      extracted_text: null,
+      extract_error: `estrazione fallita: ${err instanceof Error ? err.message : String(err)}`,
     }
   }
 }
@@ -279,6 +344,15 @@ export async function POST(
     parsed = result.parsed
   }
 
+  // Sprint 2 item 18: knowledge documents are the one kind whose CONTENT the
+  // insight prompts consume, so the text is extracted here, at upload, and
+  // saved (truncated) on the attachment. Extraction failure never rejects
+  // the upload: the reference stays, with the reason no text is available.
+  let extraction: Awaited<ReturnType<typeof extractKnowledgeText>> | null = null
+  if (kind === 'knowledge_doc') {
+    extraction = await extractKnowledgeText(buffer, ext)
+  }
+
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, '_')
   const path = `v4-setup/${analysisId}/${kind}/${Date.now()}_${safeName}`
 
@@ -307,6 +381,7 @@ export async function POST(
     uploaded_at: new Date().toISOString(),
     ...(kind === 'compliance_semrush' ? { site_ref: siteRef } : {}),
     ...(parsed ? { parsed } : {}),
+    ...(extraction ?? {}),
   }
   const next = [...kept, attachment]
 

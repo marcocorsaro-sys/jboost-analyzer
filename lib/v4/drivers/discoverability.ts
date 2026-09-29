@@ -89,6 +89,61 @@ export function configuredClusters(config: Record<string, unknown> | null | unde
   return raw.filter((c): c is string => typeof c === 'string' && c.trim() !== '').map((c) => c.trim())
 }
 
+/**
+ * Pure (Sprint 2 item 21): the decision_request of an empty-tier pause,
+ * with everything the UI needs to EXPLAIN the pause in plain language:
+ * which domains have zero qualifying keywords, whether the client itself is
+ * one of them, and which of the three choices actually apply.
+ *
+ * The client is NEVER removable or replaceable (Bibbia): when the empty
+ * player is the client the only offer is Extend — and when there is no
+ * looser tier left, options is empty and the message says the set cannot be
+ * compared at any tier.
+ */
+export function buildEmptyTierRequest(args: {
+  tier: TierRule
+  emptyPlayers: string[]
+  clientDomain: string | null
+  suggestion: DiscoTierKey | null
+}): Record<string, unknown> {
+  const { tier, emptyPlayers, clientDomain, suggestion } = args
+  const emptyClient = clientDomain !== null && emptyPlayers.includes(clientDomain)
+  // Only competitors can leave the set or be swapped.
+  const removable = emptyPlayers.filter((d) => d !== clientDomain)
+
+  const options: string[] = []
+  if (removable.length > 0) options.push('remove', 'replace')
+  if (suggestion) options.push('extend')
+
+  const messageParts = [
+    `${emptyPlayers.join(', ')} non ha keyword nel tier "${tier.key}" ` +
+      `(posizione <= ${tier.pos}, volume >= ${tier.vol}).`,
+    'Estendere il tier vale per TUTTO il set: misurare i siti a tier diversi ' +
+      'confronterebbe cose diverse.',
+  ]
+  if (emptyClient) {
+    messageParts.push(
+      'Il sito senza keyword è il CLIENTE: non si può rimuovere né sostituire, ' +
+        (suggestion
+          ? "l'unica scelta è estendere le soglie per tutto il set."
+          : 'e non ci sono tier più larghi da provare: rivedi il setup del cliente.'),
+    )
+  }
+
+  return {
+    reason: 'empty_tier',
+    tier: tier.key,
+    tier_rule: { position_max: tier.pos, volume_min: tier.vol },
+    empty_players: emptyPlayers,
+    empty_client: emptyClient,
+    client_domain: clientDomain,
+    removable_players: removable,
+    options,
+    next_tier: suggestion,
+    message: messageParts.join(' '),
+  }
+}
+
 export const discoverabilityWorker: DriverWorker = async (ctx) => {
   const errors: string[] = []
   const tier = tierRule(activeTier(ctx.decisionTaken))
@@ -99,10 +154,13 @@ export const discoverabilityWorker: DriverWorker = async (ctx) => {
   const clusters = configuredClusters(ctx.config)
 
   // Domains the analyst already decided to drop on a previous pause.
+  // The CLIENT is never removable (Bibbia): even a malformed decision that
+  // names the client's domain must not silently drop the site the whole
+  // audit is about.
   const removed = new Set(
     Array.isArray(ctx.decisionTaken?.removed) ? (ctx.decisionTaken!.removed as string[]) : [],
   )
-  const targets = ctx.sites.filter((s) => !removed.has(s.domain))
+  const targets = ctx.sites.filter((s) => s.is_client || !removed.has(s.domain))
 
   const measured = await mapPool(targets, 3, async (site) => {
     try {
@@ -139,19 +197,12 @@ export const discoverabilityWorker: DriverWorker = async (ctx) => {
     const suggestion = nextTier(tier.key)
     return {
       status: 'needs_decision',
-      decisionRequest: {
-        reason: 'empty_tier',
-        tier: tier.key,
-        tier_rule: { position_max: tier.pos, volume_min: tier.vol },
-        empty_players: emptyPlayers,
-        options: suggestion ? ['remove', 'replace', 'extend'] : ['remove', 'replace'],
-        next_tier: suggestion,
-        message:
-          `${emptyPlayers.join(', ')} non ha keyword nel tier "${tier.key}" ` +
-          `(posizione <= ${tier.pos}, volume >= ${tier.vol}). ` +
-          'Estendere il tier vale per TUTTO il set: misurare i siti a tier diversi ' +
-          'confronterebbe cose diverse.',
-      },
+      decisionRequest: buildEmptyTierRequest({
+        tier,
+        emptyPlayers,
+        clientDomain: ctx.sites.find((s) => s.is_client)?.domain ?? null,
+        suggestion,
+      }),
       rawPayload: {
         tier: tier.key,
         counts: ok.map((m) => ({ domain: m.site.domain, qualifying: m.qualifying.length })),

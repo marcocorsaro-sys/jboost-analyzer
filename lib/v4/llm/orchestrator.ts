@@ -42,6 +42,7 @@ import {
 } from '@/lib/v4/drivers/jhorizon-extract'
 import { loadAnalysisSites } from '@/lib/v4/runner/store'
 import { estimateCost } from '@/lib/tracking/pricing'
+import { knowledgeDocumentsClause, readKnowledgeDocs } from '@/lib/v4/knowledge-extract'
 import { repairJson } from './json-repair'
 import {
   DEFAULT_DRIVER_MODEL,
@@ -291,11 +292,22 @@ const NUMBER_TOKEN = /\d+(?:[.,]\d+)*/g
 /**
  * Sheet 14 anti-hallucination check, the pragmatic version: every number the
  * model wrote in a string field must exist in the source payload it was given.
+ * The result is the SPECIFIC list of tokens with no payload backing (Sprint 2
+ * item 10): the UI and the retry guidance name them one by one, and an output
+ * where every number matches produces NO warning at all.
  *
  * Implementation: collect every numeric reading present in the allowed
  * sources (payload JSON + cumulative context, since rule 12 explicitly lets
  * the model cite other drivers' scores from other_drivers_context); then flag
  * each generated token whose readings are ALL absent and whose value is > 10.
+ *
+ * TOLERANCES (item 10): a token also matches when it is a ROUNDING of a
+ * payload number, because "78.950" citing a payload 78950.4 (or "12%" citing
+ * 12.3) is a correct citation, not an invention:
+ * - integer tokens match Math.round() of any allowed number;
+ * - one-decimal tokens match the one-decimal rounding of any allowed number;
+ * - thousands separators (en "12,847" / it "12.847" / bare "12847") already
+ *   canonicalize to the same reading via numericReadings.
  *
  * DOCUMENTED LIMITS (a check, not a proof):
  * - numbers <= 10 are never flagged (priorities, small counts, the 3/6/12
@@ -313,10 +325,26 @@ export function findInventedNumbers(
   allowedSources: string[],
 ): string[] {
   const allowed = new Set<number>()
+  /** Rounded views of the allowed numbers, for the citation tolerances. */
+  const allowedRounded = new Set<number>()
+  const allowedRounded1 = new Set<number>()
   for (const source of allowedSources) {
     for (const token of source.match(NUMBER_TOKEN) ?? []) {
-      for (const reading of numericReadings(token)) allowed.add(reading)
+      for (const reading of numericReadings(token)) {
+        allowed.add(reading)
+        allowedRounded.add(Math.round(reading))
+        allowedRounded1.add(Math.round(reading * 10) / 10)
+      }
     }
+  }
+
+  const matchesAllowed = (r: number): boolean => {
+    if (allowed.has(r)) return true
+    // Integer citation of a decimal payload value ("12%" for 12.3).
+    if (Number.isInteger(r) && allowedRounded.has(r)) return true
+    // One-decimal citation of a finer payload value ("4.2s" for 4.24).
+    if (Math.round(r * 10) / 10 === r && allowedRounded1.has(r)) return true
+    return false
   }
 
   const flagged = new Set<string>()
@@ -326,7 +354,7 @@ export function findInventedNumbers(
         const readings = numericReadings(token)
         if (readings.length === 0) continue
         if (Math.min(...readings) <= 10) continue
-        if (!readings.some((r) => allowed.has(r))) flagged.add(token)
+        if (!readings.some(matchesAllowed)) flagged.add(token)
       }
       return
     }
@@ -694,6 +722,14 @@ export async function generateInsights(
     typeof analysis.v4_setup?.global_notes === 'string' ? analysis.v4_setup.global_notes : null
   const notesClause = globalNotesClause(globalNotes)
 
+  // Knowledge documents (Sprint 2 item 18, Bibbia 04 field #23): the text
+  // extracted at upload reaches EVERY insight call of this analysis, drivers
+  // and Executive Summary alike, with the explicit instruction to calibrate
+  // the suggestions on them (especially Content). Docs whose format could
+  // not be extracted contribute nothing here; the setup UI says so.
+  const knowledgeDocs = readKnowledgeDocs(analysis.v4_setup)
+  const knowledgeClause = knowledgeDocumentsClause(knowledgeDocs)
+
   // Targeted generation (review item 3/13): restrict the sequential loop to
   // the requested drivers; everything else only contributes context.
   const only = options.onlyDrivers && options.onlyDrivers.length > 0 ? new Set(options.onlyDrivers) : null
@@ -752,12 +788,14 @@ export async function generateInsights(
           otherDriversContextJson: otherCtxJson,
           alreadyMentionedItemsJson: alreadyJson,
           tier,
-        }) + notesClause,
+        }) + notesClause + knowledgeClause,
       model: driverModel,
       maxTokens: DRIVER_CALL_MAX_TOKENS,
       temperature: DRIVER_CALL_TEMPERATURE,
       family: def.family,
-      allowedNumberSources: [payloadJson, otherCtxJson],
+      // The knowledge docs are legitimate context the model may cite from,
+      // so their numbers must not trip the anti-hallucination flag.
+      allowedNumberSources: [payloadJson, otherCtxJson, ...(knowledgeClause ? [knowledgeClause] : [])],
       guardrailMax,
       callModel,
       spendStatus,
@@ -882,13 +920,18 @@ export async function generateInsights(
           driversScoreSummaryJson: scoreSummaryJson,
           allDriversOutputJson: allOutputsJson,
           competitorsSummaryJson: competitorsJson,
-        }) + notesClause,
+        }) + notesClause + knowledgeClause,
       model: summaryModel,
       maxTokens: SUMMARY_MAX_TOKENS,
       temperature: SUMMARY_TEMPERATURE,
       family: null,
       summaryCaps: true,
-      allowedNumberSources: [scoreSummaryJson, allOutputsJson, competitorsJson],
+      allowedNumberSources: [
+        scoreSummaryJson,
+        allOutputsJson,
+        competitorsJson,
+        ...(knowledgeClause ? [knowledgeClause] : []),
+      ],
       callModel,
       spendStatus,
     })

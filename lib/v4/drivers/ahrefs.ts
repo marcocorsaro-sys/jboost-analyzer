@@ -65,6 +65,12 @@ export interface OrganicKeyword {
   keyword: string
   volume: number
   position: number
+  /**
+   * Sprint 2 item 16: the ranking page. Ahrefs v3 organic-keywords calls it
+   * `best_position_url`. Optional: payloads measured before the select was
+   * extended simply have no url, and the UI says "rimisura per vederle".
+   */
+  url?: string
 }
 
 function parseKeywordRows(
@@ -77,11 +83,15 @@ function parseKeywordRows(
   if (!Array.isArray(rows)) {
     throw new DriverSourceError(`${what} — unexpected Ahrefs payload (no keyword list)`)
   }
-  return rows.map((r) => ({
-    keyword: String(r.keyword ?? ''),
-    volume: Number(r.volume ?? 0),
-    position: Number(r.best_position ?? r.position ?? 0),
-  }))
+  return rows.map((r) => {
+    const url = r.best_position_url ?? r.url
+    return {
+      keyword: String(r.keyword ?? ''),
+      volume: Number(r.volume ?? 0),
+      position: Number(r.best_position ?? r.position ?? 0),
+      ...(typeof url === 'string' && url !== '' ? { url } : {}),
+    }
+  })
 }
 
 /**
@@ -108,7 +118,12 @@ export async function fetchOrganicKeywords(
     target: domain,
     mode: 'subdomains',
     country: (country || 'it').toLowerCase(),
-    select: 'keyword,volume,best_position',
+    // Item 16: best_position_url = the page that ranks. Ahrefs bills per
+    // field referenced, so this can add a small per-row unit cost on top of
+    // the ~13 units/row that volume already drives; accepted by the review
+    // (the URL column is worth it). The parser stays compatible with
+    // responses that omit the field.
+    select: 'keyword,volume,best_position,best_position_url',
     order_by: 'volume:desc',
     limit: String(opts.limit ?? 1000),
     where: JSON.stringify(opts.where),
