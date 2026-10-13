@@ -7,8 +7,9 @@
  * health probes (live calls, latency, quotas) stay in the admin panel
  * (lib/admin/integration-probes) — Settings links there.
  *
- * Key resolution uses the exact precedence of the admin probes and of
- * run-analysis: app_config row wins over env var.
+ * Key resolution uses the exact precedence of the admin probes and of the
+ * runners (fix 13/10): the env var wins, app_config is the fallback — a
+ * stale DB row must never shadow a fresh Vercel env key.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -73,12 +74,13 @@ export async function getSettingsInventory(db: SupabaseClient): Promise<{
   }
 
   const connectors: ConnectorStatus[] = SETTINGS_CONNECTOR_KEYS.map((key) => {
-    // db wins over env — the same precedence the runners use.
-    if (cfg[key]) return { key, configured: true, source: 'db' }
+    // env wins over db — the same precedence the runners use since the
+    // 13/10 fix (stale app_config rows must not shadow fresh env keys).
     const envVal = process.env[key]
     if (typeof envVal === 'string' && envVal.length > 0) {
       return { key, configured: true, source: 'env' }
     }
+    if (cfg[key]) return { key, configured: true, source: 'db' }
     return { key, configured: false, source: null }
   })
 

@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAnalysisProgress, recoverAnalysisStaleRuns } from '@/lib/v4/runner/execute'
-import { selectStaleRuns } from '@/lib/v4/runner/reaper'
+import { selectStaleRuns, selectUndispatchedRuns } from '@/lib/v4/runner/reaper'
 import { readSites, readUnmeasuredDetails } from '@/lib/v4/runner/normalize'
 import { loadAnalysisSites, loadTemplateConfigs } from '@/lib/v4/runner/store'
 import { resolveBaseUrl } from '@/lib/v4/runner/dispatch'
@@ -51,16 +51,22 @@ export async function GET(
     return NextResponse.json({ error }, { status: 500 })
   }
 
-  // --- On-demand recovery (Sprint 1 item 1a) ------------------------------
+  // --- On-demand recovery (Sprint 1 item 1a + fix 13/10) -------------------
   // This route is polled every 5s by the results page: a run whose worker
-  // died (lease expired > 30s ago) is recovered HERE, at the next poll,
-  // instead of hanging "running" until the 04:00 UTC cron. The pure
-  // selection is the cron reaper's own (selectStaleRuns); the writes are
-  // status-guarded and the redispatch goes through the atomic claim, so a
-  // concurrent poll or cron pass cannot double-run anything. The service
-  // role is used only AFTER RLS confirmed this user can see the analysis.
-  const stale = selectStaleRuns(rows, new Date())
-  if (stale.requeue.length > 0 || stale.fail.length > 0) {
+  // died (lease expired > 30s ago) AND a 'queued' run whose dispatch anchor
+  // is older than the grace period (fix 13/10, the ariston case: dispatched
+  // by the 04:00 cron but never claimed, or requeued after a retryable
+  // failure with nobody coming back) are recovered HERE, at the next poll,
+  // instead of waiting for the next 04:00 UTC cron. The pure selections are
+  // the cron reaper's own (selectStaleRuns / selectUndispatchedRuns); the
+  // writes are status-guarded and the redispatch goes through the atomic
+  // claim, so a concurrent poll or cron pass cannot double-run anything. The
+  // service role is used only AFTER RLS confirmed this user can see the
+  // analysis.
+  const now = new Date()
+  const stale = selectStaleRuns(rows, now)
+  const staleQueued = selectUndispatchedRuns(rows, now)
+  if (stale.requeue.length > 0 || stale.fail.length > 0 || staleQueued.length > 0) {
     try {
       const admin = createAdminClient()
       const summary = await recoverAnalysisStaleRuns(

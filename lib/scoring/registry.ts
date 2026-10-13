@@ -40,8 +40,10 @@ export interface V4DriverDef {
    */
   hasAbsoluteView: boolean
   /**
-   * Position in the sequential LLM run of sheet 16 (1-9), or null for
-   * AI Visibility which has its own paste-driven LLM step.
+   * Position in the sequential LLM run of sheet 16 (1-10). Fix 13/10: AI
+   * Visibility is IN the sequence (slot 4, closing the Business block); its
+   * paste-driven extraction step remains, the sequence call narrates its
+   * measured payload like every other driver. null = out of the sequence.
    */
   llmSequence: number | null
   /** Default weight in the overall aggregate (sheet 8 section D). */
@@ -66,7 +68,7 @@ export const V4_DRIVERS: readonly V4DriverDef[] = [
   {
     key: 'ai_visibility', label: 'AI Visibility', family: 'business',
     catalogOrder: 7, uiOrder: 2, competitorMandatory: true,
-    normalization: 'linear', hasAbsoluteView: true, llmSequence: null,
+    normalization: 'linear', hasAbsoluteView: true, llmSequence: 4,
     defaultWeight: 1, source: 'J-Horizon (paste-driven GEO score)',
     v1Key: 'ai_relevance', icon: 'Brain',
   },
@@ -88,42 +90,42 @@ export const V4_DRIVERS: readonly V4DriverDef[] = [
   {
     key: 'compliance', label: 'Compliance', family: 'development',
     catalogOrder: 1, uiOrder: 5, competitorMandatory: false,
-    normalization: 'linear', hasAbsoluteView: true, llmSequence: 5,
+    normalization: 'linear', hasAbsoluteView: true, llmSequence: 6,
     defaultWeight: 1, source: 'Semrush Site Audit (Site Health, read-only)',
     v1Key: 'compliance', icon: 'Shield',
   },
   {
     key: 'schema', label: 'Schema', family: 'development',
     catalogOrder: 2, uiOrder: 6, competitorMandatory: false,
-    normalization: 'linear', hasAbsoluteView: true, llmSequence: 7,
+    normalization: 'linear', hasAbsoluteView: true, llmSequence: 8,
     defaultWeight: 1, source: 'Firecrawl + knowledge base (weighted clusters 50/35/15)',
     v1Key: null, icon: 'Braces',
   },
   {
     key: 'speed', label: 'Speed', family: 'development',
     catalogOrder: 3, uiOrder: 7, competitorMandatory: false,
-    normalization: 'linear', hasAbsoluteView: true, llmSequence: 8,
+    normalization: 'linear', hasAbsoluteView: true, llmSequence: 9,
     defaultWeight: 1, source: 'Google PageSpeed Insights (per template x device)',
     v1Key: 'experience', icon: 'Gauge',
   },
   {
     key: 'accessibility', label: 'Accessibility', family: 'development',
     catalogOrder: 4, uiOrder: 8, competitorMandatory: false,
-    normalization: 'linear', hasAbsoluteView: true, llmSequence: 9,
+    normalization: 'linear', hasAbsoluteView: true, llmSequence: 10,
     defaultWeight: 1, source: 'Google PageSpeed Insights (same call as Speed)',
     v1Key: 'accessibility', icon: 'Accessibility',
   },
   {
     key: 'content', label: 'Content', family: 'development',
     catalogOrder: 5, uiOrder: 9, competitorMandatory: false,
-    normalization: 'linear', hasAbsoluteView: true, llmSequence: 6,
+    normalization: 'linear', hasAbsoluteView: true, llmSequence: 7,
     defaultWeight: 1, source: 'Analyst questionnaire per template (sheets 9a/9b)',
     v1Key: 'content', icon: 'FileText',
   },
   {
     key: 'authority', label: 'Authority', family: 'development',
     catalogOrder: 8, uiOrder: 10, competitorMandatory: false,
-    normalization: 'linear', hasAbsoluteView: true, llmSequence: 4,
+    normalization: 'linear', hasAbsoluteView: true, llmSequence: 5,
     defaultWeight: 1, source: 'Ahrefs Site Explorer (Domain Rating + history)',
     v1Key: 'authority', icon: 'Award',
   },
@@ -156,7 +158,9 @@ export function driversInUiOrder(): V4DriverDef[] {
   return [...V4_DRIVERS].sort((a, b) => a.uiOrder - b.uiOrder)
 }
 
-/** Sequential LLM run order of sheet 16 (AI Visibility excluded). */
+/** Sequential LLM run order of sheet 16. Fix 13/10: AI Visibility is slot 4
+ *  (Awareness, Discoverability, Traffic, AI Visibility, then Development:
+ *  Authority 5 .. Accessibility 10 — same relative order as before). */
 export function driversInLlmOrder(): V4DriverDef[] {
   return V4_DRIVERS
     .filter((d) => d.llmSequence !== null)

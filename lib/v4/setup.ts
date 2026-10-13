@@ -466,14 +466,18 @@ export function isHttpUrl(value: string): boolean {
 // V4 setup persistence (analyses.v4_setup) + downstream driver wiring
 // ---------------------------------------------------------------------------
 
-/** Upload kinds of the setup (fields #15, #20, #23). Parsing is downstream,
- * except the Ahrefs backlink export (review item 5) and the Semrush Site
- * Audit export (Sprint 1 item 4b), parsed at upload. */
+/** Upload kinds of the setup (fields #15, #20, #23 + fix 13/10). Parsing is
+ * downstream, except the Ahrefs backlink export (review item 5) and the
+ * Semrush Site Audit export (Sprint 1 item 4b), parsed at upload.
+ * 'insight_examples' (fix 13/10) is the insight-quality encyclopedia: same
+ * formats and extraction as the knowledge docs, higher budget, consumed by
+ * every insight prompt as the ESEMPI DI INSIGHT section. */
 export const ATTACHMENT_KINDS = [
   'compliance_crawl',
   'compliance_semrush',
   'authority_backlinks',
   'knowledge_doc',
+  'insight_examples',
 ] as const
 export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number]
 
@@ -529,6 +533,7 @@ export const ATTACHMENT_DRIVER: Record<AttachmentKind, string | null> = {
   compliance_semrush: 'compliance',
   authority_backlinks: 'authority',
   knowledge_doc: null,
+  insight_examples: null,
 }
 
 /**

@@ -112,15 +112,17 @@ export async function GET(
     }
 
     if (!skipLiveCwv && (isEmpty(cwvMobile) || isEmpty(cwvDesktop))) {
-      // Read PSI key from app_config (db) with env fallback. Skip if no key.
+      // PSI key ENV-FIRST (fix 13/10), app_config as fallback. Skip if no key.
       let psiKey = process.env.GOOGLE_PSI_API_KEY || ''
       try {
-        const { data: cfgRows } = await supabase
-          .from('app_config')
-          .select('key, value')
-          .eq('key', 'GOOGLE_PSI_API_KEY')
-          .maybeSingle()
-        if (cfgRows?.value) psiKey = cfgRows.value
+        if (!psiKey) {
+          const { data: cfgRows } = await supabase
+            .from('app_config')
+            .select('key, value')
+            .eq('key', 'GOOGLE_PSI_API_KEY')
+            .maybeSingle()
+          if (cfgRows?.value) psiKey = cfgRows.value
+        }
       } catch {
         /* ignore — fall back to env */
       }

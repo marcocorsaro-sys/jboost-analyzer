@@ -20,6 +20,8 @@ import {
   type SemrushParseResult,
 } from '@/lib/v4/semrush-export'
 import {
+  INSIGHT_EXAMPLES_BUDGET,
+  KNOWLEDGE_EXTRACT_BUDGET,
   decodeTextBuffer,
   knowledgeExtractKind,
   truncateExtract,
@@ -55,6 +57,8 @@ const ALLOWED_EXT: Record<AttachmentKind, string[]> = {
   compliance_semrush: ['.csv', '.xlsx', '.xls'],
   authority_backlinks: ['.csv', '.xlsx', '.xls'],
   knowledge_doc: ['.pdf', '.docx', '.doc', '.txt', '.md', '.pptx', '.xlsx', '.xls', '.csv'],
+  // Fix 13/10: insight-examples encyclopedia — same formats as the docs.
+  insight_examples: ['.pdf', '.docx', '.doc', '.txt', '.md', '.pptx', '.xlsx', '.xls', '.csv'],
 }
 
 const SINGLE_KINDS: AttachmentKind[] = ['compliance_crawl', 'authority_backlinks']
@@ -103,6 +107,7 @@ function parseSemrushUpload(buffer: Buffer, ext: string): SemrushParseResult {
 async function extractKnowledgeText(
   buffer: Buffer,
   ext: string,
+  budget = KNOWLEDGE_EXTRACT_BUDGET,
 ): Promise<{
   extracted_text: string | null
   extract_truncated?: boolean
@@ -134,7 +139,7 @@ async function extractKnowledgeText(
       const result = await mammoth.extractRawText({ buffer })
       text = result.value
     }
-    const cut = truncateExtract(text)
+    const cut = truncateExtract(text, budget)
     if (cut.text === '') {
       return { extracted_text: null, extract_error: 'nessun testo estraibile dal file' }
     }
@@ -349,8 +354,14 @@ export async function POST(
   // saved (truncated) on the attachment. Extraction failure never rejects
   // the upload: the reference stays, with the reason no text is available.
   let extraction: Awaited<ReturnType<typeof extractKnowledgeText>> | null = null
-  if (kind === 'knowledge_doc') {
-    extraction = await extractKnowledgeText(buffer, ext)
+  if (kind === 'knowledge_doc' || kind === 'insight_examples') {
+    // Fix 13/10: the examples get a higher budget — they are the quality bar
+    // the model imitates, cutting them mid-example costs more than tokens.
+    extraction = await extractKnowledgeText(
+      buffer,
+      ext,
+      kind === 'insight_examples' ? INSIGHT_EXAMPLES_BUDGET : KNOWLEDGE_EXTRACT_BUDGET,
+    )
   }
 
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, '_')

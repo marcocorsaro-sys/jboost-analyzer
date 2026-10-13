@@ -225,14 +225,15 @@ test('edited insights: published edits are history, they select nothing', () => 
   assert.deepEqual(selectEditedInsightDrivers(runs, edits), [])
 })
 
-test('edited insights: disabled, non-done and out-of-sequence drivers are excluded', () => {
+test('edited insights: disabled and non-done drivers are excluded; AI Visibility is in the sequence (fix 13/10)', () => {
   const runs = [
     erun({ id: 'r1', driver_key: 'authority', edited: true, enabled: false }),
     erun({ id: 'r2', driver_key: 'speed', edited: true, status: 'error' }),
-    erun({ id: 'r3', driver_key: 'ai_visibility', edited: true }), // llmSequence null
+    erun({ id: 'r3', driver_key: 'ai_visibility', edited: true }), // llmSequence 4 since 13/10
     erun({ id: 'r4', driver_key: 'compliance', edited: true }),
   ]
-  assert.deepEqual(selectEditedInsightDrivers(runs, []), ['compliance'])
+  // UI order: ai_visibility (Business, uiOrder 2) before compliance (5).
+  assert.deepEqual(selectEditedInsightDrivers(runs, []), ['ai_visibility', 'compliance'])
 })
 
 test('edited insights: Business-first UI order, like the tabs and the re-run batch', () => {

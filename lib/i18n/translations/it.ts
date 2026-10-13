@@ -894,6 +894,8 @@ const it = {
   'v4res.psi_running_note': 'Misura PageSpeed su {p} pagine per {s} siti, può richiedere alcuni minuti.',
   'v4res.insight_degraded': 'Insight generato in modalità ridotta, rigeneralo se serve.',
   'v4res.partial_coverage': 'Copertura parziale',
+  // Fix 13/10: triangolino ⚠ sulle scorecard quando i dati sono parziali.
+  'v4res.partial_badge': 'dati parziali: {n} siti non misurati',
   'v4res.jh_update_title': 'Aggiorna dati J-Horizon',
   'v4res.jh_update_hint': 'Rigenera il prompt, incolla la nuova risposta di J-Horizon e rimisura il driver. La rimisura sostituisce i dati misurati; edit manuali e commenti restano, come nella rimisura forzata.',
   'v4res.jh_copy_prompt': 'Copia prompt per J-Horizon',
@@ -965,7 +967,7 @@ const it = {
   'v4res.regen_driver_insight': 'Rigenera insight per questo driver',
   'v4res.card_relative_only': 'vista relativa (unica per i driver Business)',
   'v4res.compare_desc_absolute': 'Punteggi assoluti per driver: la misura reale 0-100 riportata da ogni fonte. La colonna Index resta relativa (leader-index).',
-  'v4res.notes_button': 'Note',
+  'v4res.notes_button': 'Note globali',
   'v4res.notes_title': 'Note di progetto',
   'v4res.notes_hint': 'Note trasversali del progetto: salvate sul setup e passate come contesto aggiuntivo (global_notes) a ogni chiamata insight AI.',
   'v4res.notes_placeholder': 'Vincoli noti, storia del progetto, contesto che il modello deve tenere presente per ogni driver…',
@@ -1097,9 +1099,9 @@ const it = {
   'v4res.traffic_source_note': 'Stime Similarweb: valori indicativi, utili per confronti e tendenze.',
   'v4res.traffic_no_series': 'serie mensile non disponibile per',
 
-  // Sprint 2 item 16: URL nel ranking Discoverability
+  // Item 16 (rientrato 13/10): la URL della pagina posizionata dipende dal piano Ahrefs
   'v4res.disco_url_hint':
-    'Questa run non ha le URL delle pagine posizionate: rimisura il driver per vederle in tabella.',
+    'URL della pagina posizionata disponibile solo se il piano Ahrefs la include.',
 
   // Wizard di setup V4 (Bibbia 04, foglio "New Audit (Setup)", 5 step)
   'v4setup.title': 'Nuovo audit',
@@ -1207,6 +1209,10 @@ const it = {
   'v4setup.max_insights_hint': 'Numero massimo di insight/azioni per driver, per evitare allucinazioni.',
   'v4setup.knowledge_docs': 'Documenti di knowledge (opzionale)',
   'v4setup.knowledge_docs_hint': 'Brief di gara, brand book, linee guida: contestualizzano gli insight generati.',
+  // Fix 13/10: enciclopedia di esempi di insight di qualità.
+  'v4setup.insight_examples': 'Esempi di insight (enciclopedia)',
+  'v4setup.insight_examples_hint':
+    'File con esempi di insight e actionable di qualità: il modello ne imita profondità, taglio e concretezza, senza copiarli né citarli come dati.',
   'v4setup.notes': 'Note aggiuntive',
   'v4setup.notes_placeholder': 'Vincoli noti, storia del progetto, informazioni non strutturate da passare al modello…',
   'v4setup.summary_site': 'Sito',

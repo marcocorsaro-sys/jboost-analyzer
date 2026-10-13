@@ -40,7 +40,14 @@ import {
 } from './results-shared'
 import type { HistogramSite } from './charts/V4Histogram'
 import type { TrendSeries } from './charts/V4TrendChart'
-import { formatInt, formatMonth, formatPct } from '@/lib/v4/format'
+import {
+  formatEvidenceValue,
+  formatInt,
+  formatMonth,
+  formatMonthsRange,
+  formatPct,
+  formatPrimitiveList,
+} from '@/lib/v4/format'
 import { B } from '@/lib/brand'
 
 // recharts stays in its own lazy chunk (same pattern as the V1 SpiderChart).
@@ -244,6 +251,15 @@ export default function DriverPanel({
               raw={row.raw_value}
               rank={clientSite?.rank ?? null}
               setSize={row.sites.length}
+              // Fix 13/10: ⚠ accanto allo score quando la misura è parziale
+              // (partial_note / siti non misurati), riassunto nel tooltip.
+              partialTitle={(() => {
+                const n = row.unmeasured_details?.length ?? 0
+                if (n > 0) {
+                  return `${fill(t('v4res.partial_badge'), { n })}${row.partial_note ? ` · ${row.partial_note}` : ''}`
+                }
+                return row.partial_note ?? null
+              })()}
             />
             {/* Competitor chips, side by side (sheet 6 B.6). */}
             {row.sites
@@ -449,6 +465,7 @@ function ScoreHeadline({
   raw,
   rank,
   setSize,
+  partialTitle = null,
 }: {
   label: string
   driverKey: string
@@ -457,6 +474,8 @@ function ScoreHeadline({
   raw: number | null
   rank: number | null
   setSize: number
+  /** Fix 13/10: non-null = partial data; shown as ⚠ with this tooltip. */
+  partialTitle?: string | null
 }) {
   const { t } = useLocale()
   const measureKey = MEASURE_LABEL_KEY[driverKey]
@@ -499,6 +518,16 @@ function ScoreHeadline({
       </div>
       <div style={{ display: 'flex', gap: '14px', alignItems: 'baseline', flexWrap: 'wrap', marginTop: '10px' }}>
         <span style={{ ...B.type.display, ...B.type.num, color: scoreColor(score) }}>{fmt(score)}</span>
+        {partialTitle && (
+          <span
+            role="img"
+            aria-label={partialTitle}
+            title={partialTitle}
+            style={{ fontSize: '22px', color: B.warning, cursor: 'help' }}
+          >
+            ⚠
+          </span>
+        )}
         <span style={{ fontSize: '15px', fontWeight: 600, color: B.muted }}>
           {viewLabel}{' '}
           <span
@@ -932,6 +961,14 @@ function TrafficEvidence({ row, sites }: { row: DriverRow; sites: SiteMeta[] }) 
           {row.sites.map((s) => {
             const avg = (s.evidence as { visits_avg_3m?: unknown })?.visits_avg_3m
             const value = typeof avg === 'number' ? avg : s.raw
+            // Fix 13/10: i mesi usati per la media, formattati ("lug-ago-set
+            // 2026") — il dato grezzo months_used non compare più in tabella.
+            const usedRaw = (s.evidence as { months_used?: unknown })?.months_used
+            const usedDates = Array.isArray(usedRaw)
+              ? (usedRaw as MonthlyPoint[])
+                  .map((p) => (typeof p?.date === 'string' ? p.date : null))
+                  .filter((d): d is string => d !== null)
+              : []
             return (
               <div key={s.site_ref} style={{ fontSize: '15px', color: B.muted, lineHeight: 1.7 }}>
                 <span style={{ color: s.site_ref === 'client' ? B.primary : B.ink, fontWeight: 650 }}>
@@ -939,6 +976,9 @@ function TrafficEvidence({ row, sites }: { row: DriverRow; sites: SiteMeta[] }) 
                 </span>
                 {' · '}
                 {fill(t('v4res.traffic_avg_line'), { n: formatInt(value as number | null, locale) })}
+                {usedDates.length > 0 && (
+                  <span> ({formatMonthsRange(usedDates, locale)})</span>
+                )}
               </div>
             )
           })}
@@ -972,6 +1012,18 @@ function TrafficEvidence({ row, sites }: { row: DriverRow; sites: SiteMeta[] }) 
 // captions per the Bibbia ("show the thresholds as a caption on the data").
 // ---------------------------------------------------------------------------
 
+/**
+ * Fix 13/10 (bug "il valore reale del traffico sono le ultime cifre del
+ * numero riportato"): la tabella evidence di Traffic NON mostra più i campi
+ * grezzi — months_used/months_series (array {date, visits} renderizzati
+ * grezzi) e visits_avg_3m/trend (float senza separatori) — perché gli stessi
+ * dati compaiono già FORMATTATI nella card "Visite in chiaro" e nel grafico.
+ * Qui restano solo i metadati (endpoint, note).
+ */
+const HIDDEN_EVIDENCE_KEYS: Record<string, string[]> = {
+  traffic: ['months_used', 'months_series', 'visits_avg_3m', 'trend_3m_vs_prev_3m_pct'],
+}
+
 function EvidenceCard({ row, sites }: { row: DriverRow; sites: SiteMeta[] }) {
   const { t } = useLocale()
   const withEvidence = row.sites.filter((s) => s.evidence && Object.keys(s.evidence).length > 0)
@@ -980,7 +1032,12 @@ function EvidenceCard({ row, sites }: { row: DriverRow; sites: SiteMeta[] }) {
   )
   if (withEvidence.length === 0) return null
   const active = withEvidence.find((s) => s.site_ref === siteRef) ?? withEvidence[0]
-  const evidence = (active.evidence ?? {}) as Record<string, unknown>
+  const hidden = HIDDEN_EVIDENCE_KEYS[row.driver_key] ?? []
+  const evidence = Object.fromEntries(
+    Object.entries((active.evidence ?? {}) as Record<string, unknown>).filter(
+      ([k]) => !hidden.includes(k),
+    ),
+  )
 
   return (
     <div style={card}>
@@ -1007,8 +1064,10 @@ function EvidenceCard({ row, sites }: { row: DriverRow; sites: SiteMeta[] }) {
         )}
       </div>
       <EvidenceBlock evidence={evidence} noValueLabel={t('v4res.no_value')} />
-      {/* Item 16: run misurate prima dell'estensione della select Ahrefs non
-          hanno la URL della pagina posizionata — dillo, senza errori. */}
+      {/* Item 16, rientrato 13/10: la select Ahrefs non chiede più
+          best_position_url (403 col piano corrente), quindi di norma le URL
+          non ci sono — nota neutra: dipende dal piano Ahrefs, non da una
+          rimisura. */}
       {row.driver_key === 'discoverability' &&
         (() => {
           const kws = (evidence as { top_keywords?: unknown }).top_keywords
@@ -1027,6 +1086,7 @@ function EvidenceCard({ row, sites }: { row: DriverRow; sites: SiteMeta[] }) {
 }
 
 function EvidenceBlock({ evidence, noValueLabel }: { evidence: Record<string, unknown>; noValueLabel: string }) {
+  const { locale } = useLocale()
   const entries = Object.entries(evidence)
   const scalars = entries.filter(([, v]) => v === null || ['string', 'number', 'boolean'].includes(typeof v))
   const arrays = entries.filter(([, v]) => Array.isArray(v)) as Array<[string, unknown[]]>
@@ -1041,7 +1101,9 @@ function EvidenceBlock({ evidence, noValueLabel }: { evidence: Record<string, un
           {scalars.map(([k, v]) => (
             <div key={k} style={{ fontSize: '14px' }}>
               <span style={{ color: B.muted }}>{k}: </span>
-              <span style={{ color: B.ink }}>{v === null ? noValueLabel : String(v)}</span>
+              <span style={{ color: B.ink }}>
+                {v === null ? noValueLabel : formatEvidenceValue(v, locale)}
+              </span>
             </div>
           ))}
         </div>
@@ -1064,14 +1126,17 @@ function EvidenceBlock({ evidence, noValueLabel }: { evidence: Record<string, un
 }
 
 function EvidenceArray({ name, list, noValueLabel }: { name: string; list: unknown[]; noValueLabel: string }) {
+  const { locale } = useLocale()
   if (list.length === 0) return null
 
   const first = list[0]
   if (first === null || typeof first !== 'object') {
+    // Fix 13/10: SEMPRE ", " tra i valori e numeri formattati — il renderer
+    // generico non deve mai concatenare numeri senza separatori.
     return (
       <div style={{ fontSize: '14px' }}>
         <span style={{ color: B.muted }}>{name}: </span>
-        <span style={{ color: B.ink }}>{list.slice(0, 12).map(String).join(', ')}{list.length > 12 ? '…' : ''}</span>
+        <span style={{ color: B.ink }}>{formatPrimitiveList(list, locale)}</span>
       </div>
     )
   }
@@ -1118,6 +1183,9 @@ function EvidenceArray({ name, list, noValueLabel }: { name: string; list: unkno
                     >
                       {v === null || v === undefined ? (
                         noValueLabel
+                      ) : typeof v === 'number' ? (
+                        // Fix 13/10: numeri sempre coi separatori in tabella.
+                        formatEvidenceValue(v, locale)
                       ) : typeof v === 'string' && /^https?:\/\//.test(v) ? (
                         // Item 16: URL values become links — truncated with
                         // ellipsis, opened in a new tab.
@@ -1205,6 +1273,11 @@ function PendingInfo({ row }: { row: DriverRow }) {
           {line}
         </div>
       ))}
+      {/* Fix 13/10: una dispatch fallita resta in coda CON il motivo
+          (recordDispatchFailure), mai un IN CODA muto. */}
+      {row.status === 'queued' && row.error && (
+        <div style={{ fontSize: '14px', color: B.warning, lineHeight: 1.5 }}>{row.error}</div>
+      )}
     </div>
   )
 }

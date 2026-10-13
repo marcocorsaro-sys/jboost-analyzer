@@ -7,11 +7,14 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  INSIGHT_EXAMPLES_BUDGET,
   KNOWLEDGE_EXTRACT_BUDGET,
   decodeTextBuffer,
+  insightExamplesClause,
   knowledgeDocumentsClause,
   knowledgeExtractKind,
   normalizeExtractedText,
+  readInsightExamples,
   readKnowledgeDocs,
   truncateExtract,
 } from './knowledge-extract'
@@ -99,4 +102,47 @@ test('knowledgeDocumentsClause: empty without readable docs, instructive with th
   assert.match(clause, /brief\.pdf \(excerpt, truncated\)/)
   assert.match(clause, /Tone of voice sobrio/)
   assert.match(clause, /note\.txt/)
+})
+
+// ---------------------------------------------------------------------------
+// Fix 13/10 — enciclopedia di esempi insight (kind 'insight_examples')
+// ---------------------------------------------------------------------------
+
+test('readInsightExamples: only insight_examples kinds, knowledge docs untouched', () => {
+  const setup = {
+    attachments: [
+      { kind: 'insight_examples', name: 'esempi.md', extracted_text: 'esempio di insight profondo' },
+      { kind: 'insight_examples', name: 'altri.pptx', extract_error: 'formato non estraibile (.pptx)' },
+      { kind: 'knowledge_doc', name: 'brief.pdf', extracted_text: 'brief' },
+    ],
+  }
+  const examples = readInsightExamples(setup)
+  assert.equal(examples.length, 2)
+  assert.equal(examples[0].text, 'esempio di insight profondo')
+  assert.equal(examples[1].text, null)
+  // The two kinds never leak into each other.
+  assert.equal(readKnowledgeDocs(setup).length, 1)
+  assert.deepEqual(readInsightExamples(null), [])
+})
+
+test('insightExamplesClause: empty without readable files, imitate-not-copy rule with them', () => {
+  assert.equal(insightExamplesClause([]), '')
+  assert.equal(insightExamplesClause([{ name: 'x.pptx', text: null }]), '')
+
+  const clause = insightExamplesClause([
+    { name: 'esempi.md', text: 'ESEMPIO: insight con causa e azione.', truncated: true },
+  ])
+  assert.match(clause, /ESEMPI DI INSIGHT DI RIFERIMENTO/)
+  assert.match(clause, /Imitate the DEPTH, CUT and CONCRETENESS/)
+  assert.match(clause, /Do NOT copy them/)
+  assert.match(clause, /esempi\.md \(excerpt, truncated\)/)
+  assert.match(clause, /insight con causa e azione/)
+})
+
+test('INSIGHT_EXAMPLES_BUDGET: higher than the knowledge budget, honoured by truncateExtract', () => {
+  assert.ok(INSIGHT_EXAMPLES_BUDGET > KNOWLEDGE_EXTRACT_BUDGET)
+  const cut = truncateExtract('y'.repeat(INSIGHT_EXAMPLES_BUDGET + 500), INSIGHT_EXAMPLES_BUDGET)
+  assert.equal(cut.truncated, true)
+  assert.ok(cut.text.length <= INSIGHT_EXAMPLES_BUDGET)
+  assert.ok(cut.text.length > KNOWLEDGE_EXTRACT_BUDGET)
 })

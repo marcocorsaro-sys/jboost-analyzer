@@ -172,6 +172,12 @@ export const DRIVER_SCHEMA_NOTES: Record<string, string> = {
     'The payload includes dr_trend_12m and top_referring_domains with DR. Cite strong top referring domains, or recent broken backlinks eroding the link profile.',
   awareness:
     'The payload includes trend_12m of the client brand cluster. Distinguish position vs cluster and temporal dynamic. State the basis in the summary: branded keywords in the top 100, sum of monthly search volume.',
+  // Fix 13/10: AI Visibility joins the sequence (slot 4). Operational note,
+  // coherent with the other drivers: its payload is the paste-driven J-Horizon
+  // measurement (GEO score per site, manual or extracted, plus the extraction
+  // comments when present).
+  ai_visibility:
+    "The payload is the J-Horizon GEO measurement: one geo_score 0-100 per site (sites[].raw / score_absolute), the source method ('manual' typed by the analyst or 'paste-driven' extracted from a pasted J-Horizon answer), and, when present, the extraction comments (comment_absolute / comment_relative). Frame the client's AI visibility vs the covered competitors; a site with no score is NOT covered by the measurement, never a zero, and must be named as uncovered. State the source (J-Horizon, manual or paste) in the summary.",
   traffic:
     'The payload includes traffic_sources split by channel. If the Traffic gap concentrates on organic search, flag it as a correlation with Discoverability.',
 }
@@ -344,8 +350,20 @@ export function buildDriverUserPrompt(input: DriverPromptInput): string {
   if (note) parts.push(`DRIVER-SPECIFIC NOTE:\n${note}`)
   parts.push(`OUTPUT JSON SCHEMA:\n${schema}`)
   parts.push(RESPONSE_LENGTH_CLAUSE)
+  parts.push(INTERPRETATION_CLAUSE)
   return parts.join('\n\n')
 }
+
+/**
+ * Operational addition (fix 13/10, team feedback "il commento ripete i numeri
+ * delle scorecard"): every sentence must ADD something to the numbers the
+ * reader already sees on the scorecards. Appended to every driver user
+ * prompt, after the length clause.
+ */
+export const INTERPRETATION_CLAUSE = `INTERPRETATION OVER REPETITION (binding):
+- every sentence must add interpretation, cause, comparison or action; never a sentence that only restates numbers already visible on the scorecards (score, raw, rank);
+- cite a number ONLY in support of a reading (why it is what it is, what it implies, what to do about it), never as the content of the sentence itself;
+- a comment that paraphrases the score ("the client scores 62 out of 100") is a failed response.`
 
 /**
  * Operational addition (Sprint 1 item 2a, not sheet text): explicit length

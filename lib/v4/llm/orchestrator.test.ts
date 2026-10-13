@@ -213,19 +213,19 @@ const spendBlocked = async () => ({ blocked: true, limitEur: 10 })
 // pure guardrail helpers
 // ---------------------------------------------------------------------------
 
-test('orderInsightRuns: sheet 16 A order, done-only, AI Visibility excluded', () => {
+test('orderInsightRuns: sheet 16 A order, done-only, AI Visibility at slot 4 (fix 13/10)', () => {
   const rows = [
-    irun('speed'), // llmSequence 8
+    irun('speed'), // llmSequence 9
     irun('awareness'), // 1
-    irun('ai_visibility'), // null: paste-driven, never in the sequence
+    irun('ai_visibility'), // 4 — in the sequence since the 13/10 fix
     irun('traffic'), // 3
     irun('compliance', { status: 'error' }), // failed: nothing to narrate
     irun('discoverability', { enabled: false }), // disabled: excluded
-    irun('authority'), // 4
+    irun('authority'), // 5
   ]
   assert.deepEqual(
     orderInsightRuns(rows).map((r) => r.driver_key),
-    ['awareness', 'traffic', 'authority', 'speed'],
+    ['awareness', 'traffic', 'ai_visibility', 'authority', 'speed'],
   )
 })
 
@@ -288,12 +288,13 @@ test('findInventedNumbers: flags numbers >10 absent from the payload, separator-
 // the engine
 // ---------------------------------------------------------------------------
 
-test('engine: sequence order, cumulative context growth, AI Visibility seed, summary inputs', async () => {
+test('engine: sequence order, cumulative context growth, AI Visibility seed + slot 4, summary inputs', async () => {
   const state = makeState([
-    irun('authority'), // llmSequence 4 — listed first to prove sorting
+    irun('authority'), // llmSequence 5 — listed first to prove sorting
     irun('awareness', { score_relative: 40 }), // 1
     irun('discoverability', { tier_used: 'relaxed_2', score_relative: 55 }), // 2
     irun('ai_visibility', {
+      // Fix 13/10: slot 4 of the sequence — narrated like the others.
       score_relative: 45,
       comment_relative:
         'AI Visibility debole rispetto ai competitor del cluster. La presenza nelle risposte AI resta marginale.',
@@ -303,6 +304,7 @@ test('engine: sequence order, cumulative context growth, AI Visibility seed, sum
   const stub = modelStub([
     JSON.stringify(bizOutput({ insights: [{ titolo: 'Titolo awareness uno', spiegazione: 'Spiegazione awareness.', rilevanza_strategica: 'alta' }] })),
     JSON.stringify(bizOutput({ insights: [{ titolo: 'Titolo discoverability due', spiegazione: 'Spiegazione discoverability.', rilevanza_strategica: 'media' }] })),
+    JSON.stringify(bizOutput({ insights: [{ titolo: 'Titolo ai visibility tre', spiegazione: 'Spiegazione AI visibility.', rilevanza_strategica: 'alta' }] })),
     JSON.stringify(devOutput()),
     JSON.stringify({
       headline_dominante: 'Sintesi di test.',
@@ -320,47 +322,72 @@ test('engine: sequence order, cumulative context growth, AI Visibility seed, sum
 
   assert.equal(result.status, 'done')
   assert.equal(result.completed, true)
-  assert.deepEqual(result.processed, ['awareness', 'discoverability', 'authority'])
+  assert.deepEqual(result.processed, ['awareness', 'discoverability', 'ai_visibility', 'authority'])
 
-  // Sheet 16 A: strictly the registry llmSequence order, then the summary.
+  // Sheet 16 A + fix 13/10: strictly the registry llmSequence order
+  // (AI Visibility at slot 4, before Authority), then the summary.
   assert.deepEqual(
     stub.calls.map((c) => c.what),
-    ['V4 insight Awareness', 'V4 insight Discoverability', 'V4 insight Authority', 'V4 Executive Summary'],
+    [
+      'V4 insight Awareness',
+      'V4 insight Discoverability',
+      'V4 insight AI Visibility',
+      'V4 insight Authority',
+      'V4 Executive Summary',
+    ],
   )
 
-  // Sheet 16 B: AI Visibility's relative comment seeds the context of call 1.
+  // Sheet 16 B: AI Visibility's relative comment seeds the context of call 1,
+  // BEFORE its own slot-4 call runs.
   assert.match(stub.calls[0].prompt, /AI Visibility debole rispetto ai competitor/)
 
-  // Cumulative growth: call 2 sees call 1's title; call 3 sees both.
+  // Cumulative growth: call 2 sees call 1's title; call 4 sees the first three.
   assert.match(stub.calls[1].prompt, /Titolo awareness uno/)
-  assert.match(stub.calls[2].prompt, /Titolo awareness uno/)
-  assert.match(stub.calls[2].prompt, /Titolo discoverability due/)
+  assert.match(stub.calls[3].prompt, /Titolo awareness uno/)
+  assert.match(stub.calls[3].prompt, /Titolo discoverability due/)
+  assert.match(stub.calls[3].prompt, /Titolo ai visibility tre/)
   assert.doesNotMatch(stub.calls[0].prompt, /Titolo awareness uno/)
 
-  // System prompt variant per family (sheet 15 B).
+  // System prompt variant per family (sheet 15 B): AI Visibility is business.
   assert.match(stub.calls[0].options?.system ?? '', /QUALITATIVE and DIRECTIONAL/)
-  assert.match(stub.calls[2].options?.system ?? '', /soluzione_proposta/)
+  assert.match(stub.calls[2].options?.system ?? '', /QUALITATIVE and DIRECTIONAL/)
+  assert.match(stub.calls[3].options?.system ?? '', /soluzione_proposta/)
+
+  // The slot-4 call carries the AI Visibility schema note (payload = GEO
+  // measurement, J-Horizon manual/paste source) and, being the one Business
+  // driver with an Absolute view, echoes score_absolute in the payload.
+  assert.match(stub.calls[2].prompt, /J-Horizon GEO measurement/)
+  assert.match(stub.calls[2].prompt, /"score_absolute":70/)
 
   // Discoverability transparency: the relaxed tier is spelled out (sheet 14).
   assert.match(stub.calls[1].prompt, /top 20 with volume >= 500 \(relaxed_2\)/)
 
   // Models and parameters: sonnet default per driver, opus 4.8 for the summary.
   assert.equal(stub.calls[0].options?.model, 'claude-sonnet-5')
-  assert.equal(stub.calls[3].options?.model, 'claude-opus-4-8')
-  assert.equal(stub.calls[3].options?.maxTokens, 4000)
-  assert.equal(stub.calls[3].options?.temperature, 0.4)
+  assert.equal(stub.calls[4].options?.model, 'claude-opus-4-8')
+  assert.equal(stub.calls[4].options?.maxTokens, 4000)
+  assert.equal(stub.calls[4].options?.temperature, 0.4)
   assert.equal(stub.calls[0].options?.maxTokens, DRIVER_CALL_MAX_TOKENS)
 
-  // The summary receives every driver output + the AI Visibility comments.
-  assert.match(stub.calls[3].prompt, /Titolo awareness uno/)
-  assert.match(stub.calls[3].prompt, /Profilo backlink concentrato/)
-  assert.match(stub.calls[3].prompt, /AI Visibility debole/)
+  // Fix 13/10 (feedback "il commento ripete i numeri"): every driver call
+  // carries the binding interpretation-over-repetition rule.
+  for (const call of stub.calls.slice(0, 4)) {
+    assert.match(call.prompt, /INTERPRETATION OVER REPETITION/)
+  }
+
+  // The summary receives every driver output + the AI Visibility paste
+  // comments, which ENRICH (never overwrite) its structured insight.
+  assert.match(stub.calls[4].prompt, /Titolo awareness uno/)
+  assert.match(stub.calls[4].prompt, /Titolo ai visibility tre/)
+  assert.match(stub.calls[4].prompt, /Profilo backlink concentrato/)
+  assert.match(stub.calls[4].prompt, /AI Visibility debole/)
+  assert.match(stub.calls[4].prompt, /AI Visibility \(paste comments\)/)
 
   // Persistence: one llm_insight per driver, written as it landed.
   const insightWrites = state.runUpdates.filter((u) => u.patch.llm_insight)
   assert.deepEqual(
     insightWrites.map((u) => u.id),
-    ['run-awareness', 'run-discoverability', 'run-authority'],
+    ['run-awareness', 'run-discoverability', 'run-ai_visibility', 'run-authority'],
   )
   const summary = state.analysis.v4_executive_summary as LlmInsightRecord
   assert.equal(summary.status, 'done')
@@ -374,6 +401,7 @@ test('engine: sequence order, cumulative context growth, AI Visibility seed, sum
     [
       'v4_driver_insight_awareness',
       'v4_driver_insight_discoverability',
+      'v4_driver_insight_ai_visibility',
       'v4_driver_insight_authority',
       'v4_executive_summary',
     ],
@@ -740,6 +768,92 @@ test('engine: without global notes the prompts carry no global_notes clause', as
   const stub = modelStub([JSON.stringify(devOutput())])
   await generateInsights(fakeDb(state), 'analysis-1', { callModel: stub.fn, spendStatus: spendOk })
   assert.doesNotMatch(stub.calls[0].prompt, /global_notes/)
+})
+
+test('engine (fix 13/10): the insight-examples encyclopedia reaches EVERY insight call as its own section', async () => {
+  const state = makeState([irun('awareness'), irun('authority')], {
+    v4_setup: {
+      attachments: [
+        {
+          kind: 'insight_examples',
+          name: 'esempi.md',
+          path: 'v4-setup/x/insight_examples/esempi.md',
+          extracted_text:
+            'ESEMPIO: la keyword gap sul cluster boiler indica che il leader presidia la domanda informazionale con 54321 contenuti dedicati.',
+        },
+        // A knowledge doc must keep its OWN section, untouched.
+        {
+          kind: 'knowledge_doc',
+          name: 'brief.pdf',
+          path: 'v4-setup/x/knowledge_doc/brief.pdf',
+          extracted_text: 'Brief di gara: tono sobrio.',
+        },
+      ],
+    },
+  })
+  const stub = modelStub([
+    JSON.stringify(bizOutput()),
+    JSON.stringify(devOutput()),
+    JSON.stringify({ headline_dominante: 'ok', scorecard_overview: 'ok', correlazioni_chiave: [], priorita_strategiche: [], alert_critici: [] }),
+  ])
+
+  const result = await generateInsights(fakeDb(state), 'analysis-1', {
+    callModel: stub.fn,
+    spendStatus: spendOk,
+  })
+  assert.equal(result.status, 'done')
+  assert.equal(stub.calls.length, 3) // 2 drivers + summary
+
+  for (const call of stub.calls) {
+    // The examples enter as their own section, with the imitate-don't-copy rule.
+    assert.match(call.prompt, /ESEMPI DI INSIGHT DI RIFERIMENTO/)
+    assert.match(call.prompt, /cluster boiler/)
+    assert.match(call.prompt, /Do NOT copy them/)
+    // The knowledge docs keep their separate section.
+    assert.match(call.prompt, /KNOWLEDGE DOCUMENTS/)
+    assert.match(call.prompt, /tono sobrio/)
+  }
+})
+
+test('engine (fix 13/10): numbers that exist ONLY in the examples are still flagged as invented', async () => {
+  // The examples are a quality bar, never citable data: their numbers are
+  // deliberately left out of allowedNumberSources, so a model that copies
+  // one keeps the hallucination flag after the retries.
+  const state = makeState([irun('authority')], {
+    v4_setup: {
+      attachments: [
+        {
+          kind: 'insight_examples',
+          name: 'esempi.md',
+          path: 'v4-setup/x/insight_examples/esempi.md',
+          extracted_text: 'ESEMPIO con un numero suo: 54321 contenuti dedicati.',
+        },
+      ],
+    },
+    v4_executive_summary: { status: 'done', output: {}, model: 'x', generated_at: 'y', attempts: 1 },
+  })
+  const copying = devOutput({
+    commento_relative: 'Il cliente dovrebbe produrre 54321 contenuti dedicati.',
+  })
+  const stub = modelStub([
+    JSON.stringify(copying),
+    JSON.stringify(copying),
+    JSON.stringify(copying),
+  ])
+
+  await generateInsights(fakeDb(state), 'analysis-1', { callModel: stub.fn, spendStatus: spendOk })
+  const flagged = state.runs[0].llm_insight as { status: string; hallucination_flags?: string[] }
+  assert.equal(flagged.status, 'done')
+  assert.deepEqual(flagged.hallucination_flags, ['54321'])
+})
+
+test('engine (fix 13/10): without an examples upload the prompts carry no examples section', async () => {
+  const state = makeState([irun('authority')], {
+    v4_executive_summary: { status: 'done', output: {}, model: 'x', generated_at: 'y', attempts: 1 },
+  })
+  const stub = modelStub([JSON.stringify(devOutput())])
+  await generateInsights(fakeDb(state), 'analysis-1', { callModel: stub.fn, spendStatus: spendOk })
+  assert.doesNotMatch(stub.calls[0].prompt, /ESEMPI DI INSIGHT DI RIFERIMENTO/)
 })
 
 test('engine: onlyDrivers (review 3/13) generates just the requested driver, no summary spend', async () => {

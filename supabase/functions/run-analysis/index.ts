@@ -83,9 +83,9 @@ Deno.serve(async (req: Request) => {
     // ============================
     await updatePhase('fetching_apis', 'Fetching SEO data from multiple sources...');
 
-    const SEMRUSH_API_KEY = dbKeys['SEMRUSH_API_KEY'] || Deno.env.get('SEMRUSH_API_KEY') || '';
-    const AHREFS_API_KEY = dbKeys['AHREFS_API_KEY'] || Deno.env.get('AHREFS_API_KEY') || '';
-    const GOOGLE_PSI_API_KEY = dbKeys['GOOGLE_PSI_API_KEY'] || Deno.env.get('GOOGLE_PSI_API_KEY') || '';
+    const SEMRUSH_API_KEY = Deno.env.get('SEMRUSH_API_KEY') || dbKeys['SEMRUSH_API_KEY'] || '';
+    const AHREFS_API_KEY = Deno.env.get('AHREFS_API_KEY') || dbKeys['AHREFS_API_KEY'] || '';
+    const GOOGLE_PSI_API_KEY = Deno.env.get('GOOGLE_PSI_API_KEY') || dbKeys['GOOGLE_PSI_API_KEY'] || '';
     const hasAnyApiKey = !!(SEMRUSH_API_KEY || AHREFS_API_KEY || GOOGLE_PSI_API_KEY);
 
     const apiNames = [
@@ -178,7 +178,7 @@ Deno.serve(async (req: Request) => {
     // ============================
     await updatePhase('generating_solutions', 'Generating AI-powered solutions...');
     const OPENAI_API_KEY = dbKeys['OPENAI_API_KEY'] || Deno.env.get('OPENAI_API_KEY') || Deno.env.get('OPEN_AI_API_KEY') || '';
-    const ANTHROPIC_API_KEY_VAL = dbKeys['ANTHROPIC_API_KEY'] || Deno.env.get('ANTHROPIC_API_KEY') || '';
+    const ANTHROPIC_API_KEY_VAL = Deno.env.get('ANTHROPIC_API_KEY') || dbKeys['ANTHROPIC_API_KEY'] || '';
     const PPLX_API_KEY = dbKeys['PPLX_API_KEY'] || Deno.env.get('PPLX_API_KEY') || '';
     const hasLLMKey = !!(OPENAI_API_KEY || PPLX_API_KEY || ANTHROPIC_API_KEY_VAL);
 

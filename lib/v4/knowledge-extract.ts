@@ -21,6 +21,14 @@
 /** Per-document extract budget, in characters (~2k tokens per doc). */
 export const KNOWLEDGE_EXTRACT_BUDGET = 8000
 
+/**
+ * Fix 13/10 — "enciclopedia di esempi di insight": per-document budget for
+ * the 'insight_examples' upload kind. Higher than the knowledge docs on
+ * purpose: the examples are the quality reference the model imitates, and
+ * cutting them mid-example costs more than the extra tokens.
+ */
+export const INSIGHT_EXAMPLES_BUDGET = 15000
+
 /** Formats whose text this codebase can extract without new dependencies. */
 export type KnowledgeExtractKind = 'text' | 'pdf' | 'docx'
 
@@ -97,13 +105,10 @@ export interface KnowledgeDoc {
   truncated?: boolean
 }
 
-/**
- * The knowledge documents of an analysis setup: attachments of kind
- * 'knowledge_doc'. Docs without extracted text are still listed (name only)
- * so the caller can say they exist without pretending to have read them.
- */
-export function readKnowledgeDocs(
+/** Shared reader: attachments of one kind, with their extracted text. */
+function readDocsOfKind(
   v4Setup: Record<string, unknown> | null | undefined,
+  kind: string,
 ): KnowledgeDoc[] {
   const raw = v4Setup?.attachments
   if (!Array.isArray(raw)) return []
@@ -111,7 +116,7 @@ export function readKnowledgeDocs(
   for (const a of raw) {
     if (!a || typeof a !== 'object') continue
     const att = a as { kind?: unknown; name?: unknown; extracted_text?: unknown; extract_truncated?: unknown }
-    if (att.kind !== 'knowledge_doc') continue
+    if (att.kind !== kind) continue
     out.push({
       name: typeof att.name === 'string' ? att.name : 'documento',
       text:
@@ -122,6 +127,28 @@ export function readKnowledgeDocs(
     })
   }
   return out
+}
+
+/**
+ * The knowledge documents of an analysis setup: attachments of kind
+ * 'knowledge_doc'. Docs without extracted text are still listed (name only)
+ * so the caller can say they exist without pretending to have read them.
+ */
+export function readKnowledgeDocs(
+  v4Setup: Record<string, unknown> | null | undefined,
+): KnowledgeDoc[] {
+  return readDocsOfKind(v4Setup, 'knowledge_doc')
+}
+
+/**
+ * Fix 13/10: the insight-examples "encyclopedia" of an analysis setup —
+ * attachments of kind 'insight_examples', same formats and extraction as the
+ * knowledge docs (budget INSIGHT_EXAMPLES_BUDGET at upload).
+ */
+export function readInsightExamples(
+  v4Setup: Record<string, unknown> | null | undefined,
+): KnowledgeDoc[] {
+  return readDocsOfKind(v4Setup, 'insight_examples')
 }
 
 /**
@@ -144,6 +171,32 @@ export function knowledgeDocumentsClause(docs: KnowledgeDoc[]): string {
     `Use them to CALIBRATE your comments and recommendations, especially for the Content driver: ` +
     `respect the tone of voice, constraints and priorities they state, and prefer suggestions ` +
     `consistent with them. Do not quote them wholesale and do not invent numbers from them.\n` +
+    parts.join('\n')
+  )
+}
+
+/**
+ * Fix 13/10 — the ESEMPI DI INSIGHT section appended to EVERY insight call
+ * (drivers and Executive Summary alike). The instruction is explicit: the
+ * examples set the BAR (depth, cut, concreteness), they are never data —
+ * the model must not copy them, must not cite their numbers or brands as if
+ * they belonged to this analysis. Their numbers are deliberately NOT added
+ * to the anti-hallucination allowed sources, so copying one gets flagged.
+ * Empty when nothing readable was uploaded: the prompt stays byte-identical.
+ */
+export function insightExamplesClause(docs: KnowledgeDoc[]): string {
+  const readable = docs.filter((d): d is KnowledgeDoc & { text: string } => d.text !== null)
+  if (readable.length === 0) return ''
+  const parts = readable.map(
+    (d) =>
+      `--- EXAMPLES FILE: ${d.name}${d.truncated ? ' (excerpt, truncated)' : ''} ---\n${d.text}`,
+  )
+  return (
+    `\n\nESEMPI DI INSIGHT DI RIFERIMENTO (quality reference uploaded by the analyst). ` +
+    `Imitate the DEPTH, CUT and CONCRETENESS of these examples: how they interpret the data, ` +
+    `how specific the recommendations are, how every sentence adds a reading instead of ` +
+    `restating a number. Do NOT copy them, do NOT reuse their numbers, brands or keywords as ` +
+    `data of this analysis: they are a style and quality bar, not a source.\n` +
     parts.join('\n')
   )
 }

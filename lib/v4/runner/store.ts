@@ -181,6 +181,28 @@ export async function saveTemplateConfigs(
   return { error: error?.message ?? null }
 }
 
+/**
+ * Make a FAILED dispatch visible (fix 13/10): the run stays 'queued', but its
+ * `error` column records why no worker is coming, so the status route (and
+ * the driver tab) can say it instead of a mute IN CODA. The claim RPC clears
+ * `error` on the next successful claim, so the note is self-healing. The
+ * write is status-guarded: a row that moved on in the meantime is left alone.
+ */
+export async function recordDispatchFailure(
+  db: SupabaseClient,
+  analysisId: string,
+  driverKey: string,
+  reason: string,
+): Promise<{ error: string | null }> {
+  const { error } = await db
+    .from('driver_runs')
+    .update({ error: `dispatch non riuscita: ${reason}. La prossima verifica di stato la rilancia.` })
+    .eq('analysis_id', analysisId)
+    .eq('driver_key', driverKey)
+    .eq('status', 'queued')
+  return { error: error?.message ?? null }
+}
+
 /** Stamp the moment a dispatcher handed these jobs to the worker route. */
 export async function markDispatched(
   db: SupabaseClient,

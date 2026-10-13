@@ -894,6 +894,8 @@ const en = {
   'v4res.psi_running_note': 'Measuring PageSpeed on {p} pages across {s} sites, this can take a few minutes.',
   'v4res.insight_degraded': 'Insight generated in reduced mode, regenerate it if needed.',
   'v4res.partial_coverage': 'Partial coverage',
+  // Fix 13/10: ⚠ badge on the scorecards when the data is partial.
+  'v4res.partial_badge': 'partial data: {n} sites not measured',
   'v4res.jh_update_title': 'Update J-Horizon data',
   'v4res.jh_update_hint': 'Regenerate the prompt, paste the new J-Horizon answer and re-measure the driver. Re-measuring replaces the measured data; manual edits and comments survive, as with the forced re-measure.',
   'v4res.jh_copy_prompt': 'Copy prompt for J-Horizon',
@@ -965,7 +967,7 @@ const en = {
   'v4res.regen_driver_insight': 'Regenerate insight for this driver',
   'v4res.card_relative_only': 'relative view (the only one for Business drivers)',
   'v4res.compare_desc_absolute': 'Absolute scores per driver: the real 0-100 measure reported by each source. The Index column stays relative (leader-index).',
-  'v4res.notes_button': 'Notes',
+  'v4res.notes_button': 'Global notes',
   'v4res.notes_title': 'Project notes',
   'v4res.notes_hint': 'Cross-project notes: saved on the setup and passed as extra context (global_notes) to every AI insight call.',
   'v4res.notes_placeholder': 'Known constraints, project history, context the model should keep in mind for every driver…',
@@ -1097,9 +1099,9 @@ const en = {
   'v4res.traffic_source_note': 'Similarweb estimates: indicative values, useful for comparisons and trends.',
   'v4res.traffic_no_series': 'monthly series not available for',
 
-  // Sprint 2 item 16: URLs in the Discoverability ranking
+  // Item 16 (rolled back 13/10): the ranking page URL depends on the Ahrefs plan
   'v4res.disco_url_hint':
-    'This run has no ranking page URLs: re-measure the driver to see them in the table.',
+    'Ranking page URL available only if the Ahrefs plan includes it.',
 
   // V4 setup wizard (Bibbia 04, sheet "New Audit (Setup)", 5 steps)
   'v4setup.title': 'New audit',
@@ -1207,6 +1209,10 @@ const en = {
   'v4setup.max_insights_hint': 'Maximum number of insights/actions per driver, to avoid hallucination.',
   'v4setup.knowledge_docs': 'Knowledge documents (optional)',
   'v4setup.knowledge_docs_hint': 'Tender brief, brand book, guidelines: they contextualise generated insights.',
+  // Fix 13/10: insight-examples encyclopedia.
+  'v4setup.insight_examples': 'Insight examples (encyclopedia)',
+  'v4setup.insight_examples_hint':
+    'A file of high-quality insight and actionable examples: the model imitates their depth, cut and concreteness, without copying them or citing them as data.',
   'v4setup.notes': 'Additional notes',
   'v4setup.notes_placeholder': 'Known constraints, project history, unstructured info to pass to the model…',
   'v4setup.summary_site': 'Site',

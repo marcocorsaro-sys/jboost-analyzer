@@ -205,6 +205,35 @@ test('reaper: a queued job nobody collected is re-dispatched after the grace per
   assert.equal(selectUndispatchedRuns([exhausted], NOW).length, 0)
 })
 
+test('reaper (fix 13/10): a queued job DISPATCHED long ago but never claimed is selected again', () => {
+  // The ariston case: dispatched_at stamped by the 04:00 cron, the worker
+  // never claimed (or claimed, failed retryably and was requeued), the row
+  // sits queued with attempts left. The anchor is dispatched_at: stale ->
+  // selected, fresh -> left alone (a real claim lands within seconds).
+  const staleDispatched = row({
+    status: 'queued',
+    attempts: 2,
+    max_attempts: 3,
+    lease_expires_at: null,
+    dispatched_at: '2026-07-21T04:00:00.000Z', // the 04:00 cron, hours ago
+    created_at: '2026-07-20T09:00:00.000Z',
+  })
+  assert.equal(selectUndispatchedRuns([staleDispatched], NOW).length, 1)
+
+  // Dispatched 1 minute ago: the claim may still be in flight — not selected.
+  const justDispatched = { ...staleDispatched, dispatched_at: '2026-07-21T10:09:00.000Z' }
+  assert.equal(selectUndispatchedRuns([justDispatched], NOW).length, 0)
+
+  // Out of attempts or disabled: never re-dispatched from here.
+  assert.equal(selectUndispatchedRuns([{ ...staleDispatched, attempts: 3 }], NOW).length, 0)
+  assert.equal(selectUndispatchedRuns([{ ...staleDispatched, enabled: false }], NOW).length, 0)
+
+  // Not queued (running / done / needs_decision): other paths own those.
+  for (const status of ['running', 'done', 'needs_decision', 'error'] as const) {
+    assert.equal(selectUndispatchedRuns([{ ...staleDispatched, status }], NOW).length, 0, status)
+  }
+})
+
 // ---------------------------------------------------------------------------
 // normalize
 // ---------------------------------------------------------------------------

@@ -624,6 +624,66 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
           onSaved={loadStatus}
         />
       )}
+
+      {/* Bottone flottante "Note globali" (fix 13/10): il team non trovava il
+          pannello e vuole annotare mentre scorre. Pill navy fissa in basso a
+          destra, sempre visibile durante lo scroll, stesso GlobalNotesDialog
+          del bottone header; pallino quando esistono note salvate. */}
+      {!notesOpen && (
+        <button
+          type="button"
+          onClick={() => setNotesOpen(true)}
+          title={t('v4res.notes_hint')}
+          aria-label={t('v4res.notes_button')}
+          style={{
+            position: 'fixed',
+            right: '24px',
+            bottom: '24px',
+            zIndex: 55,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '12px 20px',
+            borderRadius: B.radius.pill,
+            border: 'none',
+            background: B.primary,
+            color: B.onPrimary,
+            fontSize: '15px',
+            fontWeight: 650,
+            fontFamily: 'inherit',
+            cursor: 'pointer',
+            boxShadow: B.shadow.dialog,
+          }}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+          </svg>
+          {t('v4res.notes_button')}
+          {status.globalNotes?.trim() && (
+            <span
+              aria-hidden
+              style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '999px',
+                background: B.accentRed,
+                display: 'inline-block',
+              }}
+            />
+          )}
+        </button>
+      )}
     </div>
   )
 }
@@ -1222,6 +1282,9 @@ function OverviewCard({
         }),
       )
     }
+    // Fix 13/10: una dispatch fallita resta in coda CON il motivo registrato
+    // sulla riga (recordDispatchFailure), mai un IN CODA muto.
+    const queuedError = row.status === 'queued' && row.error ? row.error : null
     if (
       (row.driver_key === 'speed' || row.driver_key === 'accessibility') &&
       row.psi_plan &&
@@ -1250,6 +1313,11 @@ function OverviewCard({
             {line}
           </div>
         ))}
+        {queuedError && (
+          <div style={{ fontSize: '14px', color: B.warning, lineHeight: 1.5 }}>
+            {clipText(queuedError, 140)}
+          </div>
+        )}
       </div>
     )
   }
@@ -1259,6 +1327,15 @@ function OverviewCard({
   const effectiveView: ScoreView = view === 'absolute' && hasAbs ? 'absolute' : 'relative'
   const score = effectiveView === 'absolute' ? row.score_absolute : row.score_relative
   const color = effectiveView === 'relative' ? relBandColor(score) : scoreColor(score)
+  // Fix 13/10 (richiesta del team): indicatore ⚠ accanto allo score quando la
+  // misura è parziale (partial_note o siti dichiarati non misurati), con il
+  // riassunto nel tooltip. Dati già esposti dalla status route, nessun campo
+  // nuovo.
+  const unmeasuredCount = row.unmeasured_details?.length ?? 0
+  const partialTitle =
+    unmeasuredCount > 0
+      ? `${fill(t('v4res.partial_badge'), { n: unmeasuredCount })}${row.partial_note ? ` · ${row.partial_note}` : ''}`
+      : (row.partial_note ?? null)
   const clientRank = row.sites.find((x) => x.site_ref === 'client')?.rank ?? null
   const leaderSite = row.sites.find((s) => s.rank === 1 && s.site_ref !== 'client') ?? null
   const leaderName = leaderSite
@@ -1287,19 +1364,31 @@ function OverviewCard({
         </span>
       </div>
 
-      <div
-        style={{
-          ...B.type.num,
-          fontSize: '52px',
-          fontWeight: 800,
-          lineHeight: 1,
-          letterSpacing: '-0.02em',
-          color,
-          cursor: 'help',
-        }}
-        title={t('v4res.formula_note')}
-      >
-        {fmt(score)}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+        <span
+          style={{
+            ...B.type.num,
+            fontSize: '52px',
+            fontWeight: 800,
+            lineHeight: 1,
+            letterSpacing: '-0.02em',
+            color,
+            cursor: 'help',
+          }}
+          title={t('v4res.formula_note')}
+        >
+          {fmt(score)}
+        </span>
+        {partialTitle && (
+          <span
+            role="img"
+            aria-label={partialTitle}
+            title={partialTitle}
+            style={{ fontSize: '20px', color: B.warning, cursor: 'help', lineHeight: 1 }}
+          >
+            ⚠
+          </span>
+        )}
       </div>
 
       {/* Review 9: in vista Assoluta un driver solo-relativo lo dichiara

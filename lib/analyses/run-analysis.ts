@@ -82,7 +82,8 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
   }
 
   try {
-    // Load API keys from DB (app_config table), with env fallback
+    // Load API keys: ENV-FIRST (fix 13/10 — stale app_config rows must not
+    // shadow fresh Vercel env keys), app_config as fallback.
     async function getApiKeysFromDb(): Promise<Record<string, string>> {
       try {
         const { data } = await supabase.from('app_config').select('key, value');
@@ -99,7 +100,7 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
     const dbKeys = await getApiKeysFromDb();
     // Hoisted so phase 3's per-driver agents can use it before the regular
     // phase 4 key extraction. Used by critic-agent and driver-agent.
-    const ANTHROPIC_KEY_FOR_AGENTS = dbKeys['ANTHROPIC_API_KEY'] || process.env.ANTHROPIC_API_KEY || '';
+    const ANTHROPIC_KEY_FOR_AGENTS = process.env.ANTHROPIC_API_KEY || dbKeys['ANTHROPIC_API_KEY'] || '';
 
     const { data: analysis, error: fetchErr } = await supabase
       .from('analyses').select('*').eq('id', analysisId).single();
@@ -240,7 +241,7 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
             competitors,
             priorClarifications: userClarifications,
           },
-          anthropicKey: dbKeys['ANTHROPIC_API_KEY'] || process.env.ANTHROPIC_API_KEY || '',
+          anthropicKey: process.env.ANTHROPIC_API_KEY || dbKeys['ANTHROPIC_API_KEY'] || '',
         });
       } catch (err) {
         // Belt + suspenders: critic should never throw, but if it does we
@@ -321,9 +322,9 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
     // ============================
     // PHASE 1: Fetch all API data
     // ============================
-    const SEMRUSH_API_KEY = dbKeys['SEMRUSH_API_KEY'] || process.env.SEMRUSH_API_KEY || '';
-    const AHREFS_API_KEY = dbKeys['AHREFS_API_KEY'] || process.env.AHREFS_API_KEY || '';
-    const GOOGLE_PSI_API_KEY = dbKeys['GOOGLE_PSI_API_KEY'] || process.env.GOOGLE_PSI_API_KEY || '';
+    const SEMRUSH_API_KEY = process.env.SEMRUSH_API_KEY || dbKeys['SEMRUSH_API_KEY'] || '';
+    const AHREFS_API_KEY = process.env.AHREFS_API_KEY || dbKeys['AHREFS_API_KEY'] || '';
+    const GOOGLE_PSI_API_KEY = process.env.GOOGLE_PSI_API_KEY || dbKeys['GOOGLE_PSI_API_KEY'] || '';
     const hasAnyApiKey = !!(SEMRUSH_API_KEY || AHREFS_API_KEY || GOOGLE_PSI_API_KEY);
 
     const apiDataMap: Record<string, any> = {};
@@ -355,7 +356,7 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
         fetchPageSpeed(domain, GOOGLE_PSI_API_KEY),
         fetchPageSpeedDesktop(domain, GOOGLE_PSI_API_KEY),
         fetchPageSpeedFailedAudits(domain, GOOGLE_PSI_API_KEY),
-        fetchCompanyContext(domain, competitors, targetTopic, dbKeys, dbKeys['PPLX_API_KEY'] || process.env.PPLX_API_KEY || '', dbKeys['ANTHROPIC_API_KEY'] || process.env.ANTHROPIC_API_KEY || ''),
+        fetchCompanyContext(domain, competitors, targetTopic, dbKeys, dbKeys['PPLX_API_KEY'] || process.env.PPLX_API_KEY || '', process.env.ANTHROPIC_API_KEY || dbKeys['ANTHROPIC_API_KEY'] || ''),
       ]);
       for (let i = 0; i < apiResults.length; i++) {
         const result = apiResults[i];
@@ -652,7 +653,7 @@ export async function runAnalysis(analysisId: string): Promise<RunAnalysisResult
     // ============================
     // LLM keys are needed by phase 6 as well, so we read them here regardless.
     const OPENAI_API_KEY = dbKeys['OPENAI_API_KEY'] || process.env.OPENAI_API_KEY || process.env.OPEN_AI_API_KEY || '';
-    const ANTHROPIC_API_KEY_VAL = dbKeys['ANTHROPIC_API_KEY'] || process.env.ANTHROPIC_API_KEY || '';
+    const ANTHROPIC_API_KEY_VAL = process.env.ANTHROPIC_API_KEY || dbKeys['ANTHROPIC_API_KEY'] || '';
     const PPLX_API_KEY = dbKeys['PPLX_API_KEY'] || process.env.PPLX_API_KEY || '';
     const hasLLMKey = !!(OPENAI_API_KEY || PPLX_API_KEY || ANTHROPIC_API_KEY_VAL);
 

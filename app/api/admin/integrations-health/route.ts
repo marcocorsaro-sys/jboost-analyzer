@@ -19,7 +19,8 @@ async function requireAdmin() {
   return { supabase, user }
 }
 
-/** Load API keys with the same precedence as run-analysis: app_config row wins over env. */
+/** Load API keys with the same precedence as the runners (fix 13/10):
+ *  the env wins, app_config fills only the keys the env does not set. */
 async function loadAllKeys(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<{ map: Record<string, string>; sources: Record<string, 'db' | 'env'> }> {
@@ -32,12 +33,13 @@ async function loadAllKeys(
       sources[k] = 'env'
     }
   }
-  // db overrides
+  // db fills the gaps only: a stale app_config row must never shadow a
+  // fresh env key (same env-first precedence as hydrate-keys).
   try {
     const { data } = await supabase.from('app_config').select('key, value')
     if (data) {
       for (const row of data as Array<{ key: string; value: string }>) {
-        if (row.value) {
+        if (row.value && !map[row.key]) {
           map[row.key] = row.value
           sources[row.key] = 'db'
         }

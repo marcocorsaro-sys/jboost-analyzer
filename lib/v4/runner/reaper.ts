@@ -63,12 +63,22 @@ export function selectStaleRuns(
 }
 
 /**
- * Queued jobs nobody ever came to collect.
+ * Queued jobs nobody is working on.
  *
- * Distinct from a stale lease: these were never claimed at all, because the
- * fan-out HTTP call failed. They are indistinguishable from a job queued one
- * second ago, so the only honest discriminator is age — hence the grace
- * period, which must comfortably exceed a cold start.
+ * Distinct from a stale lease. Two shapes land here (fix 13/10, the ariston
+ * case):
+ *  - never dispatched: the fan-out HTTP call failed and dispatched_at is
+ *    NULL — the anchor is created_at;
+ *  - dispatched but never claimed OR claimed, failed retryably and requeued:
+ *    dispatched_at is set (possibly by the 04:00 cron) and the row sits
+ *    'queued' with nobody coming back for it — the anchor is dispatched_at.
+ * Either way, a 'queued' row whose anchor is older than the grace period has
+ * no live worker (a real claim happens within seconds of a dispatch), so it
+ * is safe to redispatch: the atomic claim makes a duplicate harmless.
+ *
+ * They are indistinguishable from a job queued one second ago, so the only
+ * honest discriminator is age — hence the grace period, which must
+ * comfortably exceed a cold start.
  */
 export function selectUndispatchedRuns(
   rows: DriverRunRow[],
@@ -81,8 +91,6 @@ export function selectUndispatchedRuns(
     if (row.status !== 'queued' || !row.enabled) return false
     if (row.attempts >= row.max_attempts) return false
 
-    // dispatched_at set = a worker route acked it; if it then died, the stale
-    // lease path handles it, not this one.
     const anchor = row.dispatched_at ?? row.created_at
     if (!anchor) return false
 

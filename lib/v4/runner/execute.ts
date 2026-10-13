@@ -31,6 +31,7 @@ import {
   loadContentAnswers,
   loadTemplateConfigs,
   markDispatched,
+  recordDispatchFailure,
   updateDriverRun,
 } from './store'
 import type { DriverJobContext, DriverJobOutcome, DriverRunRow } from './types'
@@ -100,7 +101,8 @@ export async function executeDriverJob(
   }
 
   // Provider keys pasted into /admin live in app_config; hydrate them into
-  // the env (DB-first, V1 precedence) so the env-only source modules see them.
+  // the env (env-first: stale DB rows never shadow fresh Vercel env keys)
+  // so the env-only source modules see them.
   await hydrateApiKeysFromConfig(db)
 
   // Templates are shared across the page-based drivers; loading them here
@@ -304,15 +306,21 @@ async function applyReapDecision(
 }
 
 /**
- * On-demand recovery for ONE analysis (Sprint 1 item 1a).
+ * On-demand recovery for ONE analysis (Sprint 1 item 1a + fix 13/10).
  *
- * Called by the status route the results page already polls every 5s: a run
- * left 'running' by a dead worker is recovered at the NEXT POLL instead of
- * waiting for the 04:00 UTC cron (the bug: Speed/Accessibility stuck
- * "running" for hours). Selection is the same pure selectStaleRuns the cron
- * uses (30s grace past lease expiry); requeued jobs are re-dispatched
- * immediately through the normal worker route, whose atomic claim makes a
- * duplicate dispatch harmless.
+ * Called by the status route the results page already polls every 5s, so a
+ * dead run is recovered at the NEXT POLL instead of waiting for the 04:00 UTC
+ * cron. Two shapes, both judged by the cron's own pure selectors:
+ *  - 'running' with an expired lease (selectStaleRuns): the invocation died
+ *    mid-job — requeue (or fail when out of attempts) + redispatch;
+ *  - 'queued' with a stale anchor (selectUndispatchedRuns, fix 13/10 — the
+ *    ariston case: dispatched_at stamped by the 04:00 cron but never claimed,
+ *    or requeued after a retryable failure with nobody coming back): the row
+ *    is already queued, so it only needs a REDISPATCH.
+ * Every redispatch goes through the atomic claim, so a concurrent poll or
+ * cron pass cannot double-run anything; a dispatch that fails is recorded on
+ * the row (recordDispatchFailure) so the queue state explains itself, and
+ * the next poll retries it.
  */
 export async function recoverAnalysisStaleRuns(
   db: SupabaseClient,
@@ -323,21 +331,30 @@ export async function recoverAnalysisStaleRuns(
 ): Promise<ReapSummary> {
   const summary: ReapSummary = { requeued: 0, failed: 0, redispatched: 0, errors: [] }
 
-  const decision = selectStaleRuns(
-    rows.filter((r) => r.analysis_id === analysisId),
-    now,
-  )
-  if (decision.requeue.length === 0 && decision.fail.length === 0) return summary
+  const analysisRows = rows.filter((r) => r.analysis_id === analysisId)
+  const decision = selectStaleRuns(analysisRows, now)
+  const staleQueued = selectUndispatchedRuns(analysisRows, now)
+  if (decision.requeue.length === 0 && decision.fail.length === 0 && staleQueued.length === 0) {
+    return summary
+  }
 
   await applyReapDecision(db, decision, now, summary)
 
-  for (const row of decision.requeue) {
-    const result = await dispatchDriverJob(baseUrl, analysisId, row.driver_key)
+  const toDispatch = new Map<string, string>()
+  for (const row of [...decision.requeue, ...staleQueued]) {
+    toDispatch.set(row.id, row.driver_key)
+  }
+
+  for (const driverKey of toDispatch.values()) {
+    const result = await dispatchDriverJob(baseUrl, analysisId, driverKey)
     if (result.dispatched) {
       summary.redispatched += 1
-      await markDispatched(db, analysisId, [row.driver_key])
+      await markDispatched(db, analysisId, [driverKey])
     } else {
-      summary.errors.push(`dispatch ${row.driver_key}: ${result.error ?? 'unknown'}`)
+      summary.errors.push(`dispatch ${driverKey}: ${result.error ?? 'unknown'}`)
+      // Visible failure (fix 13/10): the run stays queued WITH the reason,
+      // readable from the status route, and the next poll re-dispatches it.
+      await recordDispatchFailure(db, analysisId, driverKey, result.error ?? 'unknown')
     }
   }
 
@@ -386,6 +403,8 @@ export async function reapStaleRuns(
       await markDispatched(db, job.analysisId, [job.driverKey])
     } else {
       summary.errors.push(`dispatch ${job.driverKey}: ${result.error ?? 'unknown'}`)
+      // Same visibility contract as the on-demand recovery (fix 13/10).
+      await recordDispatchFailure(db, job.analysisId, job.driverKey, result.error ?? 'unknown')
     }
   }
 

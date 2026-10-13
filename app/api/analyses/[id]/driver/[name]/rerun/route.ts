@@ -102,17 +102,17 @@ export async function POST(
   // from SEMrush/PSI/Ahrefs (whichever the driver needs), then the LLM
   // quality loop runs on top.
   //
-  // Keys come from app_config first (db-stored, settable from /admin), with
-  // env fallback. The fetchers all soft-degrade to mock on failure, so the
+  // Keys are resolved ENV-FIRST (fix 13/10 — stale app_config rows must not
+  // shadow fresh Vercel env keys), with app_config as fallback. The fetchers all soft-degrade to mock on failure, so the
   // route never crashes on a missing key — it just returns the same stale
   // result the original analysis had, with diagnostics.
   const { data: cfgRows } = await supabase.from('app_config').select('key, value')
   const dbKeys: Record<string, string> = {}
   for (const r of (cfgRows ?? []) as Array<{ key: string; value: string }>) dbKeys[r.key] = r.value
   const apiKeys = {
-    semrushKey: dbKeys.SEMRUSH_API_KEY || process.env.SEMRUSH_API_KEY || '',
-    ahrefsKey: dbKeys.AHREFS_API_KEY || process.env.AHREFS_API_KEY || '',
-    psiKey: dbKeys.GOOGLE_PSI_API_KEY || process.env.GOOGLE_PSI_API_KEY || '',
+    semrushKey: process.env.SEMRUSH_API_KEY || dbKeys.SEMRUSH_API_KEY || '',
+    ahrefsKey: process.env.AHREFS_API_KEY || dbKeys.AHREFS_API_KEY || '',
+    psiKey: process.env.GOOGLE_PSI_API_KEY || dbKeys.GOOGLE_PSI_API_KEY || '',
     dataforseoLogin: dbKeys.DATAFORSEO_LOGIN || process.env.DATAFORSEO_LOGIN || '',
     dataforseoPassword: dbKeys.DATAFORSEO_PASSWORD || process.env.DATAFORSEO_PASSWORD || '',
   }

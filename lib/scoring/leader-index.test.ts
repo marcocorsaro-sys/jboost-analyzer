@@ -195,12 +195,15 @@ test('registry: catalog order matches sheets 7/8c (1 Compliance ... 10 Traffic)'
   ])
 })
 
-test('registry: LLM sequence matches sheet 16 (AI Visibility excluded)', () => {
+test('registry: LLM sequence matches sheet 16 + fix 13/10 (AI Visibility at slot 4)', () => {
   assert.deepEqual(driversInLlmOrder().map(d => d.key), [
-    'awareness', 'discoverability', 'traffic', 'authority',
+    'awareness', 'discoverability', 'traffic', 'ai_visibility', 'authority',
     'compliance', 'content', 'schema', 'speed', 'accessibility',
   ])
-  assert.equal(getV4Driver('ai_visibility')!.llmSequence, null)
+  assert.equal(getV4Driver('ai_visibility')!.llmSequence, 4)
+  // The sequence stays collision-free: one slot per driver.
+  const seqs = driversInLlmOrder().map(d => d.llmSequence)
+  assert.equal(new Set(seqs).size, seqs.length)
 })
 
 test('registry: absolute view = 6 development + AI Visibility exception', () => {

@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { selectRetryDrivers, selectSingleRetry, type RetryRunSlice } from '@/lib/v4/retry'
 import { dispatchAll, resolveBaseUrl } from '@/lib/v4/runner/dispatch'
-import { markDispatched } from '@/lib/v4/runner/store'
+import { markDispatched, recordDispatchFailure } from '@/lib/v4/runner/store'
 
 /**
  * POST /api/v4/analyses/[id]/retry — relaunch drivers of an existing analysis
@@ -149,6 +149,10 @@ export async function POST(
     const dispatchErrors = dispatched
       .filter((d) => !d.dispatched)
       .map((d) => `${d.driverKey}: ${d.error ?? 'dispatch failed'}`)
+    // Visible failure (fix 13/10): the queued row records why nobody came.
+    for (const d of dispatched.filter((x) => !x.dispatched)) {
+      await recordDispatchFailure(db, analysisId, d.driverKey, d.error ?? 'unknown')
+    }
 
     return NextResponse.json(
       { retried: [singleDriver], skipped: [], remeasured: decision.remeasure, dispatchErrors },
@@ -193,6 +197,10 @@ export async function POST(
   const dispatchErrors = dispatched
     .filter((d) => !d.dispatched)
     .map((d) => `${d.driverKey}: ${d.error ?? 'dispatch failed'}`)
+  // Visible failure (fix 13/10): same contract as the single-driver branch.
+  for (const d of dispatched.filter((x) => !x.dispatched)) {
+    await recordDispatchFailure(db, analysisId, d.driverKey, d.error ?? 'unknown')
+  }
 
   return NextResponse.json(
     {

@@ -52,3 +52,63 @@ export function formatMonth(isoDate: string, locale = 'it'): string {
   if (idx < 0 || idx > 11) return isoDate
   return `${names[idx]} ${m[1]}`
 }
+
+/**
+ * Fix 13/10 (Traffic evidence): a compact range of months — ["2026-07-01",
+ * "2026-08-01", "2026-09-01"] -> "lug-ago-set 2026" (it) / "Jul-Aug-Sep 2026"
+ * (en). Months of different years keep their own year group ("nov-dic 2025,
+ * gen 2026"). Unparsable dates pass through untouched, never dropped.
+ */
+export function formatMonthsRange(isoDates: string[], locale = 'it'): string {
+  const names = locale === 'it' ? MONTHS_IT : MONTHS_EN
+  const groups: Array<{ year: string; months: string[] }> = []
+  for (const d of isoDates) {
+    const m = d.match(/^(\d{4})-(\d{2})/)
+    const idx = m ? Number(m[2]) - 1 : -1
+    if (!m || idx < 0 || idx > 11) {
+      groups.push({ year: '', months: [d] })
+      continue
+    }
+    const last = groups[groups.length - 1]
+    if (last && last.year === m[1]) last.months.push(names[idx])
+    else groups.push({ year: m[1], months: [names[idx]] })
+  }
+  return groups
+    .map((g) => (g.year ? `${g.months.join('-')} ${g.year}` : g.months.join('-')))
+    .join(', ')
+}
+
+/**
+ * Fix 13/10 (generic evidence renderer): one scalar evidence value as TEXT.
+ * The contract that matters: a NUMBER is always rendered with its separators
+ * (thousands by locale, locale decimal mark), so adjacent digits can never
+ * read as one garbled figure; null stays "—", never 0; everything else goes
+ * through String().
+ */
+export function formatEvidenceValue(value: unknown, locale = 'it'): string {
+  if (value === null || value === undefined) return '—'
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return '—'
+    if (Number.isInteger(value)) return formatInt(value, locale)
+    const intPart = formatInt(Math.trunc(value), locale)
+    const decimals = Math.abs(value % 1).toFixed(2).slice(2).replace(/0+$/, '')
+    const mark = locale === 'it' ? ',' : '.'
+    return decimals ? `${intPart}${mark}${decimals}` : intPart
+  }
+  return String(value)
+}
+
+/**
+ * Fix 13/10: a list of primitive evidence values as ONE line. ALWAYS joined
+ * with ", " — the generic renderer must never concatenate numbers without a
+ * separator (team bug report: "il valore reale del traffico sono le ultime
+ * cifre del numero riportato").
+ */
+export function formatPrimitiveList(
+  list: unknown[],
+  locale = 'it',
+  max = 12,
+): string {
+  const shown = list.slice(0, max).map((v) => formatEvidenceValue(v, locale))
+  return shown.join(', ') + (list.length > max ? '…' : '')
+}

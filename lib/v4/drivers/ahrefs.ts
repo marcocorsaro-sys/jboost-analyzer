@@ -66,9 +66,12 @@ export interface OrganicKeyword {
   volume: number
   position: number
   /**
-   * Sprint 2 item 16: the ranking page. Ahrefs v3 organic-keywords calls it
-   * `best_position_url`. Optional: payloads measured before the select was
-   * extended simply have no url, and the UI says "rimisura per vederle".
+   * Sprint 2 item 16, poi RIENTRATO (fix 13/10): la pagina che si posiziona.
+   * Ahrefs v3 la chiama `best_position_url`, ma chiederla nella select fa
+   * rispondere 403 "the API plan does not grant this endpoint" col piano API
+   * corrente, bloccando Awareness e Discoverability su OGNI audit nuovo. Il
+   * campo resta nel parsing (tollerante) per i payload già misurati quando la
+   * select la includeva; si riattiva nella select solo se il piano lo consente.
    */
   url?: string
 }
@@ -118,12 +121,14 @@ export async function fetchOrganicKeywords(
     target: domain,
     mode: 'subdomains',
     country: (country || 'it').toLowerCase(),
-    // Item 16: best_position_url = the page that ranks. Ahrefs bills per
-    // field referenced, so this can add a small per-row unit cost on top of
-    // the ~13 units/row that volume already drives; accepted by the review
-    // (the URL column is worth it). The parser stays compatible with
-    // responses that omit the field.
-    select: 'keyword,volume,best_position,best_position_url',
+    // ROLLBACK item 16 (fix 13/10): `best_position_url` NON è nella select.
+    // Il piano API corrente risponde 403 "the API plan does not grant this
+    // endpoint" appena il campo viene richiesto, e Awareness/Discoverability
+    // falliscono su tutti gli audit nuovi. Campo desiderato ma fuori dal
+    // piano: da riaggiungere alla select solo quando il piano lo include.
+    // parseKeywordRows resta tollerante e legge la url dai payload che la
+    // avessero già.
+    select: 'keyword,volume,best_position',
     order_by: 'volume:desc',
     limit: String(opts.limit ?? 1000),
     where: JSON.stringify(opts.where),

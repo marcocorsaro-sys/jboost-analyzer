@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { planDriverRuns, computeRefDate } from '@/lib/v4/runner/planner'
-import { seedDriverRuns, loadAnalysisSites, markDispatched } from '@/lib/v4/runner/store'
+import { seedDriverRuns, loadAnalysisSites, markDispatched, recordDispatchFailure } from '@/lib/v4/runner/store'
 import { dispatchAll, resolveBaseUrl } from '@/lib/v4/runner/dispatch'
 import { driverConfigFromSetup } from '@/lib/v4/setup'
 
@@ -117,6 +117,11 @@ export async function POST(
     analysisId,
     dispatched.filter((d) => d.dispatched).map((d) => d.driverKey),
   )
+  // Visible failure (fix 13/10): a run whose fan-out failed stays queued WITH
+  // the reason on the row; the status route's poll recovery re-dispatches it.
+  for (const d of dispatched.filter((x) => !x.dispatched)) {
+    await recordDispatchFailure(db, analysisId, d.driverKey, d.error ?? 'unknown')
+  }
 
   return NextResponse.json(
     {

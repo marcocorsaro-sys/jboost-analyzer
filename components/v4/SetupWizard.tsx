@@ -914,7 +914,7 @@ export default function SetupWizard({
         // o il testo raggiunge i prompt AI, o si dice chiaro che non può.
         const ext = (a.name.match(/\.[^.]+$/)?.[0] ?? '').toLowerCase()
         const knowledgeStatus =
-          kind !== 'knowledge_doc'
+          kind !== 'knowledge_doc' && kind !== 'insight_examples'
             ? null
             : typeof a.extracted_text === 'string' && a.extracted_text !== ''
               ? {
@@ -1694,6 +1694,18 @@ export default function SetupWizard({
           t('v4setup.knowledge_docs'),
           '.pdf,.docx,.doc,.txt,.md,.pptx,.xlsx,.xls,.csv',
           t('v4setup.knowledge_docs_hint'),
+        )}
+      </div>
+
+      {/* Enciclopedia di esempi insight (fix 13/10): stessi formati ed
+          estrazione dei knowledge doc, budget più alto; il testo entra in
+          ogni chiamata insight come riferimento di qualità da imitare. */}
+      <div style={{ marginTop: '18px' }}>
+        {uploadBlock(
+          'insight_examples',
+          t('v4setup.insight_examples'),
+          '.pdf,.docx,.doc,.txt,.md,.pptx,.xlsx,.xls,.csv',
+          t('v4setup.insight_examples_hint'),
         )}
       </div>
 

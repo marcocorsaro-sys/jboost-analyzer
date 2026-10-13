@@ -103,8 +103,8 @@ export function selectRerunDrivers(
  * item 3/13): the drivers a human touched — driver_runs.edited = true, or at
  * least one DRAFT edit (score or comment) pending publish — that can actually
  * be narrated right now: enabled, 'done', and part of the LLM sequence
- * (llmSequence !== null; AI Visibility's insight is paste-driven, never
- * regenerable here).
+ * (llmSequence !== null — since the 13/10 fix that includes AI Visibility,
+ * whose sequence insight narrates the paste-driven measurement).
  *
  * Pure and shared between the PublishDialog (the checkbox and its count) and
  * any server-side caller, so the dialog can never promise a driver the

@@ -5,14 +5,16 @@
  *
  * WHY IT LOOKS LIKE THIS
  * - Sequential by spec, not by accident: sheet 16 A fixes the order
- *   (Awareness -> Discoverability -> Traffic -> Authority -> Compliance ->
- *   Content -> Schema -> Speed -> Accessibility) because each call N receives
- *   the cumulative context of calls 1..N-1 (anti-redundancy + cross-driver
- *   correlations). Parallelising would destroy the contract.
- * - AI Visibility is NOT in the sequence: its paste-driven LLM step already
- *   ran inside the driver itself (lib/v4/drivers/jhorizon-extract.ts). Its
- *   relative comment feeds the cumulative context (sheet 16 B) and its
- *   output feeds the Executive Summary (sheet 16 C), nothing else.
+ *   (Awareness -> Discoverability -> Traffic -> AI Visibility -> Authority ->
+ *   Compliance -> Content -> Schema -> Speed -> Accessibility) because each
+ *   call N receives the cumulative context of calls 1..N-1 (anti-redundancy +
+ *   cross-driver correlations). Parallelising would destroy the contract.
+ * - AI Visibility is IN the sequence since the 13/10 fix (registry
+ *   llmSequence 4): its paste-driven extraction step still runs inside the
+ *   driver (lib/v4/drivers/jhorizon-extract.ts) and produces the measurement;
+ *   the sequence call then narrates that payload like every other driver.
+ *   The extraction's relative comment additionally seeds the cumulative
+ *   context (sheet 16 B) so calls 1-3 see it BEFORE slot 4 runs.
  * - Crash-safe and incremental: every per-driver insight is persisted to
  *   driver_runs.llm_insight the moment it exists. generateInsights() skips
  *   drivers that already have a 'done' insight (idempotent resume) and stops
@@ -42,7 +44,12 @@ import {
 } from '@/lib/v4/drivers/jhorizon-extract'
 import { loadAnalysisSites } from '@/lib/v4/runner/store'
 import { estimateCost } from '@/lib/tracking/pricing'
-import { knowledgeDocumentsClause, readKnowledgeDocs } from '@/lib/v4/knowledge-extract'
+import {
+  insightExamplesClause,
+  knowledgeDocumentsClause,
+  readInsightExamples,
+  readKnowledgeDocs,
+} from '@/lib/v4/knowledge-extract'
 import { repairJson } from './json-repair'
 import {
   DEFAULT_DRIVER_MODEL,
@@ -160,9 +167,9 @@ const SUMMARY_CAPS: Record<string, number> = {
 
 /**
  * Sheet 16 A: the sequential run = enabled, 'done' driver_runs that have an
- * llmSequence in the registry, in that order. AI Visibility (llmSequence
- * null) never appears here; drivers that failed or paused have no payload to
- * narrate and are simply absent.
+ * llmSequence in the registry, in that order (fix 13/10: AI Visibility is
+ * slot 4). Drivers that failed or paused have no payload to narrate and are
+ * simply absent.
  */
 export function orderInsightRuns(rows: InsightRunRow[]): InsightRunRow[] {
   return rows
@@ -405,10 +412,17 @@ export function updateCumulative(
  * comment_relative (written by the paste-driven extraction) is what enters
  * both cumulative variables; if the paste-step has not happened there is
  * nothing to contribute and the sequence simply starts empty.
+ *
+ * Fix 13/10 (AI Visibility in the sequence at slot 4): once its OWN insight
+ * exists, replayPersistedInsights already feeds it to the context, so the
+ * seed is skipped to avoid a duplicate entry. Within the first live run the
+ * seed still gives calls 1-3 the paste comment before slot 4 produces the
+ * structured insight.
  */
 export function seedAiVisibilityContext(ctx: CumulativeContext, rows: InsightRunRow[]): void {
   const av = rows.find((r) => r.driver_key === 'ai_visibility' && r.enabled && r.status === 'done')
   if (!av || !av.comment_relative?.trim()) return
+  if (av.llm_insight?.status === 'done') return // replay already covers it
   ctx.already_mentioned_items.push({
     driver_name: 'AI Visibility',
     items: [{ titolo: 'AI Visibility, commento relativo', sintesi: clipChars(av.comment_relative) }],
@@ -646,7 +660,8 @@ export async function generateInsights(
   const spendStatus = options.spendStatus ?? defaultSpendStatus
 
   // Keys pasted into /admin live in app_config; hydrate them into the env
-  // (DB-first, V1 precedence) so the Anthropic client sees them.
+  // (env-first: stale DB rows never shadow fresh Vercel env keys) so the
+  // Anthropic client sees them.
   await hydrateApiKeysFromConfig(db)
 
   const result: GenerateInsightsResult = {
@@ -730,6 +745,12 @@ export async function generateInsights(
   const knowledgeDocs = readKnowledgeDocs(analysis.v4_setup)
   const knowledgeClause = knowledgeDocumentsClause(knowledgeDocs)
 
+  // Insight-examples encyclopedia (fix 13/10): the quality reference enters
+  // EVERY insight call as its own section. Deliberately NOT added to
+  // allowedNumberSources: the examples are a bar, never citable data.
+  const exampleDocs = readInsightExamples(analysis.v4_setup)
+  const examplesClause = insightExamplesClause(exampleDocs)
+
   // Targeted generation (review item 3/13): restrict the sequential loop to
   // the requested drivers; everything else only contributes context.
   const only = options.onlyDrivers && options.onlyDrivers.length > 0 ? new Set(options.onlyDrivers) : null
@@ -762,7 +783,11 @@ export async function generateInsights(
     // scores of the two views (both are inputs the schema asks to echo).
     const payloadJson = JSON.stringify({
       score_relative: run.score_relative,
-      ...(def.family === 'development' ? { score_absolute: run.score_absolute } : {}),
+      // Development drivers AND the AI Visibility exception have an intrinsic
+      // 0-100 the schema may echo (registry hasAbsoluteView).
+      ...(def.family === 'development' || def.hasAbsoluteView
+        ? { score_absolute: run.score_absolute }
+        : {}),
       tier_used: run.tier_used,
       payload: run.raw_payload,
     })
@@ -788,7 +813,7 @@ export async function generateInsights(
           otherDriversContextJson: otherCtxJson,
           alreadyMentionedItemsJson: alreadyJson,
           tier,
-        }) + notesClause + knowledgeClause,
+        }) + notesClause + knowledgeClause + examplesClause,
       model: driverModel,
       maxTokens: DRIVER_CALL_MAX_TOKENS,
       temperature: DRIVER_CALL_TEMPERATURE,
@@ -887,11 +912,19 @@ export async function generateInsights(
     }
     const av = rows.find((r) => r.driver_key === 'ai_visibility' && r.enabled && r.status === 'done')
     if (av) {
-      allOutputs['AI Visibility'] = {
+      const pasteComments = {
         score_relative: av.score_relative,
         score_absolute: av.score_absolute,
         commento_absolute: av.comment_absolute,
         commento_relative: av.comment_relative,
+      }
+      // Fix 13/10: with AI Visibility in the sequence its structured insight
+      // is already in allOutputs; the paste-step comments must ENRICH the
+      // summary input, never overwrite the insight.
+      if (allOutputs['AI Visibility']) {
+        allOutputs['AI Visibility (paste comments)'] = pasteComments
+      } else {
+        allOutputs['AI Visibility'] = pasteComments
       }
     }
     if (Object.keys(allOutputs).length === 0) {
@@ -920,7 +953,7 @@ export async function generateInsights(
           driversScoreSummaryJson: scoreSummaryJson,
           allDriversOutputJson: allOutputsJson,
           competitorsSummaryJson: competitorsJson,
-        }) + notesClause + knowledgeClause,
+        }) + notesClause + knowledgeClause + examplesClause,
       model: summaryModel,
       maxTokens: SUMMARY_MAX_TOKENS,
       temperature: SUMMARY_TEMPERATURE,
