@@ -166,6 +166,22 @@ export interface FailedRun {
   reason: string
 }
 
+/**
+ * Pure (fix 24/10): interleave per-site job lists round-robin by "URL round".
+ * Within one site the jobs keep their order (url, then mobile/desktop pairs),
+ * and each round takes ONE URL (both strategies) per site, so competitors get
+ * measured before the client's 3rd template is.
+ */
+export function interleavePsiJobs<T>(perSite: T[][]): T[] {
+  const perRound = STRATEGIES.length
+  const rounds = Math.max(0, ...perSite.map((jobs) => Math.ceil(jobs.length / perRound)))
+  const out: T[] = []
+  for (let r = 0; r < rounds; r++) {
+    for (const jobs of perSite) out.push(...jobs.slice(r * perRound, (r + 1) * perRound))
+  }
+  return out
+}
+
 export interface PsiSetResult {
   sites: SiteRawValue[]
   errors: string[]
@@ -191,9 +207,18 @@ export async function measureSet(
   // each site's evidence lists exactly ITS unmeasured runs.
   const failedBySite = new Map<string, FailedRun[]>()
 
-  const jobs = ctx.sites.flatMap((site) =>
-    urlsForSite(ctx, site).flatMap((url) =>
-      STRATEGIES.map((strategy) => ({ site, url, strategy })),
+  // Fix 24/10: ROUND-ROBIN order. The old site-by-site order let the client
+  // (many templates x 2 strategies) eat the whole invocation budget, so the
+  // competitors queued behind it were never reached ("budget di tempo
+  // esaurito" on every competitor, Speed AND Accessibility measuring only
+  // Ariston). Now round 1 measures the first URL of EVERY site, round 2 the
+  // second, ... so a budget cut leaves every site partially measured instead
+  // of some sites not at all.
+  const jobs = interleavePsiJobs(
+    ctx.sites.map((site) =>
+      urlsForSite(ctx, site).flatMap((url) =>
+        STRATEGIES.map((strategy) => ({ site, url, strategy })),
+      ),
     ),
   )
 

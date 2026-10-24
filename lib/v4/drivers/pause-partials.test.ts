@@ -140,3 +140,13 @@ test('unmeasured details: a very long reason is clipped', () => {
   })
   assert.ok((details[0].reason as string).length <= 160)
 })
+
+import { interleavePsiJobs } from './pagespeed'
+
+test('interleavePsiJobs: one URL round per site, so competitors are not starved', () => {
+  const client = ['c1m', 'c1d', 'c2m', 'c2d', 'c3m', 'c3d']
+  const comp = ['k1m', 'k1d']
+  const out = interleavePsiJobs([client, comp])
+  assert.deepEqual(out, ['c1m', 'c1d', 'k1m', 'k1d', 'c2m', 'c2d', 'c3m', 'c3d'])
+  assert.deepEqual(interleavePsiJobs([]), [])
+})
