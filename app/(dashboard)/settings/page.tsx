@@ -1,10 +1,13 @@
 import Link from 'next/link'
+import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { createClient, getUser, getProfileRole } from '@/lib/supabase/server'
 import { getSettingsInventory } from '@/lib/admin/connector-status'
 import T from '@/components/ui/T'
 import PreferencesForm from '@/components/settings/PreferencesForm'
+import ClaudeConnectorCard from '@/components/settings/ClaudeConnectorCard'
+import { originFromHeaders } from '@/lib/mcp/auth'
 import { B } from '@/lib/brand'
 
 export const dynamic = 'force-dynamic'
@@ -137,6 +140,10 @@ export default async function SettingsPage() {
           </div>
         </div>
       )}
+
+      {/* d) Claude connector (MCP) — for everyone: each person signs in with
+             their own account, so what they can do is what they can open here. */}
+      <ClaudeConnectorCard origin={originFromHeaders(await headers())} isAdmin={isAdmin} />
 
       {/* Preferences — profile, language, password (pre-existing island) */}
       <PreferencesForm />

@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { safeNextPath } from '@/lib/mcp/safe-next'
 
 export async function updateSession(request: NextRequest) {
   // Skip auth check if env vars are not available (e.g., during build)
@@ -42,7 +43,12 @@ export async function updateSession(request: NextRequest) {
 
   if (!user && !isPublicPath) {
     const url = request.nextUrl.clone()
+    // Remember where the visitor was going (e.g. the OAuth consent screen of
+    // the Claude connector) so login can send them back. Plain landings stay clean.
+    const wanted = safeNextPath(request.nextUrl.pathname + request.nextUrl.search)
     url.pathname = '/login'
+    url.search = ''
+    if (wanted && wanted !== '/') url.searchParams.set('next', wanted)
     const redirectResponse = NextResponse.redirect(url)
     // Carry over any refreshed session cookies to the redirect response
     supabaseResponse.cookies.getAll().forEach(cookie => {
@@ -54,7 +60,17 @@ export async function updateSession(request: NextRequest) {
   if (user && isPublicPath) {
     const url = request.nextUrl.clone()
     // Bibbia 04: the post-login landing is Home.
-    url.pathname = '/home'
+    const next = request.nextUrl.pathname.startsWith('/login')
+      ? safeNextPath(request.nextUrl.searchParams.get('next'))
+      : null
+    if (next) {
+      const target = new URL(next, request.url)
+      url.pathname = target.pathname
+      url.search = target.search
+    } else {
+      url.pathname = '/home'
+      url.search = ''
+    }
     const redirectResponse = NextResponse.redirect(url)
     // Carry over any refreshed session cookies to the redirect response
     supabaseResponse.cookies.getAll().forEach(cookie => {

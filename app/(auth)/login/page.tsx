@@ -8,6 +8,7 @@ import { useLocale } from '@/lib/i18n'
 import LocaleSwitcher from '@/components/ui/LocaleSwitcher'
 import BrandHero from '@/components/layout/BrandHero'
 import { B } from '@/lib/brand'
+import { safeNextPath } from '@/lib/mcp/safe-next'
 
 function LoginForm() {
   const [email, setEmail] = useState('')
@@ -38,7 +39,8 @@ function LoginForm() {
       body: JSON.stringify({ action: 'login' }),
     }).catch(() => {})
 
-    router.push('/home')
+    const next = safeNextPath(new URLSearchParams(window.location.search).get('next'))
+    router.push(next ?? '/home')
     router.refresh()
   }
 
