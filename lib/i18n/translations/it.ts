@@ -856,6 +856,7 @@ const it = {
   'onboarding.fields.engagement.preferred_contact': 'Canale di contatto preferito',
 
   // V4 — Schermata risultati (Audit Results, Bibbia UX-UI sheet 3/6)
+  'v4res.project_code_hint': 'Codice progetto: usalo per richiamare questa audit senza ambiguità',
   'v4res.title': 'Risultati audit',
   'v4res.tab_overview': 'Overview',
   'v4res.tab_summary': 'Executive Summary',
@@ -1150,6 +1151,8 @@ const it = {
   'v4setup.client_site': 'Cliente',
   'v4setup.domain': 'Dominio',
   'v4setup.brand_name': 'Brand name',
+  'v4setup.jh_org_id': 'ID organizzazione JHorizon (opzionale)',
+  'v4setup.jh_org_id_hint': "Collega questa audit all'organizzazione JHorizon del cliente, così i dati di AI Visibility si recuperano con l'ID giusto.",
   'v4setup.brand_variants': 'Varianti del brand (separate da virgola)',
   'v4setup.brand_variants_hint': 'Usate per identificare il brand e le sue varianti (cluster keyword di Awareness).',
   'v4setup.countries': 'Paese di analisi',

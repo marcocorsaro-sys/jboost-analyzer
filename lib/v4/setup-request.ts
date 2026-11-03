@@ -28,6 +28,8 @@ const Site = z.object({
 
 export const SetupBody = z.object({
   clientId: z.string().uuid().nullable().optional(),
+  /** JHorizon organization id of the client (optional, one per audit). */
+  jhOrganizationId: z.string().trim().max(64).nullable().optional(),
   client: Site,
   competitors: z.array(Site).default([]),
   country: z.string().min(2).default('IT'),
@@ -75,7 +77,14 @@ export function analysisColumnsFromSetup(
 ): Record<string, unknown> {
   const input = toSetupInput(parsed)
   const countries = input.countries ?? []
+  // Only written when the caller sent the field: an older client that omits it
+  // must not wipe the id on an update. Empty string clears it.
+  const jh =
+    parsed.jhOrganizationId === undefined
+      ? {}
+      : { jh_organization_id: parsed.jhOrganizationId?.trim() || null }
   return {
+    ...jh,
     domain: clientSite.domain,
     country: countries[0] ?? parsed.country,
     language: parsed.outputLanguage,

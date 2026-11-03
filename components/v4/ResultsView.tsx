@@ -65,6 +65,8 @@ const SpiderChart = nextDynamic(() => import('@/components/analyzer/SpiderChart'
 interface V4StatusResponse extends StatusResponse {
   domain?: string | null
   brandName?: string | null
+  /** Stable project code (JBA-0001). */
+  projectCode?: string | null
   /** Client tied to this audit (promotion or wizard pick), null = prospect. */
   clientId?: string | null
   /** Header meta (industry · country · REF_DATE) — setup columns, read-only. */
@@ -379,7 +381,17 @@ export default function ResultsView({ analysisId }: { analysisId: string }) {
           driver + meta (industry · country · REF_DATE); azioni a destra. */}
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '24px', flexWrap: 'wrap' }}>
         <div>
-          <div style={mutedLabel}>{t('v4res.title')}</div>
+          <div style={mutedLabel}>
+            {t('v4res.title')}
+            {status.projectCode && (
+              <span
+                style={{ marginLeft: '10px', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', letterSpacing: '0.04em' }}
+                title={t('v4res.project_code_hint')}
+              >
+                {status.projectCode}
+              </span>
+            )}
+          </div>
           <h1
             style={{
               margin: '6px 0 0 0',

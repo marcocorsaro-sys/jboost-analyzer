@@ -36,7 +36,8 @@ export async function GET(
     .from('analyses')
     .select(
       'id, domain, brand_name, brand_variants, country, output_language, site_type, ' +
-        'industry_preset, target_audience, seo_maturity, competitor_details, llm_guardrails, v4_setup',
+        'industry_preset, target_audience, seo_maturity, competitor_details, llm_guardrails, v4_setup, ' +
+        'project_code, jh_organization_id',
     )
     .eq('id', analysisId)
     .maybeSingle()
@@ -63,6 +64,8 @@ export async function GET(
     competitor_details: Array<{ domain?: string; brand_name?: string | null }> | null
     llm_guardrails: { blocklist?: unknown; max_insights?: unknown } | null
     v4_setup: Record<string, unknown> | null
+    project_code: string | null
+    jh_organization_id: string | null
   }
   const setup = a.v4_setup ?? {}
   const guardrails = a.llm_guardrails ?? {}
@@ -81,7 +84,9 @@ export async function GET(
 
   return NextResponse.json({
     analysisId: a.id,
+    projectCode: a.project_code ?? null,
     setup: {
+      jhOrganizationId: a.jh_organization_id ?? null,
       domain: a.domain,
       brandName: a.brand_name,
       brandVariants: a.brand_variants ?? [],

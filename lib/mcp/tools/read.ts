@@ -60,11 +60,12 @@ export const listAudits: McpTool = {
   title: 'List audits',
   description:
     'List the V4 audits (Leader-Index website audits) the signed-in user can see, newest first. ' +
-    'Each row has: id (the audit_id every other tool needs), name, domain, createdAt, ' +
+    'Each row has: code (the project code JBA-0001, the unambiguous way to name an audit: pass it as audit_id), id (UUID, also accepted), ' +
+    'jhOrganizationId (the linked JHorizon organization, if set), name, domain, createdAt, ' +
     'state (draft | running | needs_decision | published), overallScore (0-100, mean of completed drivers; null until one completes), ' +
     'driversDone / driversTotal, driversNeedsDecision, driversError, competitors (domains), ' +
     'started (false = a draft setup that was never launched) and clientId (linked client, if any). ' +
-    'Use this first to find an audit_id; narrow with `query` (matches name, domain, competitor domains or id). ' +
+    'Use this first to find an audit_id; narrow with `query` (matches code, name, domain, competitor domains or id). ' +
     `Read-only and free. At most ${MAX_LIST} rows; if truncated is true, refine the query.`,
   inputSchema: {
     type: 'object',
@@ -77,7 +78,7 @@ export const listAudits: McpTool = {
       },
       query: {
         type: 'string',
-        description: 'Free text; every word must appear in the audit name, domain, a competitor domain or its id.',
+        description: 'Free text; every word must appear in the audit code (JBA-0020), name, domain, a competitor domain or its id.',
       },
     },
     additionalProperties: false,
@@ -87,13 +88,15 @@ export const listAudits: McpTool = {
     const { limit = 20, query } = parseArgs(listAuditsArgs, args, 'list_audits')
     // A text filter runs after the query, so fetch a wider window first.
     const audits = await sources.audits(query ? 200 : limit)
-    const filtered = audits.filter((a) => matchesQuery(query, [a.name, a.domain, a.id, ...a.competitors]))
+    const filtered = audits.filter((a) => matchesQuery(query, [a.code, a.name, a.domain, a.id, ...a.competitors]))
     const page = capList(filtered, limit)
     return {
       data: {
         returned: page.items.length,
         audits: page.items.map((a) => ({
+          code: a.code,
           id: a.id,
+          jhOrganizationId: a.jhOrganizationId,
           name: a.name,
           domain: a.domain,
           createdAt: a.createdAt,
@@ -170,6 +173,8 @@ export const getAudit: McpTool = {
     return {
       data: {
         audit_id,
+        projectCode: str(status.projectCode),
+        jhOrganizationId: str(status.jhOrganizationId),
         name: str(status.brandName) ?? str(status.domain),
         domain: str(status.domain),
         refDate: str(status.refDate),

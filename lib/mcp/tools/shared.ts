@@ -19,9 +19,16 @@ export const DRIVER_KEYS = V4_DRIVERS.map((d) => d.key) as [string, ...string[]]
 export const auditIdSchema = z
   .string({
     required_error: 'audit_id is required (use list_audits to find it)',
-    invalid_type_error: 'audit_id must be a string UUID',
+    invalid_type_error: 'audit_id must be a string: a project code such as JBA-0020 or a UUID',
   })
-  .uuid('audit_id must be a UUID such as 3f1c2b4e-8a6d-4c1e-9b7f-0a1b2c3d4e5f (use list_audits to find it)')
+  .uuid('audit_id must be a project code such as JBA-0020 or a UUID (use list_audits to find it)')
+
+/** Project code as people type it: JBA-0020, jba-20, JBA20 → JBA-0020. Null = not a code. */
+export function normalizeProjectCode(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const m = /^\s*JBA-?(\d{1,6})\s*$/i.exec(value)
+  return m ? `JBA-${m[1].padStart(4, '0')}` : null
+}
 
 export const driverKeySchema = z.enum(DRIVER_KEYS, {
   errorMap: () => ({ message: `driver must be one of: ${DRIVER_KEYS.join(', ')}` }),
@@ -53,7 +60,10 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** `analysisIdOf` for every tool whose args carry audit_id. */
 export function auditIdOfArgs(args: unknown): string | null {
-  return isRecord(args) && typeof args.audit_id === 'string' ? args.audit_id : null
+  // A project code is not a UUID: the usage log stores UUIDs only.
+  return isRecord(args) && typeof args.audit_id === 'string' && !normalizeProjectCode(args.audit_id)
+    ? args.audit_id
+    : null
 }
 
 // ---------------------------------------------------------------------------

@@ -132,6 +132,8 @@ export interface WizardInitial {
   launched: boolean
   clientDomain: string
   clientBrand: string
+  /** JHorizon organization id of the client (optional). */
+  jhOrganizationId?: string
   brandVariants: string
   countries: string[]
   outputLanguage: 'it' | 'en'
@@ -311,6 +313,7 @@ export default function SetupWizard({
   // ---- STEP 1 · Project data ----
   const [clientDomain, setClientDomain] = useState(d?.clientDomain ?? '')
   const [clientBrand, setClientBrand] = useState(d?.clientBrand ?? '')
+  const [jhOrganizationId, setJhOrganizationId] = useState(d?.jhOrganizationId ?? '')
   const [brandVariants, setBrandVariants] = useState(d?.brandVariants ?? '')
   const [countries, setCountries] = useState<string[]>(d?.countries ?? ['IT'])
   const [outputLanguage, setOutputLanguage] = useState<'it' | 'en'>(d?.outputLanguage ?? 'it')
@@ -413,6 +416,7 @@ export default function SetupWizard({
 
   const buildBody = (mode: 'draft' | 'launch') => ({
     clientId: clientId ?? null,
+    jhOrganizationId: jhOrganizationId.trim() || null,
     client: {
       domain: clientDomain,
       brandName: clientBrand || null,
@@ -672,6 +676,7 @@ export default function SetupWizard({
         setup?: {
           domain: string | null
           brandName: string | null
+          jhOrganizationId?: string | null
           brandVariants: string[]
           country: string | null
           countries: string[]
@@ -701,6 +706,7 @@ export default function SetupWizard({
       if (importClient && imported) {
         setClientDomain(imported)
         if (s.brandName) setClientBrand(s.brandName)
+        if (s.jhOrganizationId && !jhOrganizationId.trim()) setJhOrganizationId(s.jhOrganizationId)
         if (s.brandVariants.length > 0) setBrandVariants(s.brandVariants.join(', '))
       }
 
@@ -1268,6 +1274,18 @@ export default function SetupWizard({
             placeholder="es. Benetton"
           />
         </div>
+      </div>
+      <div style={{ marginTop: '16px', maxWidth: '50%' }}>
+        <label style={labelStyle}>{t('v4setup.jh_org_id')}</label>
+        <input
+          style={inputStyle}
+          value={jhOrganizationId}
+          onChange={(e) => setJhOrganizationId(e.target.value)}
+          placeholder="es. m1798kc33zpbte60wwgpq1v1md8haxkn"
+          spellCheck={false}
+          autoComplete="off"
+        />
+        <div style={{ fontSize: '12px', color: B.muted, marginTop: '4px' }}>{t('v4setup.jh_org_id_hint')}</div>
       </div>
 
       {/* AI-assisted prefill: fills the EMPTY fields of the whole wizard

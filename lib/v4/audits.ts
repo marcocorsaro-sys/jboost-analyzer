@@ -81,6 +81,10 @@ export interface AuditListItem {
    * (analyses.client_id). Null = still a plain prospect audit.
    */
   clientId: string | null
+  /** Stable project code (JBA-0001): the unambiguous way to name an audit. */
+  code: string | null
+  /** JHorizon organization id linked to this audit, when set. */
+  jhOrganizationId: string | null
 }
 
 /** Pure state computation — same precedence as ResultsView's pill. */
@@ -116,7 +120,7 @@ export async function listV4Audits(
 ): Promise<AuditListItem[]> {
   let query = db
     .from('analyses')
-    .select('id, domain, brand_name, created_at, ref_date, client_id, v4_setup, competitors')
+    .select('id, domain, brand_name, created_at, ref_date, client_id, v4_setup, competitors, project_code, jh_organization_id')
     .not('ref_date', 'is', null)
     .order('created_at', { ascending: false })
   if (opts.limit) query = query.limit(opts.limit)
@@ -131,6 +135,8 @@ export async function listV4Audits(
     client_id: string | null
     v4_setup: Record<string, unknown> | null
     competitors: string[] | null
+    project_code: string | null
+    jh_organization_id: string | null
   }>
   if (rows.length === 0) return []
 
@@ -179,6 +185,8 @@ export async function listV4Audits(
       competitors: Array.isArray(a.competitors) ? a.competitors.filter(Boolean) : [],
       started: runs.length > 0,
       clientId: linkedClientId(a),
+      code: a.project_code ?? null,
+      jhOrganizationId: a.jh_organization_id ?? null,
     }
   })
 }

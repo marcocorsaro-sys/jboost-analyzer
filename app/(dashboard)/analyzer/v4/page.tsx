@@ -77,7 +77,8 @@ async function loadDraft(analysisId: string): Promise<WizardInitial> {
     .from('analyses')
     .select(
       'id, domain, brand_name, brand_variants, country, output_language, site_type, ' +
-        'industry_preset, target_audience, seo_maturity, competitor_details, llm_guardrails, v4_setup',
+        'industry_preset, target_audience, seo_maturity, competitor_details, llm_guardrails, v4_setup, ' +
+        'jh_organization_id',
     )
     .eq('id', analysisId)
     .maybeSingle()
@@ -108,6 +109,7 @@ async function loadDraft(analysisId: string): Promise<WizardInitial> {
     industry_preset: string | null
     target_audience: string | null
     seo_maturity: string | null
+    jh_organization_id?: string | null
     competitor_details: Array<{ domain?: string; brand_name?: string | null }> | null
     llm_guardrails: { blocklist?: unknown; max_insights?: unknown } | null
     v4_setup: Record<string, unknown> | null
@@ -133,6 +135,7 @@ async function loadDraft(analysisId: string): Promise<WizardInitial> {
     launched,
     clientDomain: a.domain ?? '',
     clientBrand: a.brand_name ?? '',
+    jhOrganizationId: a.jh_organization_id ?? '',
     brandVariants: (a.brand_variants ?? []).join(', '),
     countries: asStrings(setup.countries).length > 0 ? asStrings(setup.countries) : a.country ? [a.country] : [],
     outputLanguage: a.output_language === 'en' ? 'en' : 'it',

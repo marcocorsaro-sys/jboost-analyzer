@@ -111,6 +111,10 @@ const SETUP_JSON_SCHEMA = {
       format: 'uuid',
       description: 'Link the audit to an existing client (from list_clients). The caller must have access to it.',
     },
+    jhOrganizationId: {
+      type: ['string', 'null'],
+      description: "JHorizon organization id of the client (optional); stored on the audit so AI Visibility data can be pulled with the right id.",
+    },
     client: { ...SITE_JSON_SCHEMA, description: 'The audited site (the client).' },
     competitors: {
       type: 'array',
@@ -190,7 +194,7 @@ export const createAudit: McpTool = {
     'Create a V4 audit from a setup (client site, up to 4 competitors, countries, drivers, page templates...). ' +
     "mode 'draft' saves whatever is given (only structural errors block); mode 'launch' validates every required field and the driver plan. " +
     'It does NOT start the measurement: the audit stays unstarted until start_audit is called. ' +
-    'Returns audit_id, the resolved sites, the effective drivers (Business four are always added) and the number of templates, or the full list of setup problems. ' +
+    'Returns audit_id, projectCode (JBA-NNNN, assigned automatically), the resolved sites, the effective drivers (Business four are always added) and the number of templates, or the full list of setup problems. ' +
     'Cost: no paid API units; it writes the audit and its page-template rows. A saved draft can only be completed in the web app wizard. ' +
     APPROVAL,
   inputSchema: {
@@ -216,6 +220,7 @@ export const createAudit: McpTool = {
     return {
       data: {
         audit_id: auditId,
+        projectCode: str(json.projectCode),
         mode: str(json.mode) ?? mode,
         refDate: str(json.refDate),
         started: false,

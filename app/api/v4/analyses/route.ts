@@ -117,7 +117,7 @@ export async function POST(request: Request) {
       ref_date: computeRefDate(new Date()),
       ...analysisColumnsFromSetup(parsed, clientSite, competitorSites, null),
     })
-    .select('id, ref_date')
+    .select('id, ref_date, project_code')
     .single()
 
   if (insertError || !analysis) {
@@ -145,6 +145,7 @@ export async function POST(request: Request) {
   return NextResponse.json(
     {
       analysisId: analysis.id,
+      projectCode: (analysis as { project_code?: string | null }).project_code ?? null,
       refDate: (analysis as { ref_date: string | null }).ref_date,
       mode: parsed.mode,
       sites: setup.sites.map((s) => ({ site_ref: s.site_ref, domain: s.domain })),

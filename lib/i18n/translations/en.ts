@@ -856,6 +856,7 @@ const en = {
   'onboarding.fields.engagement.preferred_contact': 'Preferred contact channel',
 
   // V4 — Results screen (Audit Results, UX-UI Bibbia sheets 3/6)
+  'v4res.project_code_hint': 'Project code: use it to refer to this audit unambiguously',
   'v4res.title': 'Audit results',
   'v4res.tab_overview': 'Overview',
   'v4res.tab_summary': 'Executive Summary',
@@ -1150,6 +1151,8 @@ const en = {
   'v4setup.client_site': 'Client',
   'v4setup.domain': 'Domain',
   'v4setup.brand_name': 'Brand name',
+  'v4setup.jh_org_id': 'JHorizon organization ID (optional)',
+  'v4setup.jh_org_id_hint': "Links this audit to the client's JHorizon organization, so AI Visibility data can be pulled with the right ID.",
   'v4setup.brand_variants': 'Brand variants (comma separated)',
   'v4setup.brand_variants_hint': 'Used to identify the brand name and its variants (Awareness keyword cluster).',
   'v4setup.countries': 'Analysis country',

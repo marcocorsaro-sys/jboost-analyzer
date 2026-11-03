@@ -60,6 +60,7 @@ interface Recorded {
 let calls: Recorded[] = []
 const originalRoutes = { ...routes }
 const originalAudits = sources.audits
+const originalByCode = sources.auditIdByCode
 
 function fakeRoute(
   name: RouteName,
@@ -80,6 +81,7 @@ beforeEach(() => {
 afterEach(() => {
   Object.assign(routes, originalRoutes)
   sources.audits = originalAudits
+  sources.auditIdByCode = originalByCode
 })
 
 const callsTo = (route: RouteName): Recorded[] => calls.filter((c) => c.route === route)
@@ -247,6 +249,8 @@ const auditItem = (over: Partial<AuditListItem>): AuditListItem => ({
   competitors: ['rival.it'],
   started: true,
   clientId: null,
+  code: 'JBA-0020',
+  jhOrganizationId: null,
   ...over,
 })
 
@@ -320,11 +324,57 @@ test('validation: every audit-scoped tool rejects a missing and a non-UUID audit
     )
     await assert.rejects(
       t.run({ ...extra, ...extra2, audit_id: 'not-a-uuid' }, ctx),
-      (err: unknown) => err instanceof McpToolError && /audit_id must be a UUID/.test(err.message),
+      (err: unknown) => err instanceof McpToolError && /audit_id must be a project code such as JBA-0020 or a UUID/.test(err.message),
       `${t.name} non-UUID audit_id`,
     )
   }
   assert.equal(calls.length, 0, 'no route is called for invalid arguments')
+})
+
+test('project code: audit-scoped tools accept JBA-NNNN and resolve it to the UUID before running', async () => {
+  const asked: string[] = []
+  sources.auditIdByCode = async (code) => {
+    asked.push(code)
+    return code === 'JBA-0020' ? AUDIT : null
+  }
+  fakeRoute('status', () => json(STATUS))
+  fakeRoute('analysisGet', () => json({ analysisId: AUDIT, setup: {} }))
+  for (const typed of ['JBA-0020', 'jba-20', ' JBA0020 ']) {
+    const { data } = await tool('get_audit').run({ audit_id: typed }, ctx)
+    assert.equal((data as { audit_id: string }).audit_id, AUDIT, typed)
+  }
+  assert.deepEqual(asked, ['JBA-0020', 'JBA-0020', 'JBA-0020'])
+  assert.ok(callsTo('status').every((c) => c.url.includes(AUDIT)), 'the route sees the UUID, never the code')
+  await assert.rejects(
+    tool('get_audit').run({ audit_id: 'JBA-0999' }, ctx),
+    (e: unknown) => e instanceof McpToolError && /No audit with project code JBA-0999/.test(e.message),
+  )
+  // A UUID skips the lookup altogether.
+  asked.length = 0
+  await tool('get_audit').run({ audit_id: AUDIT }, ctx)
+  assert.equal(asked.length, 0)
+})
+
+test('project code: schemas advertise the code, usage log never gets a code as analysis id', () => {
+  for (const t of AUDIT_SCOPED) {
+    const prop = (t.inputSchema.properties as Record<string, Record<string, unknown>>).audit_id
+    assert.equal(prop.format, undefined, `${t.name} no longer claims uuid-only`)
+    assert.match(String(prop.description), /JBA-0020/, t.name)
+    assert.equal(t.analysisIdOf?.({ audit_id: 'JBA-0020' }), null, t.name)
+  }
+})
+
+test('list_audits returns code and jhOrganizationId and matches the code in query', async () => {
+  sources.audits = async () => [
+    auditItem({ code: 'JBA-0020', jhOrganizationId: 'm1798kc33zpbte60wwgpq1v1md8haxkn' }),
+    auditItem({ id: '55555555-5555-4555-8555-555555555555', name: 'Altro', domain: 'altro.it', code: 'JBA-0021', competitors: [] }),
+  ]
+  const r = (await tool('list_audits').run({ query: 'jba-0021' }, ctx)).data as {
+    audits: Array<{ code: string; jhOrganizationId: string | null }>
+  }
+  assert.deepEqual(r.audits.map((a) => a.code), ['JBA-0021'])
+  const all = (await tool('list_audits').run({}, ctx)).data as { audits: Array<{ code: string; jhOrganizationId: string | null }> }
+  assert.equal(all.audits[0].jhOrganizationId, 'm1798kc33zpbte60wwgpq1v1md8haxkn')
 })
 
 test('validation: analysisIdOf extracts audit_id for audit-scoped tools only', () => {

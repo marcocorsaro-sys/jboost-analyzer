@@ -173,6 +173,20 @@ export default async function AuditsPage() {
                   <tr key={a.id}>
                     <td style={{ ...tdStyle, ...rowBorder, paddingLeft: '32px' }}>
                       <div style={{ fontSize: '17px', fontWeight: 650, color: B.ink }}>
+                        {a.code && (
+                          <span
+                            style={{
+                              marginRight: '10px',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              color: B.muted,
+                              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                              letterSpacing: '0.04em',
+                            }}
+                          >
+                            {a.code}
+                          </span>
+                        )}
                         {a.name}
                         {/* Discreet client marker for drafts (their action is
                             "Resume setup"); started audits get the linkable

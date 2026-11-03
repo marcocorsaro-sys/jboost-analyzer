@@ -78,4 +78,18 @@ export const sources = {
     }
     return listV4Audits(supabase, { limit })
   },
+  /** Resolve a project code (JBA-0020) to the audit UUID, RLS-scoped. Null = no such audit for this user. */
+  auditIdByCode: async (code: string): Promise<string | null> => {
+    const { createClient } = await import('@/lib/supabase/server')
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser()
+    if (error || !user) {
+      throw new McpToolError('Not authenticated: the user must reconnect the connector.')
+    }
+    const { data } = await supabase.from('analyses').select('id').eq('project_code', code).maybeSingle()
+    return (data as { id: string } | null)?.id ?? null
+  },
 }
