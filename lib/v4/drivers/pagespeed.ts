@@ -27,7 +27,17 @@ export interface PageMeasurement {
   strategy: (typeof STRATEGIES)[number]
   performance_score: number
   accessibility_score: number
+  /** ms epoch of the Lighthouse run; lets a retry/sibling reuse it only while fresh. */
+  at?: number
 }
+
+/** A PSI run stays reusable (retry / sibling driver) for this long. */
+export const PSI_REUSE_MS = 6 * 60 * 60 * 1000
+
+/** Concurrent PSI calls. Jobs are ordered so in-flight ones hit DIFFERENT origins. */
+export const PSI_CONCURRENCY = 5
+
+export const psiKey = (url: string, strategy: string) => `${strategy}|${url}`
 
 /** 5xx and 429 are transient in PSI (Lighthouse hiccups, rate spikes). */
 function isRetryableStatus(status: number): boolean {
@@ -122,7 +132,7 @@ export async function fetchPageSpeedForUrl(
   }
 
   const summary = summarizePageSpeed(body.lighthouseResult)
-  return { url, strategy, ...summary }
+  return { url, strategy, ...summary, at: Date.now() }
 }
 
 /**
@@ -167,17 +177,23 @@ export interface FailedRun {
 }
 
 /**
- * Pure (fix 24/10): interleave per-site job lists round-robin by "URL round".
- * Within one site the jobs keep their order (url, then mobile/desktop pairs),
- * and each round takes ONE URL (both strategies) per site, so competitors get
- * measured before the client's 3rd template is.
+ * Pure: order PSI jobs so that (1) every site is reached before any site's
+ * next URL (round-robin by "URL round", fix 24/10) and (2) WITHIN a round all
+ * the mobile runs go first, then all the desktop ones — so the jobs in flight
+ * together belong to different sites/origins (the same URL is never measured
+ * mobile+desktop at once, which can trip bot protection).
  */
 export function interleavePsiJobs<T>(perSite: T[][]): T[] {
   const perRound = STRATEGIES.length
   const rounds = Math.max(0, ...perSite.map((jobs) => Math.ceil(jobs.length / perRound)))
   const out: T[] = []
   for (let r = 0; r < rounds; r++) {
-    for (const jobs of perSite) out.push(...jobs.slice(r * perRound, (r + 1) * perRound))
+    for (let s = 0; s < perRound; s++) {
+      for (const jobs of perSite) {
+        const job = jobs[r * perRound + s]
+        if (job !== undefined) out.push(job)
+      }
+    }
   }
   return out
 }
@@ -189,6 +205,10 @@ export interface PsiSetResult {
   templatesConfigured: boolean
   /** Item 19: every failed (url, strategy) run with its domain and reason. */
   failedRuns?: Array<FailedRun & { domain: string }>
+  /** Runs that were NOT attempted/finished because the invocation budget ran out. */
+  budgetCut?: number
+  /** Total (url, strategy) combinations the set asks for. */
+  totalRuns?: number
 }
 
 /**
@@ -222,17 +242,33 @@ export async function measureSet(
     ),
   )
 
-  // 2 in flight: PSI rate-limits hard AND two parallel Lighthouse runs on
-  // the same origin can trip bot protection — the retries (3 attempts with
-  // backoff) still keep a 5-site set inside the invocation budget.
-  const results = await mapPool(jobs, 2, async (job) => {
+  // Runs already done recently (own previous attempt, or the sibling PSI
+  // driver — one Lighthouse call carries BOTH categories) are reused, so a
+  // retry RESUMES where the last invocation stopped instead of starting over.
+  const cache = new Map<string, PageMeasurement>()
+  const now = Date.now()
+  for (const m of ctx.priorPsi ?? []) {
+    if (typeof m.at === 'number' && now - m.at <= PSI_REUSE_MS) cache.set(psiKey(m.url, m.strategy), m)
+  }
+  let budgetCut = 0
+
+  // Jobs are ordered strategy-major per round, so concurrent ones hit
+  // different origins: PSI_CONCURRENCY in flight is safe, and (at 2 before)
+  // it was the bottleneck that left every competitor unreached in 280s.
+  const results = await mapPool(jobs, PSI_CONCURRENCY, async (job) => {
     try {
+      const hit = cache.get(psiKey(job.url, job.strategy))
+      if (hit) {
+        measurements.push(hit)
+        return { site_ref: job.site.site_ref, m: hit }
+      }
       assertDeadline(ctx.deadlineAt, `${category} for ${job.url}`)
       const m = await fetchPageSpeedForUrl(job.url, job.strategy, ctx.deadlineAt)
       measurements.push(m)
       return { site_ref: job.site.site_ref, m }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
+      if (/deadline reached|budget di tempo esaurito/.test(message)) budgetCut += 1
       errors.push(message)
       const list = failedBySite.get(job.site.site_ref) ?? []
       list.push({ url: job.url, strategy: job.strategy, reason: psiFailureReason(message) })
@@ -286,6 +322,8 @@ export async function measureSet(
     errors,
     measurements,
     templatesConfigured: ctx.templates.some((t) => t.url),
+    budgetCut,
+    totalRuns: jobs.length,
     ...(failedRuns.length > 0 ? { failedRuns } : {}),
   }
 }
@@ -298,13 +336,39 @@ export function psiOutcome(
   label: string,
 ) {
   const clientRef = ctx.sites.find((s) => s.is_client)?.site_ref
+  // Persisted so the next attempt (and the sibling PSI driver) can reuse them.
+  const savedMeasurements = result.measurements.map((m) => ({
+    url: m.url,
+    strategy: m.strategy,
+    performance_score: m.performance_score,
+    accessibility_score: m.accessibility_score,
+    at: m.at,
+  }))
+
+  // Budget ran out with attempts left: do NOT publish a score on a lopsided
+  // sample (the client measured, competitors not => "relative 100" is a lie).
+  // Fail retryably; the runner re-queues and the next attempt resumes from the
+  // saved measurements. On the last attempt the partial result is published,
+  // flagged as such (coverage notes + triangle).
+  const attempt = ctx.attempt ?? 1
+  const maxAttempts = ctx.maxAttempts ?? 1
+  if ((result.budgetCut ?? 0) > 0 && attempt < maxAttempts) {
+    return {
+      status: 'error' as const,
+      error:
+        `${label}: misurate ${result.measurements.length} combinazioni su ${result.totalRuns ?? '?'}, ` +
+        `tempo esaurito (tentativo ${attempt}/${maxAttempts}); riprendo dal punto raggiunto.`,
+      rawPayload: { measurements: savedMeasurements, errors: result.errors },
+    }
+  }
+
   if (!result.sites.some((s) => s.site_ref === clientRef)) {
     return {
       status: 'error' as const,
       error: `${label} could not be measured for the client site. ${
         result.errors.join(' | ') || 'no reason reported'
       }`,
-      rawPayload: { errors: result.errors },
+      rawPayload: { errors: result.errors, measurements: savedMeasurements },
     }
   }
 
@@ -312,6 +376,7 @@ export function psiOutcome(
     status: 'done' as const,
     sites: result.sites,
     rawPayload: {
+      measurements: savedMeasurements,
       source: 'google:pagespeed-insights/v5',
       category,
       // Explicit, because it changes what the number means.

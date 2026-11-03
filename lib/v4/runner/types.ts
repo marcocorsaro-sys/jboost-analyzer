@@ -76,6 +76,21 @@ export interface DriverJobContext {
   decisionTaken?: Record<string, unknown> | null
   /** Cooperative deadline so a worker can stop before the invocation is killed. */
   deadlineAt: number
+  /** Which attempt this invocation is (1-based) and how many the run gets. */
+  attempt?: number
+  maxAttempts?: number
+  /**
+   * PageSpeed runs already done for this analysis by Speed/Accessibility (they
+   * come from the SAME Lighthouse call) — own previous attempt + sibling driver,
+   * recent only. Lets a retry resume instead of starting over.
+   */
+  priorPsi?: Array<{
+    url: string
+    strategy: 'mobile' | 'desktop'
+    performance_score: number
+    accessibility_score: number
+    at?: number
+  }>
 }
 
 /** One site's measurement for this driver. */

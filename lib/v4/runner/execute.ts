@@ -131,6 +131,24 @@ export async function executeDriverJob(
     contentAnswers = answers
   }
 
+  // Speed and Accessibility share ONE Lighthouse call per (url, strategy):
+  // hand each the PSI runs already stored by its own previous attempt and by
+  // its sibling, so a retry resumes and the second driver does not redo them.
+  let priorPsi: DriverJobContext['priorPsi']
+  if (row.driver_key === 'speed' || row.driver_key === 'accessibility') {
+    try {
+      const { rows } = await listDriverRuns(db, analysisId)
+      priorPsi = rows
+        .filter((r) => r.driver_key === 'speed' || r.driver_key === 'accessibility')
+        .flatMap((r) => {
+          const saved = (r.raw_payload as { measurements?: unknown } | null)?.measurements
+          return Array.isArray(saved) ? (saved as NonNullable<DriverJobContext['priorPsi']>) : []
+        })
+    } catch {
+      priorPsi = undefined // a failed read only costs a re-measure
+    }
+  }
+
   const ctx: DriverJobContext = {
     analysisId,
     driverKey: row.driver_key,
@@ -142,6 +160,9 @@ export async function executeDriverJob(
     country,
     decisionTaken: row.decision_taken ?? null,
     deadlineAt,
+    attempt: row.attempts,
+    maxAttempts: row.max_attempts,
+    priorPsi,
   }
 
   // 4. Run. A worker that throws is treated exactly like one that returns

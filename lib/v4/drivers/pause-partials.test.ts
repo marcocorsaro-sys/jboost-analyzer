@@ -143,10 +143,74 @@ test('unmeasured details: a very long reason is clipped', () => {
 
 import { interleavePsiJobs } from './pagespeed'
 
-test('interleavePsiJobs: one URL round per site, so competitors are not starved', () => {
+test('interleavePsiJobs: one URL round per site, mobile first then desktop (distinct origins in flight)', () => {
   const client = ['c1m', 'c1d', 'c2m', 'c2d', 'c3m', 'c3d']
   const comp = ['k1m', 'k1d']
   const out = interleavePsiJobs([client, comp])
-  assert.deepEqual(out, ['c1m', 'c1d', 'k1m', 'k1d', 'c2m', 'c2d', 'c3m', 'c3d'])
+  assert.deepEqual(out, ['c1m', 'k1m', 'c1d', 'k1d', 'c2m', 'c2d', 'c3m', 'c3d'])
   assert.deepEqual(interleavePsiJobs([]), [])
+})
+
+import { measureSet, psiOutcome, PSI_REUSE_MS } from './pagespeed'
+import type { DriverJobContext } from '@/lib/v4/runner/types'
+
+function psiCtx(over: Partial<DriverJobContext> = {}): DriverJobContext {
+  return {
+    analysisId: 'a1',
+    driverKey: 'speed',
+    sites: [
+      { site_ref: 'client', domain: 'c.com', name: 'C', is_client: true, brand_name: 'C', brand_variants: [] },
+      { site_ref: 'competitor_1', domain: 'k.com', name: 'K', is_client: false, brand_name: 'K', brand_variants: [] },
+    ],
+    templates: [],
+    config: {},
+    refDate: '2026-09-30',
+    country: 'IT',
+    deadlineAt: Date.now() - 1, // budget already gone: nothing may be fetched
+    ...over,
+  } as DriverJobContext
+}
+
+test('measureSet reuses recent PSI runs (retry / sibling) and fetches nothing when all are cached', async () => {
+  const at = Date.now()
+  const prior = ['c.com', 'k.com'].flatMap((d) =>
+    (['mobile', 'desktop'] as const).map((strategy) => ({
+      url: `https://${d}`, strategy, performance_score: 40, accessibility_score: 90, at,
+    })),
+  )
+  const r = await measureSet(psiCtx({ priorPsi: prior }), 'performance')
+  assert.equal(r.budgetCut, 0)
+  assert.equal(r.sites.length, 2)
+  assert.equal(r.measurements.length, 4)
+})
+
+test('measureSet ignores stale PSI runs', async () => {
+  const stale = Date.now() - PSI_REUSE_MS - 1000
+  const prior = [{ url: 'https://c.com', strategy: 'mobile' as const, performance_score: 1, accessibility_score: 1, at: stale }]
+  const r = await measureSet(psiCtx({ priorPsi: prior }), 'performance')
+  assert.equal(r.measurements.length, 0)
+  assert.equal(r.budgetCut, 4)
+})
+
+test('psiOutcome: budget cut with attempts left fails RETRYABLY and keeps the measurements', async () => {
+  const at = Date.now()
+  const prior = [{ url: 'https://c.com', strategy: 'mobile' as const, performance_score: 55, accessibility_score: 95, at }]
+  const ctx = psiCtx({ priorPsi: prior, attempt: 1, maxAttempts: 3 })
+  const out: any = psiOutcome(ctx, 'performance', await measureSet(ctx, 'performance'), 'Speed')
+  assert.equal(out.status, 'error')
+  assert.match(out.error, /riprendo dal punto raggiunto/)
+  assert.equal(out.rawPayload.measurements.length, 1)
+})
+
+test('psiOutcome: on the LAST attempt the partial result is published (done), flagged by coverage', async () => {
+  const at = Date.now()
+  const prior = [
+    { url: 'https://c.com', strategy: 'mobile' as const, performance_score: 55, accessibility_score: 95, at },
+    { url: 'https://k.com', strategy: 'mobile' as const, performance_score: 35, accessibility_score: 85, at },
+  ]
+  const ctx = psiCtx({ priorPsi: prior, attempt: 3, maxAttempts: 3 })
+  const out: any = psiOutcome(ctx, 'performance', await measureSet(ctx, 'performance'), 'Speed')
+  assert.equal(out.status, 'done')
+  const client = out.sites.find((s: any) => s.site_ref === 'client')
+  assert.match(client.evidence.coverage_note, /1 combinazioni su 2/)
 })
