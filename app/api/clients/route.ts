@@ -1,3 +1,5 @@
+import { buildClientStats, type ClientAnalysisStats } from '@/lib/clients/analysis-stats'
+import { listV4Audits } from '@/lib/v4/audits'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { logActivity } from '@/lib/tracking/activity'
@@ -45,32 +47,21 @@ export async function GET(request: Request) {
   // every completed analysis for the whole list in ONE query (newest-first)
   // and fold the per-client count + latest in memory.
   const clientIds = (clients || []).map((c) => c.id)
-  const statsByClient = new Map<
-    string,
-    { count: number; latest_score: number | null; latest_analysis_at: string | null }
-  >()
+  let statsByClient = new Map<string, ClientAnalysisStats>()
 
   if (clientIds.length > 0) {
-    const { data: analyses } = await supabase
-      .from('analyses')
-      .select('client_id, overall_score, completed_at')
-      .in('client_id', clientIds)
-      .eq('status', 'completed')
-      .order('completed_at', { ascending: false })
-
-    for (const a of analyses || []) {
-      const cur = statsByClient.get(a.client_id)
-      if (!cur) {
-        // First row for this client = its latest completed analysis.
-        statsByClient.set(a.client_id, {
-          count: 1,
-          latest_score: a.overall_score ?? null,
-          latest_analysis_at: a.completed_at ?? null,
-        })
-      } else {
-        cur.count += 1
-      }
-    }
+    const [{ data: analyses }, v4Audits] = await Promise.all([
+      supabase
+        .from('analyses')
+        .select('client_id, overall_score, completed_at')
+        .in('client_id', clientIds)
+        .eq('status', 'completed'),
+      listV4Audits(supabase),
+    ])
+    statsByClient = buildClientStats(
+      (analyses ?? []) as Array<{ client_id: string; overall_score: number | null; completed_at: string | null }>,
+      v4Audits,
+    )
   }
 
   const enriched = (clients || []).map((client) => {

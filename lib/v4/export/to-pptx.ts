@@ -95,6 +95,62 @@ const TABLE_BASE: PptxGenJS.TableProps = {
   autoPage: false,
 }
 
+const CHART_FONT = 'Calibri'
+const COMPETITOR_BAR = '9AA5B1'
+
+/**
+ * Horizontal bar chart (native, editable in PowerPoint) of 0-100 scores split
+ * into series by a flag (client vs competitors, business vs development).
+ * Null scores are LEFT OUT — a driver/site not measured is never drawn as 0
+ * (Bibbia sheet 8). Stacked with zero-filled slots so each bar keeps its own
+ * series colour; zero data labels are hidden by the number format.
+ */
+function addScoreBars(
+  slide: Slide,
+  items: Array<{ label: string; value: number | null; series: 0 | 1 }>,
+  seriesNames: [string, string],
+  colors: [string, string],
+  box: { x: number; y: number; w: number; h: number },
+  title?: string,
+): boolean {
+  const measured = items.filter((i) => i.value !== null && Number.isFinite(i.value))
+  if (measured.length === 0) return false
+  const labels = measured.map((i) => clip(i.label, 28))
+  const data = seriesNames.map((name, idx) => ({
+    name,
+    labels,
+    values: measured.map((i) => (i.series === idx ? Math.round((i.value as number) * 10) / 10 : 0)),
+  }))
+  slide.addChart('bar', data, {
+    ...box,
+    barDir: 'bar',
+    barGrouping: 'stacked',
+    barGapWidthPct: 40,
+    catAxisOrientation: 'maxMin', // first item on top
+    valAxisMinVal: 0,
+    valAxisMaxVal: 100,
+    valAxisMajorUnit: 25,
+    valGridLine: { color: RULE, size: 0.5 },
+    catGridLine: { style: 'none' },
+    catAxisLabelFontSize: 9,
+    valAxisLabelFontSize: 8,
+    catAxisLabelFontFace: CHART_FONT,
+    valAxisLabelFontFace: CHART_FONT,
+    chartColors: colors,
+    showValue: true,
+    dataLabelFormatCode: '0.#;;',
+    dataLabelFontSize: 9,
+    dataLabelFontFace: CHART_FONT,
+    dataLabelColor: INK,
+    showLegend: seriesNames[0] !== seriesNames[1] && new Set(measured.map((m) => m.series)).size > 1,
+    legendPos: 'b',
+    legendFontSize: 8,
+    legendFontFace: CHART_FONT,
+    ...(title ? { showTitle: true, title, titleFontSize: 10, titleColor: MUTED, titleFontFace: CHART_FONT } : {}),
+  })
+  return true
+}
+
 function clip(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text
 }
@@ -133,10 +189,20 @@ function driverSlides(pptx: PptxGenJS, d: ReportDriverSection, model: ReportMode
       ),
     ),
   ]
-  slide.addTable(scoreRows, { ...TABLE_BASE, y: 1.35, colW: [3.1, 1.6, 1.6, 1.5, 1.1] })
+  // Table on the left, native chart on the right (client vs competitors).
+  slide.addTable(scoreRows, { ...TABLE_BASE, y: 1.35, w: 5.4, fontSize: 9, colW: [1.9, 0.9, 0.9, 0.9, 0.8] })
+  const chartH = Math.max(2.0, 0.35 * (d.scores.length + 1))
+  addScoreBars(
+    slide,
+    d.scores.map((s) => ({ label: s.name, value: s.scoreRelative, series: s.isClient ? 0 : 1 })),
+    [L.client, L.competitorSet],
+    [ACCENT, COMPETITOR_BAR],
+    { x: MARGIN + 5.55, y: 1.3, w: CONTENT_W - 5.55, h: chartH + 0.2 },
+    L.colRelative,
+  )
 
   // Summary bullets (3-4, sober) — or the explicit "not generated" note.
-  const bulletsY = 1.35 + 0.35 * (d.scores.length + 1) + 0.25
+  const bulletsY = 1.35 + chartH + 0.3
   if (d.summaryStatus === 'done') {
     slide.addText(
       d.summaryBullets.map((b) => ({
@@ -223,6 +289,28 @@ export async function generatePptx(model: ReportModel): Promise<Buffer> {
     ),
   ]
   overview.addTable(overviewRows, { ...TABLE_BASE, y: 1.45, colW: [1.9, 1.3, 1.4, 1.6, 0.9, 1.8] })
+
+  // ---- 2b · Overview chart (client relative score per driver) -------------
+  {
+    const chartSlide = pptx.addSlide()
+    addTitle(chartSlide, L.overviewTitle, `${L.client} · ${L.colRelative}`)
+    const drawn = addScoreBars(
+      chartSlide,
+      model.overview.rows.map((r) => ({
+        label: r.label,
+        value: r.scoreRelative,
+        series: r.family === 'business' ? 0 : 1,
+      })),
+      [L.familyBusiness, L.familyDevelopment],
+      [ACCENT, ACCENT_SOFT],
+      { x: MARGIN, y: 1.4, w: CONTENT_W, h: 3.9 },
+    )
+    if (!drawn) {
+      chartSlide.addText(L.notMeasured, {
+        x: MARGIN, y: 2.2, w: CONTENT_W, h: 0.5, fontSize: 14, italic: true, color: MUTED, fontFace: 'Calibri',
+      })
+    }
+  }
 
   // ---- 3 · Driver slides ---------------------------------------------------
   for (const d of model.drivers) driverSlides(pptx, d, model)

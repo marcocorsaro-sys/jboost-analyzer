@@ -1,3 +1,5 @@
+import { buildClientStats, type ClientAnalysisStats } from '@/lib/clients/analysis-stats'
+import { listV4Audits } from '@/lib/v4/audits'
 import { createClient, getUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import ClientsListWrapper, { type ClientData } from '@/components/clients/ClientsListWrapper'
@@ -23,38 +25,21 @@ export default async function ClientsPage() {
   const clientList = rawClients ?? []
   const clientIds = clientList.map(c => c.id)
 
-  const statsByClient = new Map<
-    string,
-    {
-      count: number
-      latest_score: number | null
-      previous_score: number | null
-      latest_analysis_at: string | null
-    }
-  >()
+  let statsByClient = new Map<string, ClientAnalysisStats>()
   if (clientIds.length > 0) {
-    const { data: analyses } = await supabase
-      .from('analyses')
-      .select('client_id, overall_score, completed_at')
-      .in('client_id', clientIds)
-      .eq('status', 'completed')
-      .order('completed_at', { ascending: false })
-    for (const a of analyses ?? []) {
-      const cur = statsByClient.get(a.client_id)
-      if (!cur) {
-        statsByClient.set(a.client_id, {
-          count: 1,
-          latest_score: a.overall_score ?? null,
-          previous_score: null,
-          latest_analysis_at: a.completed_at ?? null,
-        })
-      } else {
-        // Second most-recent run: kept for the "vs previous" delta the
-        // Bibbia asks for on the Clients list.
-        if (cur.count === 1) cur.previous_score = a.overall_score ?? null
-        cur.count += 1
-      }
-    }
+    const [{ data: analyses }, v4Audits] = await Promise.all([
+      supabase
+        .from('analyses')
+        .select('client_id, overall_score, completed_at')
+        .in('client_id', clientIds)
+        .eq('status', 'completed'),
+      listV4Audits(supabase),
+    ])
+    // V1 completed analyses + the client's V4 audits (same source as /audits).
+    statsByClient = buildClientStats(
+      (analyses ?? []) as Array<{ client_id: string; overall_score: number | null; completed_at: string | null }>,
+      v4Audits,
+    )
   }
 
   // Sprint 1 item 4c: analyses run on the client's SAME DOMAIN but never

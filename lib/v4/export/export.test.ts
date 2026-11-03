@@ -342,6 +342,14 @@ test('export smoke: pptx generator produces a non-empty buffer', async () => {
   assert.equal(Buffer.from(buf.subarray(0, 2)).toString('latin1'), 'PK')
 })
 
+test('pptx deck carries NATIVE charts (overview + per-driver), not just tables', async () => {
+  const buf = Buffer.from(await generatePptx(model()))
+  // Zip entry names are stored uncompressed in the local/central headers.
+  const names = new Set(buf.toString('latin1').match(/ppt\/charts\/chart\d+\.xml/g) ?? [])
+  // 1 overview chart + at least one measured driver chart.
+  assert.ok(names.size >= 2, `expected >=2 native charts, got ${names.size}`)
+})
+
 test('export smoke: artifact generator produces a self-contained HTML string', () => {
   const html = generateArtifact(model())
   assert.ok(html.length > 2000)
