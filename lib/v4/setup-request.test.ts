@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { SetupBody, analysisColumnsFromSetup } from '@/lib/v4/setup-request'
-
+const site = { site_ref: 'client' as const, domain: 'moncler.com', name: 'Cliente', is_client: true, brand_name: 'Moncler' }
 const site = { domain: 'moncler.com', brand_name: 'Moncler' }
 const base = { client: { domain: 'moncler.com', brandName: 'Moncler' }, competitors: [] }
 
