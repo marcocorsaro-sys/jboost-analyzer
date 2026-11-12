@@ -126,7 +126,7 @@ function addScoreBars(
     barDir: 'bar',
     barGrouping: 'stacked',
     barGapWidthPct: 40,
-    catAxisOrientation: 'maxMin', // first item on top
+    catAxisOrientation: 'maxMin' as unknown as 'minMax', // first item on top
     valAxisMinVal: 0,
     valAxisMaxVal: 100,
     valAxisMajorUnit: 25,
