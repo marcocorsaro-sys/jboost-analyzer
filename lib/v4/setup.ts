@@ -12,6 +12,7 @@
 import { V4_BUSINESS_DRIVERS } from '@/lib/scoring/registry'
 import { normalizeDomain } from '@/lib/v4/runner/store'
 import type { AnalysisSite, SiteRef, TemplateConfig } from '@/lib/v4/runner/types'
+import type { ContentCrawlSummary } from '@/lib/v4/content-crawl'
 
 /** Page templates of sheet 1, in the order the wizard shows them. */
 export const TEMPLATE_KEYS = [
@@ -478,6 +479,8 @@ export const ATTACHMENT_KINDS = [
   'authority_backlinks',
   'knowledge_doc',
   'insight_examples',
+  // Content driver: the crawl (one row per URL) uploaded after the questionnaire.
+  'content_crawl',
 ] as const
 export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number]
 
@@ -509,6 +512,8 @@ export interface SetupAttachment {
     site_health?: number
     /** Semrush export only: top issues (title/type/pages_count). */
     issues?: Array<{ title: string; type: string; pages_count: number }>
+    /** Content crawl only: validation summary (the full rows stay in the stored file). */
+    crawl?: ContentCrawlSummary
   } | null
   /**
    * knowledge_doc only (Sprint 2 item 18): text extracted at upload,
@@ -534,6 +539,7 @@ export const ATTACHMENT_DRIVER: Record<AttachmentKind, string | null> = {
   authority_backlinks: 'authority',
   knowledge_doc: null,
   insight_examples: null,
+  content_crawl: 'content',
 }
 
 /**
@@ -573,6 +579,11 @@ export function mergeV4Setup(
   // Note panel: a setup save must carry them over, never wipe them.
   if (typeof existing?.global_notes === 'string' && existing.global_notes) {
     promotion.global_notes = existing.global_notes
+  }
+  // The AI Visibility detail tabs (prompts, pasted answers, readings) are owned
+  // by the results page: a setup save must carry them over.
+  if (existing?.ai_visibility_tabs && typeof existing.ai_visibility_tabs === 'object') {
+    promotion.ai_visibility_tabs = existing.ai_visibility_tabs
   }
   return { ...next, attachments, ...promotion }
 }

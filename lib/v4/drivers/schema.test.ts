@@ -24,7 +24,15 @@ import {
   type MarkupType,
   type MarkupTypeScore,
 } from './schema-kb'
-import { collectJsonLdNodes, observeSite, schemaWorker, type PageScrape } from './schema'
+import {
+  collectJsonLdNodes,
+  observeSite,
+  pagesForSite,
+  schemaWorker,
+  templateBreakdown,
+  type PageScrape,
+  type TemplateBreakdown,
+} from './schema'
 import type { AnalysisSite, DriverJobContext } from '@/lib/v4/runner/types'
 
 const SITES: AnalysisSite[] = [
@@ -483,6 +491,101 @@ test('worker: honours the configured page templates and multi-page coverage', as
       assert.equal(org.coverage_pct, 50)
       assert.equal(org.level, 0.75)
       assert.equal((out.rawPayload as { industry_preset: string }).industry_preset, 'b2b_services')
+    },
+  )
+})
+
+// ---------------------------------------------------------------------------
+// Per-template breakdown (comparative tab)
+// ---------------------------------------------------------------------------
+
+test('pagesForSite: carries the template key, falls back to the homepage', () => {
+  const withTemplates = pagesForSite(
+    ctx({
+      templates: [
+        { site_ref: 'client', template_key: 'pdp', url: 'https://client.com/p/1', applies_to: ['schema'] },
+        { site_ref: 'client', template_key: 'faq', url: null, applies_to: ['schema'] },
+        { site_ref: 'competitor_1', template_key: 'pdp', url: 'https://comp1.com/p/1', applies_to: ['schema'] },
+      ],
+    }),
+    SITES[0],
+  )
+  assert.deepEqual(withTemplates, [{ url: 'https://client.com/p/1', template_key: 'pdp' }])
+  assert.deepEqual(pagesForSite(ctx(), SITES[0]), [{ url: 'https://client.com', template_key: 'homepage' }])
+})
+
+test('templateBreakdown: scores only the types applicable to the template', () => {
+  const clusters = PRESET_CLUSTERS.retail_luxury
+  const page: PageScrape = {
+    url: 'https://client.com/p/1',
+    template_key: 'pdp',
+    nodes: [{ types: ['Product'], properties: [...MARKUP_KB.Product.mandatory, ...MARKUP_KB.Product.recommended, ...MARKUP_KB.Product.advanced] }],
+    parseErrors: 0,
+    blockCount: 1,
+  }
+  const b = templateBreakdown(page, clusters)
+  // retail_luxury x pdp: Product + BreadcrumbList + FAQPage + VideoObject applicable.
+  const product = b.types.find((t) => t.type === 'Product')!
+  assert.equal(product.applicable, true)
+  assert.equal(product.detected, true)
+  assert.equal(product.level, 1)
+  const crumbs = b.types.find((t) => t.type === 'BreadcrumbList')!
+  assert.equal(crumbs.detected, false)
+  assert.equal(crumbs.level, 0)
+  assert.ok(crumbs.missing_mandatory.includes('itemListElement'))
+  // Organization is not applicable to a PDP: absent from the list, not a miss.
+  assert.equal(b.types.find((t) => t.type === 'Organization'), undefined)
+  assert.ok(b.score !== null && b.score > 0 && b.score < 100)
+})
+
+test('templateBreakdown: a detected type outside the template is listed but not scored', () => {
+  const page: PageScrape = {
+    url: 'https://client.com/faq',
+    template_key: 'faq',
+    nodes: [{ types: ['Organization', 'Thing'], properties: ['name', 'url'] }],
+    parseErrors: 0,
+    blockCount: 1,
+  }
+  const b = templateBreakdown(page, PRESET_CLUSTERS.retail_luxury)
+  const org = b.types.find((t) => t.type === 'Organization')!
+  assert.equal(org.applicable, false)
+  assert.equal(org.detected, true)
+  assert.deepEqual(b.types_found_outside_kb, ['Thing'])
+})
+
+test('templateBreakdown: nothing applicable gives a null score, never a 0', () => {
+  const page: PageScrape = { url: 'https://client.com/x', template_key: 'listing_articles', nodes: [], parseErrors: 0, blockCount: 0 }
+  // media neutral map has no ItemList/BreadcrumbList in these clusters -> use a map that excludes both.
+  const none: ClusterMap = { core: ['Organization'], content_local: ['Article'], supporting: ['AboutPage'] }
+  assert.equal(templateBreakdown(page, none).score, null)
+})
+
+test('worker: evidence carries one per_template entry per page, failed pages without a score', async () => {
+  process.env.FIRECRAWL_API_KEY = 'test-key'
+  await withFirecrawl(
+    (url) =>
+      url.endsWith('/broken')
+        ? { status: 500, body: { error: 'boom' } }
+        : firecrawlOk(jsonLd({ '@type': 'Organization', ...COMPLETE_ORG })),
+    async () => {
+      const out = await schemaWorker(
+        ctx({
+          sites: [SITES[0]],
+          templates: [
+            { site_ref: 'client', template_key: 'about', url: 'https://client.com/about', applies_to: ['schema'] },
+            { site_ref: 'client', template_key: 'faq', url: 'https://client.com/broken', applies_to: ['schema'] },
+          ],
+        }),
+      )
+      assert.equal(out.status, 'done')
+      if (out.status !== 'done') return
+      const ev = out.sites[0].evidence as { per_template: TemplateBreakdown[] }
+      assert.deepEqual(ev.per_template.map((t) => [t.template_key, t.scraped]), [
+        ['about', true],
+        ['faq', false],
+      ])
+      assert.equal(ev.per_template[1].score, null)
+      assert.match(ev.per_template[1].error ?? '', /HTTP 500/)
     },
   )
 })

@@ -13,6 +13,7 @@ import { getV4Driver } from '@/lib/scoring/registry'
 import { useLocale } from '@/lib/i18n'
 import { fill } from './results-shared'
 import { B } from '@/lib/brand'
+import type { ContentCrawlSummary } from '@/lib/v4/content-crawl'
 
 export interface SiteScore {
   site_ref: string
@@ -60,7 +61,7 @@ export interface DriverRow {
     name: string
     path?: string
     size?: number | null
-    parsed?: { columns?: string[]; row_count?: number } | null
+    parsed?: { columns?: string[]; row_count?: number; crawl?: ContentCrawlSummary } | null
   }>
 }
 

@@ -27,12 +27,12 @@
 import { scrapeWithFirecrawl } from '@/lib/integrations/providers/firecrawl/client'
 import { parseJsonLdBlocks } from '@/lib/integrations/providers/structured-data/parser'
 import type { AnalysisSite, DriverJobContext, DriverWorker, SiteRawValue } from '@/lib/v4/runner/types'
-import { urlsForSite } from './pagespeed'
 import { DriverSourceError, assertDeadline, mapPool, round } from './source'
 import {
   MARKUP_KB,
   MARKUP_TYPES,
   SITEWIDE_THRESHOLD,
+  applicableClusters,
   computeSchemaScore,
   resolveClusters,
   scoreMarkupType,
@@ -90,6 +90,8 @@ export function collectJsonLdNodes(data: unknown): JsonLdNode[] {
 
 export interface PageScrape {
   url: string
+  /** Template the page stands for (setup wizard key); 'homepage' for the fallback. */
+  template_key?: string
   nodes: JsonLdNode[]
   /** JSON-LD blocks on the page that failed to parse — a 1.00 blocker. */
   parseErrors: number
@@ -151,28 +153,125 @@ export function observeSite(pages: PageScrape[], type: MarkupType): MarkupObserv
   return { nodes, pagesScraped: pages.length, pagesWithType, coherent, valid }
 }
 
+/** One page to scrape and the template it represents. */
+export interface PageTarget {
+  url: string
+  template_key: string
+}
+
+/**
+ * The pages of one site with their template. Same URL selection as
+ * urlsForSite (configured templates with a URL, else the homepage), but the
+ * template key travels along so the result can be broken down per template.
+ */
+export function pagesForSite(ctx: DriverJobContext, site: AnalysisSite): PageTarget[] {
+  const configured = ctx.templates
+    .filter((t) => t.site_ref === site.site_ref && t.url)
+    .map((t) => ({ url: t.url as string, template_key: t.template_key }))
+  return configured.length > 0 ? configured : [{ url: `https://${site.domain}`, template_key: 'homepage' }]
+}
+
+export interface FailedPage extends PageTarget {
+  message: string
+}
+
 export interface SiteSchemaResult {
   site: AnalysisSite
   pages: PageScrape[]
+  failed: FailedPage[]
   errors: string[]
 }
 
 /** Scrape every page of one site, keeping the pages that worked. */
 async function measureSite(ctx: DriverJobContext, site: AnalysisSite): Promise<SiteSchemaResult> {
-  const urls = urlsForSite(ctx, site)
+  const targets = pagesForSite(ctx, site)
   const errors: string[] = []
+  const failed: FailedPage[] = []
 
-  const pages = await mapPool(urls, 3, async (url): Promise<PageScrape | null> => {
+  const pages = await mapPool(targets, 3, async (target): Promise<PageScrape | null> => {
     try {
-      assertDeadline(ctx.deadlineAt, `Schema for ${url}`)
-      return await scrapePage(url)
+      assertDeadline(ctx.deadlineAt, `Schema for ${target.url}`)
+      return { ...(await scrapePage(target.url)), template_key: target.template_key }
     } catch (err) {
-      errors.push(err instanceof Error ? err.message : String(err))
+      const message = err instanceof Error ? err.message : String(err)
+      errors.push(message)
+      failed.push({ ...target, message })
       return null
     }
   })
 
-  return { site, pages: pages.filter((p): p is PageScrape => p !== null), errors }
+  return { site, pages: pages.filter((p): p is PageScrape => p !== null), failed, errors }
+}
+
+export interface TemplateTypeDetail {
+  type: MarkupType
+  /** In the preset's expectation AND applicable to this template. */
+  applicable: boolean
+  detected: boolean
+  level: number
+  reason: string
+  missing_mandatory: string[]
+  missing_recommended: string[]
+  missing_advanced: string[]
+  nodes: number
+  valid_jsonld: boolean
+}
+
+export interface TemplateBreakdown {
+  template_key: string
+  url: string
+  /** false = the page could not be scraped: no score, never a 0. */
+  scraped: boolean
+  error: string | null
+  /** 0..100 on the applicable types with the 50/35/15 weights; null = nothing applicable or not scraped. */
+  score: number | null
+  types: TemplateTypeDetail[]
+  /** Markup types found on the page that the KB does not know. */
+  types_found_outside_kb: string[]
+}
+
+/**
+ * Pure: grade ONE scraped page against the types the preset expects for its
+ * template. Detected types that are not applicable are still listed (they are
+ * information, not a penalty) but stay out of the score.
+ */
+export function templateBreakdown(page: PageScrape, clusters: ClusterMap): TemplateBreakdown {
+  const templateKey = page.template_key ?? 'homepage'
+  const narrowed = applicableClusters(clusters, templateKey)
+  const applicable = new Set<MarkupType>([...narrowed.core, ...narrowed.content_local, ...narrowed.supporting])
+
+  const gradeOf = (type: MarkupType) => scoreMarkupType(type, observeSite([page], type))
+  const computed = applicable.size > 0 ? computeSchemaScore(narrowed, gradeOf) : null
+
+  const present = new Set(page.nodes.flatMap((n) => n.types))
+  const shown = MARKUP_TYPES.filter((t) => applicable.has(t) || present.has(t))
+  const types: TemplateTypeDetail[] = shown.map((type) => {
+    const g = gradeOf(type)
+    return {
+      type,
+      applicable: applicable.has(type),
+      detected: g.nodeCount > 0,
+      level: g.level,
+      reason: g.reason,
+      missing_mandatory: g.missingMandatory,
+      missing_recommended: g.missingRecommended,
+      missing_advanced: g.missingAdvanced,
+      nodes: g.nodeCount,
+      valid_jsonld: g.valid,
+    }
+  })
+
+  return {
+    template_key: templateKey,
+    url: page.url,
+    scraped: true,
+    error: null,
+    score: computed ? round(computed.score, 1) : null,
+    types,
+    types_found_outside_kb: Array.from(present)
+      .filter((t) => !(MARKUP_TYPES as readonly string[]).includes(t))
+      .sort(),
+  }
 }
 
 export const schemaWorker: DriverWorker = async (ctx) => {
@@ -211,8 +310,29 @@ export const schemaWorker: DriverWorker = async (ctx) => {
       raw: round(computed.score, 1),
       score_absolute: Math.round(computed.score),
       evidence: {
+        // Per-template breakdown (comparative tab): one entry per page of the
+        // setup, scored on the types applicable to that template. A page that
+        // failed to scrape is listed with its reason and no score.
+        per_template: [
+          ...result.pages.map((p) => templateBreakdown(p, clusters)),
+          ...result.failed.map(
+            (f): TemplateBreakdown => ({
+              template_key: f.template_key,
+              url: f.url,
+              scraped: false,
+              error: f.message,
+              score: null,
+              types: [],
+              types_found_outside_kb: [],
+            }),
+          ),
+        ],
+        per_template_note:
+          'Template-level score uses the preset clusters narrowed to the types applicable to the template ' +
+          '(derived mapping, to be reconciled with the Bibbia sheets 10/11); each template is a single sampled page.',
         pages_scraped: result.pages.map((p) => ({
           url: p.url,
+          template_key: p.template_key ?? null,
           jsonld_blocks: p.blockCount,
           parse_errors: p.parseErrors,
         })),

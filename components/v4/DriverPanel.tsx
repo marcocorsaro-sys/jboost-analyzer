@@ -25,6 +25,9 @@ import type { TranslationKey } from '@/lib/i18n'
 import { getV4Driver, DISCO_TIERS } from '@/lib/scoring/registry'
 import { DriverEditor, DecisionForm, fmt, STATUS_STYLE, type DriverRow, type SiteScore } from './RunProgress'
 import ContentQuestionnaire from './ContentQuestionnaire'
+import SchemaTemplateCompare from './SchemaTemplateCompare'
+import AiVisibilityTabs from './AiVisibilityTabs'
+import ContentCrawlUpload from './ContentCrawlUpload'
 import type { InsightRecord, SiteMeta, DevInsightItem, BusinessInsightItem } from './results-shared'
 import {
   card,
@@ -321,6 +324,9 @@ export default function DriverPanel({
           <JhorizonUpdateBox analysisId={analysisId} row={row} onChanged={onChanged} />
         )}
 
+        {/* Dettaglio AI Visibility: Sentiment, Citation rate & fonti, Market share. */}
+        {row.driver_key === 'ai_visibility' && <AiVisibilityTabs analysisId={analysisId} />}
+
         {/* Threshold transparency — the number never without its criterion. */}
         <CriteriaCaption row={row} clientSite={clientSite} />
 
@@ -391,6 +397,10 @@ export default function DriverPanel({
       {/* ------------------------------------------------ 3 · DATA -------- */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {row.driver_key === 'content' && (
+          <ContentCrawlUpload analysisId={analysisId} row={row} sites={sites} onChanged={onChanged} />
+        )}
+
+        {row.driver_key === 'content' && (
           <ContentQuestionnaire
             analysisId={analysisId}
             sites={sites}
@@ -422,6 +432,10 @@ export default function DriverPanel({
             presenti nel payload, nota fonte Similarweb. */}
         {row.driver_key === 'traffic' && row.status === 'done' && row.sites.length > 0 && (
           <TrafficEvidence row={row} sites={sites} />
+        )}
+
+        {row.driver_key === 'schema' && row.status === 'done' && row.sites.length > 0 && (
+          <SchemaTemplateCompare row={row} sites={sites} />
         )}
 
         {row.sites.length > 0 && <EvidenceCard row={row} sites={sites} />}

@@ -13,6 +13,8 @@ import {
 } from '@/lib/v4/setup'
 import { parseBacklinksBuffer, BACKLINK_EXPECTED_COLUMNS } from '@/lib/v4/backlinks'
 import * as XLSX from 'xlsx'
+import { decodeCrawlText, parseContentCrawlCsv, parseContentCrawlMatrix, type ContentCrawlParseResult } from '@/lib/v4/content-crawl'
+import { loadAnalysisSites } from '@/lib/v4/runner/store'
 import {
   parseSemrushCsvText,
   parseSemrushMatrix,
@@ -59,9 +61,11 @@ const ALLOWED_EXT: Record<AttachmentKind, string[]> = {
   knowledge_doc: ['.pdf', '.docx', '.doc', '.txt', '.md', '.pptx', '.xlsx', '.xls', '.csv'],
   // Fix 13/10: insight-examples encyclopedia — same formats as the docs.
   insight_examples: ['.pdf', '.docx', '.doc', '.txt', '.md', '.pptx', '.xlsx', '.xls', '.csv'],
+  // Content crawl: CSV (UTF-8) or XLSX, one row per URL.
+  content_crawl: ['.csv', '.xlsx'],
 }
 
-const SINGLE_KINDS: AttachmentKind[] = ['compliance_crawl', 'authority_backlinks']
+const SINGLE_KINDS: AttachmentKind[] = ['compliance_crawl', 'authority_backlinks', 'content_crawl']
 
 /** Valid site_ref values for the per-site Semrush export (Sprint 1 4b). */
 const SITE_REFS = ['client', 'competitor_1', 'competitor_2', 'competitor_3', 'competitor_4']
@@ -87,6 +91,35 @@ function parseSemrushUpload(buffer: Buffer, ext: string): SemrushParseResult {
     if (!sheet) return { ok: false, error: 'il file non contiene alcun foglio dati' }
     const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null })
     return parseSemrushMatrix(matrix)
+  } catch (err) {
+    return {
+      ok: false,
+      error: `file non leggibile come XLSX (${err instanceof Error ? err.message : String(err)})`,
+    }
+  }
+}
+
+/**
+ * Content crawl -> validation summary. CSV must be UTF-8 (explicit error
+ * otherwise); XLSX is read with the same reader as the other exports.
+ */
+function parseCrawlUpload(
+  buffer: Buffer,
+  ext: string,
+  sites: Parameters<typeof parseContentCrawlCsv>[1],
+): ContentCrawlParseResult {
+  if (ext === '.csv') {
+    const { text, error } = decodeCrawlText(buffer)
+    if (error || text === null) return { ok: false, error: error ?? 'file non leggibile' }
+    return parseContentCrawlCsv(text, sites)
+  }
+  try {
+    const workbook = XLSX.read(buffer, { type: 'buffer', raw: false })
+    const sheetName = workbook.SheetNames[0]
+    const sheet = sheetName ? workbook.Sheets[sheetName] : undefined
+    if (!sheet) return { ok: false, error: 'il file non contiene alcun foglio dati' }
+    const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null })
+    return parseContentCrawlMatrix(matrix, sites)
   } catch (err) {
     return {
       ok: false,
@@ -271,7 +304,7 @@ export async function POST(
   }
 
   const { ok, response } = await authorize(analysisId, {
-    allowStarted: kind === 'compliance_semrush',
+    allowStarted: kind === 'compliance_semrush' || kind === 'content_crawl',
   })
   if (!ok) return response!
 
@@ -332,6 +365,23 @@ export async function POST(
       site_health: result.parsed.site_health,
       issues: result.parsed.issues,
     }
+  }
+  if (kind === 'content_crawl') {
+    const { sites } = await loadAnalysisSites(ok.db, analysisId)
+    const result = parseCrawlUpload(buffer, ext, sites)
+    if (!result.ok) {
+      return NextResponse.json(
+        {
+          error:
+            `crawl Content non valido: ${result.error}. ` +
+            'Requisiti: CSV (UTF-8) o XLSX, una riga per URL; colonne obbligatorie URL, contenuto principale, player, template; ' +
+            `dimensione massima ${MAX_BYTES / (1024 * 1024)} MB.`,
+        },
+        { status: 400 },
+      )
+    }
+    const { columns, ...crawl } = result.parsed
+    parsed = { columns, row_count: crawl.row_count, crawl }
   }
   if (kind === 'authority_backlinks') {
     const result = parseBacklinksBuffer(buffer)
@@ -407,12 +457,12 @@ export async function POST(
   // Post-launch Semrush upload (item 4b): the run's config was seeded at
   // start, so the new attachment must ALSO reach driver_runs.config, or the
   // force re-measure would still not see it.
-  if (ok.started && kind === 'compliance_semrush') {
+  if (ok.started && (kind === 'compliance_semrush' || kind === 'content_crawl')) {
     const { data: runRow } = await ok.db
       .from('driver_runs')
       .select('id, config')
       .eq('analysis_id', analysisId)
-      .eq('driver_key', 'compliance')
+      .eq('driver_key', kind === 'content_crawl' ? 'content' : 'compliance')
       .maybeSingle()
     if (runRow) {
       const config = ((runRow as { config: Record<string, unknown> | null }).config ??

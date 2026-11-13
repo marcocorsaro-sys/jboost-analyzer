@@ -222,6 +222,41 @@ export const NEUTRAL_CLUSTERS: ClusterMap = {
   supporting: ['AboutPage', 'ContactPage'],
 }
 
+/**
+ * Which markup types make sense on which page template. DERIVED, like the rest
+ * of this file (see the provenance warning): a reasoned proposal from Google's
+ * structured-data docs, to be reconciled with the Bibbia sheets 10/11 as soon
+ * as they are available again. The per-template comparison intersects it with
+ * the types the industry preset expects, so a template never "misses" a type
+ * the analysis was not looking for in the first place.
+ */
+export const TEMPLATE_APPLICABLE: Record<string, MarkupType[]> = {
+  homepage: ['Organization', 'LocalBusiness', 'ItemList', 'VideoObject'],
+  plp: ['ItemList', 'BreadcrumbList', 'FAQPage'],
+  pdp: ['Product', 'FinancialProduct', 'TouristTrip', 'BreadcrumbList', 'VideoObject', 'FAQPage'],
+  article: ['Article', 'NewsArticle', 'BreadcrumbList', 'VideoObject', 'FAQPage'],
+  listing_articles: ['ItemList', 'BreadcrumbList'],
+  service_page: ['Service', 'FinancialProduct', 'BreadcrumbList', 'FAQPage', 'LocalBusiness'],
+  about: ['AboutPage', 'Organization', 'BreadcrumbList'],
+  faq: ['FAQPage', 'BreadcrumbList'],
+  global: ['ContactPage', 'Organization', 'LocalBusiness', 'BreadcrumbList'],
+}
+
+/**
+ * The preset's cluster map narrowed to the types applicable to one template.
+ * Cluster membership (and therefore the 50/35/15 weights) is untouched; a
+ * cluster left empty is renormalized away by computeSchemaScore.
+ */
+export function applicableClusters(clusters: ClusterMap, templateKey: string): ClusterMap {
+  const allowed = TEMPLATE_APPLICABLE[templateKey] ?? []
+  const keep = (list: MarkupType[]) => list.filter((t) => allowed.includes(t))
+  return {
+    core: keep(clusters.core),
+    content_local: keep(clusters.content_local),
+    supporting: keep(clusters.supporting),
+  }
+}
+
 export interface ResolvedClusters {
   preset: IndustryPreset | null
   clusters: ClusterMap
