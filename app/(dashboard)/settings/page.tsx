@@ -7,6 +7,7 @@ import { getSettingsInventory } from '@/lib/admin/connector-status'
 import T from '@/components/ui/T'
 import PreferencesForm from '@/components/settings/PreferencesForm'
 import ClaudeConnectorCard from '@/components/settings/ClaudeConnectorCard'
+import TelegramLinkCard from '@/components/settings/TelegramLinkCard'
 import { originFromHeaders } from '@/lib/mcp/auth'
 import { B } from '@/lib/brand'
 
@@ -144,6 +145,9 @@ export default async function SettingsPage() {
       {/* d) Claude connector (MCP) — for everyone: each person signs in with
              their own account, so what they can do is what they can open here. */}
       <ClaudeConnectorCard origin={originFromHeaders(await headers())} isAdmin={isAdmin} />
+
+      {/* e) Telegram bot — link the account with a one-time code */}
+      <TelegramLinkCard />
 
       {/* Preferences — profile, language, password (pre-existing island) */}
       <PreferencesForm />

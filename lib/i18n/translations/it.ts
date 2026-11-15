@@ -91,6 +91,16 @@ const it = {
   'settings.open_admin': 'Apri Admin',
 
   // MCP connector (Settings) + OAuth consent
+  'tg.title': 'Telegram',
+  'tg.hint': "Usa J-Boost Analyzer dal bot Telegram: stesse funzioni del connettore Claude, con il tuo account e i tuoi permessi. Le azioni che modificano dati o consumano API a pagamento partono solo dopo la tua conferma.",
+  'tg.generate': 'Genera codice di collegamento',
+  'tg.regenerate': 'Genera un nuovo codice',
+  'tg.send': 'Scrivi al bot:',
+  'tg.expires': 'Vale {n} minuti e si usa una volta sola.',
+  'tg.open': 'Apri il bot',
+  'tg.unlink': 'Scollega',
+  'tg.linked': 'Telegram collegato a questo account.',
+  'tg.failed': 'Non sono riuscito a generare il codice. Riprova.',
   'mcp.title': 'Connettore Claude',
   'mcp.hint': 'Usa J-Boost Analyzer da Claude. Ognuno accede col proprio account e vede solo ciò che può aprire qui. I tool di scrittura (nuovo audit, rilancio, insight) chiedono la tua approvazione in Claude.',
   'mcp.url': 'URL del connettore',
