@@ -43,6 +43,7 @@ import {
   type AnthropicCallOptions,
 } from '@/lib/v4/drivers/jhorizon-extract'
 import { loadAnalysisSites } from '@/lib/v4/runner/store'
+import { tabsInsightPayload } from '@/lib/v4/ai-visibility-tabs'
 import { estimateCost } from '@/lib/tracking/pricing'
 import {
   insightExamplesClause,
@@ -781,8 +782,16 @@ export async function generateInsights(
 
     // The driver payload the model sees: the sheet-7 raw payload plus the
     // scores of the two views (both are inputs the schema asks to echo).
+    // AI Visibility: the three detail tabs (sentiment, citation rate & sources,
+    // market share) the analyst extracted travel with the score, so the
+    // comments are grounded in them (Giulia 24/11). Null = nothing extracted.
+    const aiTabs =
+      run.driver_key === 'ai_visibility'
+        ? tabsInsightPayload(analysis.v4_setup, (await loadAnalysisSites(db, analysisId)).sites)
+        : null
     const payloadJson = JSON.stringify({
       score_relative: run.score_relative,
+      ...(aiTabs ? { ai_visibility_tabs: aiTabs } : {}),
       // Development drivers AND the AI Visibility exception have an intrinsic
       // 0-100 the schema may echo (registry hasAbsoluteView).
       ...(def.family === 'development' || def.hasAbsoluteView

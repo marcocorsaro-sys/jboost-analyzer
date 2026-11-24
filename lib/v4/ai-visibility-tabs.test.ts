@@ -95,3 +95,36 @@ test('mergeV4Setup: a setup save carries the AI Visibility tabs over', async () 
   assert.deepEqual(mergeV4Setup({ ai_visibility_tabs: tabs }, { sector: 'x' }).ai_visibility_tabs, tabs)
   assert.equal(mergeV4Setup({}, { sector: 'x' }).ai_visibility_tabs, undefined)
 })
+
+import { tabsInsightPayload } from './ai-visibility-tabs'
+
+test('tabsInsightPayload: porta i dati estratti con i nomi dei siti, e nomina i tab mancanti', () => {
+  const setup = {
+    ai_visibility_tabs: {
+      sentiment: {
+        answer: 'testo grezzo lungo',
+        extraction: {
+          tab: 'sentiment',
+          sites: [{ site_ref: 'client', positive_pct: 60, neutral_pct: 30, negative_pct: 10, themes: ['affidabilità'] }],
+          missing: [],
+          warnings: [],
+          summary: 'Sentiment prevalentemente positivo.',
+        },
+      },
+    },
+  }
+  const out = tabsInsightPayload(setup, [
+    { site_ref: 'client', name: 'Ariston', domain: 'ariston.com', is_client: true },
+  ])
+  assert.ok(out)
+  assert.deepEqual(out!.tabs_missing, ['citations', 'market_share'])
+  const row = out!.tabs.sentiment!.sites[0]
+  assert.equal(row.name, 'Ariston')
+  assert.equal(row.positive_pct, 60)
+  assert.equal(JSON.stringify(out).includes('testo grezzo'), false) // mai la risposta incollata
+})
+
+test('tabsInsightPayload: nessuna estrazione = null', () => {
+  assert.equal(tabsInsightPayload({}, []), null)
+  assert.equal(tabsInsightPayload(null, []), null)
+})

@@ -214,3 +214,60 @@ test('psiOutcome: on the LAST attempt the partial result is published (done), fl
   const client = out.sites.find((s: any) => s.site_ref === 'client')
   assert.match(client.evidence.coverage_note, /1 combinazioni su 2/)
 })
+
+import { isHomepageUrl, HOMEPAGE_FALLBACK_NOTE } from './pagespeed'
+
+test('isHomepageUrl: root only, www-insensitive, no locale path or query', () => {
+  assert.equal(isHomepageUrl('https://www.ariston.com/', 'ariston.com'), true)
+  assert.equal(isHomepageUrl('https://ariston.com', 'www.ariston.com'), true)
+  assert.equal(isHomepageUrl('https://www.ariston.com/it-it/', 'ariston.com'), false)
+  assert.equal(isHomepageUrl('https://www.ariston.com/?a=1', 'ariston.com'), false)
+  assert.equal(isHomepageUrl('https://altro.com/', 'ariston.com'), false)
+})
+
+test('measureSet: ultimo tentativo con template non misurati -> punteggio sulle sole homepage, con nota', async () => {
+  const at = Date.now()
+  // Homepage runs cached for BOTH sites; the template pages are not (budget gone).
+  const prior = ['c.com', 'k.com'].flatMap((d, i) =>
+    (['mobile', 'desktop'] as const).map((strategy) => ({
+      url: `https://${d}`, strategy, performance_score: i === 0 ? 60 : 40, accessibility_score: 90, at,
+    })),
+  )
+  const templates = [
+    { site_ref: 'client', url: 'https://c.com/prodotto' },
+    { site_ref: 'competitor_1', url: 'https://k.com/prodotto' },
+  ] as unknown as DriverJobContext['templates']
+  const ctx = psiCtx({ templates, priorPsi: prior, attempt: 3, maxAttempts: 3 })
+  const r = await measureSet(ctx, 'performance')
+  assert.equal(r.homepageFallback, true)
+  const client = r.sites.find((s) => s.site_ref === 'client')!
+  assert.equal(client.raw, 60)
+  assert.equal((client.evidence as any).fallback, 'homepage')
+  assert.equal((client.evidence as any).scope_note, HOMEPAGE_FALLBACK_NOTE)
+  const out: any = psiOutcome(ctx, 'performance', r, 'Speed')
+  assert.equal(out.status, 'done')
+  assert.match(out.rawPayload.scope, /fallback/)
+  assert.equal(out.rawPayload.scope_note, HOMEPAGE_FALLBACK_NOTE)
+})
+
+test('measureSet: senza homepage del cliente il fallback non scatta (resta il risultato a template)', async () => {
+  const at = Date.now()
+  const prior = [
+    { url: 'https://c.com/prodotto', strategy: 'mobile' as const, performance_score: 70, accessibility_score: 90, at },
+  ]
+  const templates = [{ site_ref: 'client', url: 'https://c.com/prodotto' }] as unknown as DriverJobContext['templates']
+  const ctx = psiCtx({ templates, priorPsi: prior, attempt: 3, maxAttempts: 3 })
+  const r = await measureSet(ctx, 'performance')
+  assert.notEqual(r.homepageFallback, true)
+})
+
+test('measureSet: non-ultimo tentativo non usa il fallback', async () => {
+  const at = Date.now()
+  const prior = (['mobile', 'desktop'] as const).map((strategy) => ({
+    url: 'https://c.com', strategy, performance_score: 60, accessibility_score: 90, at,
+  }))
+  const templates = [{ site_ref: 'client', url: 'https://c.com/prodotto' }] as unknown as DriverJobContext['templates']
+  const ctx = psiCtx({ templates, priorPsi: prior, attempt: 1, maxAttempts: 3 })
+  const r = await measureSet(ctx, 'performance')
+  assert.notEqual(r.homepageFallback, true)
+})

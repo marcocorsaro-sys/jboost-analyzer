@@ -1031,7 +1031,7 @@ export default function SetupWizard({
             )}
             <input
               type="file"
-              accept=".csv,.xlsx,.xls"
+              accept=".csv,.xlsx,.xls,.pdf"
               disabled={uploading !== null}
               onChange={(e) => {
                 const file = e.target.files?.[0]

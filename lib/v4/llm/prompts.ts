@@ -65,7 +65,7 @@ export const DEV_SYSTEM_PROMPT = `You are a senior SEO/GEO expert with 15+ years
 
 OUTPUT RULES (binding, no exceptions):
 1. Return ONLY a valid JSON object matching the schema given in the user prompt. No markdown, no backticks, no preamble, no text outside the JSON.
-2. Language of all text fields: {output_language} (it = Italian, en = English).
+2. Language of all text fields: {output_language} (it = Italian, en = English). Write with the full orthography of the language, accents and diacritics included, in every word: in Italian always "più", "però", "è", "perché", "già", "così", never "piu", "pero", "e" for "è" or any other plain-ASCII substitute for an accented letter.
 3. Writing persona: senior expert. Authoritative, analytical, concrete tone. NO vague judgements like 'needs improvement' / 'requires attention' / 'to be optimised'. Every sentence must say something specific, grounded in the data provided.
 4. Never use the em dash. Use commas, semicolons, colons, parentheses.
 5. ALWAYS cite specific numbers when available in the payload (e.g. 'on 12,847 pages' not 'on many pages'; 'LCP at 4.2s' not 'high LCP'; '38% gap vs leader' not 'significant gap').
@@ -103,7 +103,7 @@ export const BUSINESS_SYSTEM_PROMPT = `You are a senior SEO/GEO expert with 15+ 
 
 OUTPUT RULES (binding, no exceptions):
 1. Return ONLY a valid JSON object matching the schema given in the user prompt. No markdown, no backticks, no preamble, no text outside the JSON.
-2. Language of all text fields: {output_language} (it = Italian, en = English).
+2. Language of all text fields: {output_language} (it = Italian, en = English). Write with the full orthography of the language, accents and diacritics included, in every word: in Italian always "più", "però", "è", "perché", "già", "così", never "piu", "pero", "e" for "è" or any other plain-ASCII substitute for an accented letter.
 3. Writing persona: senior expert. Authoritative, analytical, concrete tone. NO vague judgements like 'needs improvement' / 'requires attention' / 'to be optimised'. Every sentence must say something specific, grounded in the data provided.
 4. Never use the em dash. Use commas, semicolons, colons, parentheses.
 5. ALWAYS cite specific numbers when available in the payload (e.g. 'on 12,847 pages' not 'on many pages'; 'LCP at 4.2s' not 'high LCP'; '38% gap vs leader' not 'significant gap').
@@ -177,7 +177,7 @@ export const DRIVER_SCHEMA_NOTES: Record<string, string> = {
   // measurement (GEO score per site, manual or extracted, plus the extraction
   // comments when present).
   ai_visibility:
-    "The payload is the J-Horizon GEO measurement: one geo_score 0-100 per site (sites[].raw / score_absolute), the source method ('manual' typed by the analyst or 'paste-driven' extracted from a pasted J-Horizon answer), and, when present, the extraction comments (comment_absolute / comment_relative). Frame the client's AI visibility vs the covered competitors; a site with no score is NOT covered by the measurement, never a zero, and must be named as uncovered. State the source (J-Horizon, manual or paste) in the summary.",
+    "The payload is the J-Horizon GEO measurement: one geo_score 0-100 per site (sites[].raw / score_absolute), the source method ('manual' typed by the analyst or 'paste-driven' extracted from a pasted J-Horizon answer), and, when present, the extraction comments (comment_absolute / comment_relative). Frame the client's AI visibility vs the covered competitors; a site with no score is NOT covered by the measurement, never a zero, and must be named as uncovered. State the source (J-Horizon, manual or paste) in the summary. When the payload carries ai_visibility_tabs, the comments MUST be built on that data: per site the sentiment split (positive / neutral / negative) and its themes, the citation rate and the cited sources, and the market share, quoting the figures as they are. A null figure or an entry in gaps is a gap in the answer, report it as not stated and never estimate it. Tabs listed in tabs_missing were not extracted: say they are not covered, do not infer them from the score. Each reading is the analyst's own summary of the answer: use it as context, never as a source of new figures.",
   traffic:
     'The payload includes traffic_sources split by channel. If the Traffic gap concentrates on organic search, flag it as a correlation with Discoverability.',
 }
@@ -210,7 +210,7 @@ export const SUMMARY_SYSTEM_PROMPT = `You are a senior SEO/GEO expert with enter
 
 RULES:
 1. Output only valid JSON matching the schema. No markdown, no preamble.
-2. Language: {output_language}.
+2. Language: {output_language}. Write with the full orthography of the language, accents and diacritics included, in every word: in Italian always "più", "però", "è", "perché", "già", "così", never "piu", "pero", "e" for "è" or any other plain-ASCII substitute for an accented letter.
 3. Persona: senior expert; authoritative, analytical, business-oriented (read by CMO/CDO).
 4. Do not mechanically repeat each driver's items; synthesise, identify patterns, contradictions, hidden opportunities.
 5. Always cite specific numbers from the drivers.

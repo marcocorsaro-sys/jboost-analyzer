@@ -157,6 +157,11 @@ function TabBody({
   const [error, setError] = useState<string | null>(null)
 
   const isCustom = prompt.trim() !== defaultPrompt.trim()
+  // Dopo l'elaborazione prompt e risposta incollata si nascondono: restano le
+  // schede e le tabelle di confronto. "Modifica" li riapre (rilettura, nuova risposta).
+  const processed = !!stored?.extraction
+  const [editing, setEditing] = useState(false)
+  const showEditor = !processed || editing
 
   const copy = async () => {
     try {
@@ -206,6 +211,14 @@ function TabBody({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+      {processed && (
+        <div>
+          <button type="button" onClick={() => setEditing((v) => !v)} style={ghostButton}>
+            {editing ? t('aivis.hide_editor') : t('aivis.edit_editor')}
+          </button>
+        </div>
+      )}
+      {showEditor && (<>
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '6px' }}>
           <strong style={{ fontSize: '14px' }}>{t('aivis.prompt')}</strong>
@@ -261,6 +274,8 @@ function TabBody({
         </div>
         {error && <div style={{ marginTop: '8px', fontSize: '14px', color: B.error }}>{error}</div>}
       </div>
+      </>)}
+      {!showEditor && error && <div style={{ fontSize: '14px', color: B.error }}>{error}</div>}
 
       <Reading tab={tab} sites={sites} stored={stored} answerChanged={answerChanged} />
     </div>

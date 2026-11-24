@@ -152,6 +152,29 @@ export function urlsForSite(ctx: DriverJobContext, site: AnalysisSite): string[]
   return configured.length > 0 ? configured : [`https://${site.domain}`]
 }
 
+/** The bare-domain homepage URL, the single page every site can be measured on. */
+export const homepageUrl = (domain: string) => `https://${domain}`
+
+const stripWww = (host: string) => host.toLowerCase().replace(/^www\./, '')
+
+/**
+ * Pure: is `url` the homepage of `domain` (same host modulo "www.", path "/",
+ * no query)? A locale homepage like /it-it/ is NOT matched on purpose: only
+ * the root is a page every site has, so the comparison stays like for like.
+ */
+export function isHomepageUrl(url: string, domain: string): boolean {
+  try {
+    const u = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`)
+    return (
+      stripWww(u.hostname) === stripWww(domain) &&
+      (u.pathname === '/' || u.pathname === '') &&
+      u.search === ''
+    )
+  } catch {
+    return false
+  }
+}
+
 /**
  * Pure (Sprint 2 item 19): compress a PSI failure message into the short
  * reason the UI lists next to the unmeasured URL. It is a classification of
@@ -203,6 +226,8 @@ export interface PsiSetResult {
   errors: string[]
   measurements: PageMeasurement[]
   templatesConfigured: boolean
+  /** True when the score was taken on the homepages only (template pages not all measurable). */
+  homepageFallback?: boolean
   /** Item 19: every failed (url, strategy) run with its domain and reason. */
   failedRuns?: Array<FailedRun & { domain: string }>
   /** Runs that were NOT attempted/finished because the invocation budget ran out. */
@@ -277,14 +302,14 @@ export async function measureSet(
     }
   })
 
+  const scoreOf = (m: PageMeasurement) =>
+    category === 'performance' ? m.performance_score : m.accessibility_score
+
   const sites: SiteRawValue[] = []
   for (const site of ctx.sites) {
     const own = results.filter((r) => r && r.site_ref === site.site_ref)
     const attempted = jobs.filter((j) => j.site.site_ref === site.site_ref).length
-    const scores = own.map((r) =>
-      category === 'performance' ? r!.m.performance_score : r!.m.accessibility_score,
-    )
-    const avg = mean(scores)
+    const avg = mean(own.map((r) => scoreOf(r!.m)))
     if (avg === null) continue
 
     const failed = failedBySite.get(site.site_ref) ?? []
@@ -297,7 +322,7 @@ export async function measureSet(
         pages: own.map((r) => ({
           url: r!.m.url,
           strategy: r!.m.strategy,
-          score: category === 'performance' ? r!.m.performance_score : r!.m.accessibility_score,
+          score: scoreOf(r!.m),
         })),
         measured_runs: own.length,
         attempted_runs: attempted,
@@ -313,20 +338,119 @@ export async function measureSet(
     })
   }
 
+  // ---- Homepage-only fallback (agreed with the team) ----------------------
+  // When, on the LAST attempt, the configured template pages could not all be
+  // measured, a lopsided template mean is not comparable between sites. The
+  // score is then taken on the HOMEPAGES only (mobile + desktop), the same
+  // basis for every site, and the note says so on every site and in the
+  // payload. Never silent: scope + fallback + the template runs that failed.
+  const lastAttempt = (ctx.attempt ?? 1) >= (ctx.maxAttempts ?? 1)
+  const templatesConfigured = ctx.templates.some((t) => t.url)
+  const incomplete = ctx.sites.some((site) => {
+    const attempted = jobs.filter((j) => j.site.site_ref === site.site_ref).length
+    const done = results.filter((r) => r && r.site_ref === site.site_ref).length
+    return done < attempted
+  })
+  let fallback: { sites: SiteRawValue[] } | null = null
+  if (templatesConfigured && incomplete && lastAttempt) {
+    fallback = await measureHomepages(ctx, category, measurements, errors, cache, failedBySite)
+  }
+
   const failedRuns = ctx.sites.flatMap((site) =>
     (failedBySite.get(site.site_ref) ?? []).map((f) => ({ ...f, domain: site.domain })),
   )
 
   return {
-    sites,
+    sites: fallback ? fallback.sites : sites,
     errors,
     measurements,
-    templatesConfigured: ctx.templates.some((t) => t.url),
+    templatesConfigured,
+    ...(fallback ? { homepageFallback: true } : {}),
     budgetCut,
     totalRuns: jobs.length,
     ...(failedRuns.length > 0 ? { failedRuns } : {}),
   }
 }
+
+/**
+ * Homepage-only pass (fallback). Measures https://<domain> on mobile and
+ * desktop for every site, reusing any run already available (cache, or a
+ * configured homepage template measured earlier). Returns the per-site
+ * values on THAT basis, or null when the client homepage could not be
+ * measured: the caller then keeps the template result and its coverage
+ * notes, exactly as before.
+ */
+async function measureHomepages(
+  ctx: DriverJobContext,
+  category: PsiCategory,
+  measurements: PageMeasurement[],
+  errors: string[],
+  cache: Map<string, PageMeasurement>,
+  failedBySite: Map<string, FailedRun[]>,
+): Promise<{ sites: SiteRawValue[] } | null> {
+  const scoreOf = (m: PageMeasurement) =>
+    category === 'performance' ? m.performance_score : m.accessibility_score
+  const jobs = interleavePsiJobs(
+    ctx.sites.map((site) =>
+      STRATEGIES.map((strategy) => ({ site, url: homepageUrl(site.domain), strategy })),
+    ),
+  )
+  const done = await mapPool(jobs, PSI_CONCURRENCY, async (job) => {
+    // A homepage run already in hand (cache or earlier in this attempt).
+    const known =
+      cache.get(psiKey(job.url, job.strategy)) ??
+      measurements.find(
+        (m) => m.strategy === job.strategy && isHomepageUrl(m.url, job.site.domain),
+      )
+    if (known) return { site_ref: job.site.site_ref, m: known }
+    try {
+      assertDeadline(ctx.deadlineAt, `${category} homepage ${job.url}`)
+      const m = await fetchPageSpeedForUrl(job.url, job.strategy, ctx.deadlineAt)
+      measurements.push(m)
+      return { site_ref: job.site.site_ref, m }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      errors.push(message)
+      const list = failedBySite.get(job.site.site_ref) ?? []
+      list.push({ url: job.url, strategy: job.strategy, reason: psiFailureReason(message) })
+      failedBySite.set(job.site.site_ref, list)
+      return null
+    }
+  })
+
+  const sites: SiteRawValue[] = []
+  for (const site of ctx.sites) {
+    const own = done.filter((r) => r && r.site_ref === site.site_ref)
+    const avg = mean(own.map((r) => scoreOf(r!.m)))
+    if (avg === null) continue
+    sites.push({
+      site_ref: site.site_ref,
+      domain: site.domain,
+      raw: round(avg, 1),
+      score_absolute: Math.round(avg),
+      evidence: {
+        pages: own.map((r) => ({ url: r!.m.url, strategy: r!.m.strategy, score: scoreOf(r!.m) })),
+        measured_runs: own.length,
+        attempted_runs: STRATEGIES.length,
+        fallback: 'homepage',
+        scope_note: HOMEPAGE_FALLBACK_NOTE,
+        ...(own.length < STRATEGIES.length
+          ? { coverage_note: `misurate ${own.length} combinazioni su ${STRATEGIES.length} (homepage)` }
+          : {}),
+      },
+    })
+  }
+
+  const clientRef = ctx.sites.find((s) => s.is_client)?.site_ref
+  if (!sites.some((s) => s.site_ref === clientRef)) return null
+  return { sites }
+}
+
+/** Shown on every site scored through the fallback and in the payload. */
+export const HOMEPAGE_FALLBACK_NOTE =
+  'Alcune pagine dei template non sono state misurabili: il punteggio è calcolato sulle sole ' +
+  'homepage (mobile e desktop), con la stessa base per tutti i siti.'
+
 
 /** Shared outcome shaping for the two PSI drivers. */
 export function psiOutcome(
@@ -380,9 +504,14 @@ export function psiOutcome(
       source: 'google:pagespeed-insights/v5',
       category,
       // Explicit, because it changes what the number means.
-      scope: result.templatesConfigured
-        ? 'configured page templates, mobile + desktop'
-        : 'homepage only (no page templates configured yet), mobile + desktop',
+      scope: result.homepageFallback
+        ? 'homepage only (fallback: not every configured template page could be measured), mobile + desktop'
+        : result.templatesConfigured
+          ? 'configured page templates, mobile + desktop'
+          : 'homepage only (no page templates configured yet), mobile + desktop',
+      ...(result.homepageFallback
+        ? { fallback: 'homepage', scope_note: HOMEPAGE_FALLBACK_NOTE }
+        : {}),
       unmeasured: ctx.sites
         .filter((s) => !result.sites.some((m) => m.site_ref === s.site_ref))
         .map((s) => s.domain),

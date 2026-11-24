@@ -13,6 +13,13 @@ import {
 } from '@/lib/v4/setup'
 import { parseBacklinksBuffer, BACKLINK_EXPECTED_COLUMNS } from '@/lib/v4/backlinks'
 import * as XLSX from 'xlsx'
+import { parseSemrushPdfText } from '@/lib/v4/semrush-pdf'
+import {
+  parseScreamingFrogIssuesCsv,
+  parseScreamingFrogIssuesMatrix,
+  SF_ISSUES_EXPECTED_COLUMNS,
+  type SfParseResult,
+} from '@/lib/v4/screaming-frog-issues'
 import { decodeCrawlText, parseContentCrawlCsv, parseContentCrawlMatrix, type ContentCrawlParseResult } from '@/lib/v4/content-crawl'
 import { loadAnalysisSites } from '@/lib/v4/runner/store'
 import {
@@ -56,7 +63,8 @@ const MAX_BYTES = 20 * 1024 * 1024
 /** Per-kind extension allowlist (the sheet says .csv/.xlsx for the drivers). */
 const ALLOWED_EXT: Record<AttachmentKind, string[]> = {
   compliance_crawl: ['.csv', '.xlsx', '.xls'],
-  compliance_semrush: ['.csv', '.xlsx', '.xls'],
+  // The Semrush Site Audit overview is also accepted as PDF (Export > PDF).
+  compliance_semrush: ['.csv', '.xlsx', '.xls', '.pdf'],
   authority_backlinks: ['.csv', '.xlsx', '.xls'],
   knowledge_doc: ['.pdf', '.docx', '.doc', '.txt', '.md', '.pptx', '.xlsx', '.xls', '.csv'],
   // Fix 13/10: insight-examples encyclopedia — same formats as the docs.
@@ -97,6 +105,50 @@ function parseSemrushUpload(buffer: Buffer, ext: string): SemrushParseResult {
       error: `file non leggibile come XLSX (${err instanceof Error ? err.message : String(err)})`,
     }
   }
+}
+
+/** Screaming Frog Issues Overview -> qualitative issues (CSV or XLSX). */
+function parseScreamingFrogUpload(buffer: Buffer, ext: string): SfParseResult {
+  if (ext === '.csv') {
+    const text =
+      buffer[0] === 0xff && buffer[1] === 0xfe
+        ? buffer.toString('utf16le')
+        : buffer.toString('utf8')
+    return parseScreamingFrogIssuesCsv(text)
+  }
+  try {
+    const workbook = XLSX.read(buffer, { type: 'buffer', raw: false })
+    const sheetName = workbook.SheetNames[0]
+    const sheet = sheetName ? workbook.Sheets[sheetName] : undefined
+    if (!sheet) return { ok: false, error: 'il file non contiene alcun foglio dati' }
+    const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null })
+    return parseScreamingFrogIssuesMatrix(matrix)
+  } catch (err) {
+    return {
+      ok: false,
+      error: `file non leggibile come XLSX (${err instanceof Error ? err.message : String(err)})`,
+    }
+  }
+}
+
+/** Semrush Site Audit overview PDF -> measurement (pdf-parse text + pure parser). */
+async function parseSemrushPdf(buffer: Buffer) {
+  let text = ''
+  try {
+    const { PDFParse } = await import('pdf-parse')
+    const parser = new PDFParse({ data: buffer })
+    try {
+      text = (await parser.getText()).text
+    } finally {
+      await parser.destroy().catch(() => {})
+    }
+  } catch (err) {
+    return {
+      ok: false as const,
+      error: `PDF non leggibile (${err instanceof Error ? err.message : String(err)})`,
+    }
+  }
+  return parseSemrushPdfText(text)
 }
 
 /**
@@ -304,7 +356,8 @@ export async function POST(
   }
 
   const { ok, response } = await authorize(analysisId, {
-    allowStarted: kind === 'compliance_semrush' || kind === 'content_crawl',
+    allowStarted:
+      kind === 'compliance_semrush' || kind === 'compliance_crawl' || kind === 'content_crawl',
   })
   if (!ok) return response!
 
@@ -347,7 +400,8 @@ export async function POST(
     // Health IS the measurement the Compliance worker will use for this
     // site (evidence method 'manual_upload'). Unrecognized format = explicit
     // error naming the expected columns, never a stored blob nobody reads.
-    const result = parseSemrushUpload(buffer, ext)
+    const pdfResult = ext === '.pdf' ? await parseSemrushPdf(buffer) : null
+    const result = pdfResult ?? parseSemrushUpload(buffer, ext)
     if (!result.ok) {
       return NextResponse.json(
         {
@@ -364,6 +418,31 @@ export async function POST(
       row_count: result.parsed.row_count,
       site_health: result.parsed.site_health,
       issues: result.parsed.issues,
+      ...(pdfResult && pdfResult.ok
+        ? { semrush_overview: pdfResult.extra as unknown as Record<string, unknown> }
+        : {}),
+    }
+  }
+  if (kind === 'compliance_crawl') {
+    // The Screaming Frog Issues Overview is parsed at upload: its issues are
+    // qualitative evidence for Compliance (never part of the score).
+    const result = parseScreamingFrogUpload(buffer, ext)
+    if (!result.ok) {
+      return NextResponse.json(
+        {
+          error:
+            `export Screaming Frog non valido: ${result.error}. ` +
+            `Requisiti: ${SF_ISSUES_EXPECTED_COLUMNS}; file .csv o .xlsx, ` +
+            `dimensione massima ${MAX_BYTES / (1024 * 1024)} MB.`,
+        },
+        { status: 400 },
+      )
+    }
+    parsed = {
+      columns: result.parsed.columns,
+      row_count: result.parsed.issue_count,
+      sf_issues: result.parsed.issues as unknown as Array<Record<string, unknown>>,
+      sf_issue_count: result.parsed.issue_count,
     }
   }
   if (kind === 'content_crawl') {
@@ -457,7 +536,10 @@ export async function POST(
   // Post-launch Semrush upload (item 4b): the run's config was seeded at
   // start, so the new attachment must ALSO reach driver_runs.config, or the
   // force re-measure would still not see it.
-  if (ok.started && (kind === 'compliance_semrush' || kind === 'content_crawl')) {
+  if (
+    ok.started &&
+    (kind === 'compliance_semrush' || kind === 'compliance_crawl' || kind === 'content_crawl')
+  ) {
     const { data: runRow } = await ok.db
       .from('driver_runs')
       .select('id, config')

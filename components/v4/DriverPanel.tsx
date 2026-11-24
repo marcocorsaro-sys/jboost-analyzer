@@ -304,6 +304,7 @@ export default function DriverPanel({
         {/* Parziali spiegati per sito e per URL (Sprint 2 item 19): sotto lo
             score, l'elenco compatto di chi non è stato misurato e perché.
             Run vecchie senza motivo: "misura non riuscita", mai inventato. */}
+        {row.status === 'done' && <HomepageFallbackNote row={row} />}
         {row.status === 'done' && <UnmeasuredList row={row} />}
 
         {/* Fallback manuale Compliance (Sprint 1 item 4b): upload export
@@ -874,6 +875,30 @@ interface PsiFailedRun {
   url?: string
   strategy?: string
   reason?: string
+}
+
+/** Nota visibile quando Speed/Accessibility è stato calcolato sulle sole homepage (fallback). */
+function HomepageFallbackNote({ row }: { row: DriverRow }) {
+  const note = row.sites
+    .map((s) => (s.evidence as { scope_note?: unknown } | undefined)?.scope_note)
+    .find((n): n is string => typeof n === 'string' && n !== '')
+  if (!note) return null
+  return (
+    <div
+      style={{
+        marginTop: '12px',
+        padding: '10px 14px',
+        background: B.bg,
+        border: `1px solid ${B.warning}`,
+        borderRadius: '8px',
+        fontSize: '14px',
+        color: B.ink,
+        lineHeight: 1.5,
+      }}
+    >
+      {note}
+    </div>
+  )
 }
 
 function UnmeasuredList({ row }: { row: DriverRow }) {
@@ -1467,13 +1492,13 @@ function ComplianceUploadBox({
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)
 
-  const upload = async (file: File) => {
+  const upload = async (file: File, kind: 'compliance_semrush' | 'compliance_crawl') => {
     setBusy(true)
     setNote(null)
     try {
       const form = new FormData()
-      form.set('kind', 'compliance_semrush')
-      form.set('site_ref', siteRef)
+      form.set('kind', kind)
+      if (kind === 'compliance_semrush') form.set('site_ref', siteRef)
       form.set('file', file)
       const res = await fetch(`/api/v4/analyses/${analysisId}/files`, {
         method: 'POST',
@@ -1552,17 +1577,31 @@ function ComplianceUploadBox({
         </select>
         <input
           type="file"
-          accept=".csv,.xlsx,.xls"
+          accept=".csv,.xlsx,.xls,.pdf"
           disabled={busy}
           onChange={(e) => {
             const file = e.target.files?.[0]
-            if (file) void upload(file)
+            if (file) void upload(file, 'compliance_semrush')
             e.target.value = ''
           }}
           style={{ fontSize: '14px', color: B.muted }}
         />
         {busy && <span style={{ fontSize: '14px', color: B.teal }}>{t('v4res.compliance_uploading')}</span>}
       </div>
+      <div style={{ fontSize: '14px', color: B.muted, lineHeight: 1.5, maxWidth: '75ch', marginTop: '6px' }}>
+        {t('v4res.compliance_sf_hint')}
+      </div>
+      <input
+        type="file"
+        accept=".csv,.xlsx,.xls"
+        disabled={busy}
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) void upload(file, 'compliance_crawl')
+          e.target.value = ''
+        }}
+        style={{ fontSize: '14px', color: B.muted }}
+      />
       {note && <div style={{ fontSize: '14px', color: B.warning }}>{note}</div>}
     </div>
   )

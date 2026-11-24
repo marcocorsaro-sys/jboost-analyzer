@@ -157,26 +157,44 @@ export async function callAnthropicWithUsage(
     payload.temperature = options.temperature
   }
 
-  let res: Response
-  try {
-    res = await fetch(ANTHROPIC_URL, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(options.timeoutMs ?? 60_000),
-    })
-  } catch (err) {
-    throw new DriverSourceError(
-      `${what} — Anthropic request failed: ${err instanceof Error ? err.message : String(err)}`,
-    )
+  const send = async (body: Record<string, unknown>): Promise<Response> => {
+    try {
+      return await fetch(ANTHROPIC_URL, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(options.timeoutMs ?? 60_000),
+      })
+    } catch (err) {
+      throw new DriverSourceError(
+        `${what} — Anthropic request failed: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+  }
+
+  let res = await send(payload)
+
+  // A model can reject a parameter we send (the Executive Summary's Opus model
+  // answered 400, so the summary never completed). When the 400 is about
+  // temperature, retry once without it instead of failing the whole call.
+  let errorBody = ''
+  if (!res.ok) {
+    errorBody = (await res.text().catch(() => '')).slice(0, 300)
+    if (res.status === 400 && 'temperature' in payload && /temperature/i.test(errorBody)) {
+      const { temperature: _dropped, ...withoutTemperature } = payload
+      res = await send(withoutTemperature)
+      errorBody = res.ok ? '' : (await res.text().catch(() => '')).slice(0, 300)
+    }
   }
 
   if (!res.ok) {
-    throw new DriverSourceError(`${what} — Anthropic answered ${res.status}`)
+    // The status alone hid the cause; keep a short snippet of Anthropic's own reason.
+    const reason = errorBody.replace(/\s+/g, ' ').trim()
+    throw new DriverSourceError(`${what} — Anthropic answered ${res.status}${reason ? `: ${reason}` : ''}`)
   }
 
   const body = (await res.json()) as {

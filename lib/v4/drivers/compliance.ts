@@ -125,10 +125,56 @@ export function readManualSemrushUploads(
   return out
 }
 
+/**
+ * Screaming Frog Issues Overview upload (kind 'compliance_crawl'), parsed at
+ * upload by lib/v4/screaming-frog-issues.ts and carried in
+ * driver_runs.config.attachments. QUALITATIVE only: it goes to the client
+ * site's evidence, never into the score (Bibbia: score = Semrush Site
+ * Health). Pure: config in, summary out (null when nothing usable).
+ */
+export function readScreamingFrogIssues(
+  config: Record<string, unknown> | null | undefined,
+): { source_file: string; issue_count: number; issues: Array<Record<string, unknown>> } | null {
+  const attachments = Array.isArray((config as { attachments?: unknown })?.attachments)
+    ? ((config as { attachments: unknown[] }).attachments as Array<Record<string, unknown>>)
+    : []
+  let found: ReturnType<typeof readScreamingFrogIssues> = null
+  for (const att of attachments) {
+    if (att?.kind !== 'compliance_crawl') continue
+    const parsed = (att.parsed ?? null) as { sf_issues?: unknown; sf_issue_count?: unknown } | null
+    if (!Array.isArray(parsed?.sf_issues) || parsed!.sf_issues.length === 0) continue
+    found = {
+      source_file: typeof att.name === 'string' ? att.name : 'export Screaming Frog',
+      issue_count: Number(parsed!.sf_issue_count) || parsed!.sf_issues.length,
+      issues: parsed!.sf_issues as Array<Record<string, unknown>>,
+    }
+  }
+  return found
+}
+
+/** Qualitative overview extracted from a Semrush Site Audit PDF (null otherwise). */
+function readSemrushOverview(
+  config: Record<string, unknown> | null | undefined,
+  siteRef: string,
+): Record<string, unknown> | null {
+  const attachments = Array.isArray((config as { attachments?: unknown })?.attachments)
+    ? ((config as { attachments: unknown[] }).attachments as Array<Record<string, unknown>>)
+    : []
+  let out: Record<string, unknown> | null = null
+  for (const att of attachments) {
+    if (att?.kind !== 'compliance_semrush') continue
+    if ((typeof att.site_ref === 'string' ? att.site_ref : 'client') !== siteRef) continue
+    const overview = (att.parsed as { semrush_overview?: unknown } | null)?.semrush_overview
+    if (overview && typeof overview === 'object') out = overview as Record<string, unknown>
+  }
+  return out
+}
+
 export const complianceWorker: DriverWorker = async (ctx) => {
   /** Per-domain failure reasons, so the client's own error can be told apart. */
   const errorsByDomain = new Map<string, string>()
   const manual = readManualSemrushUploads(ctx.config)
+  const sfIssues = readScreamingFrogIssues(ctx.config)
 
   const sites = await mapPool(ctx.sites, 2, async (site): Promise<SiteRawValue | null> => {
     // Manual export (item 4b) beats the API for that site: the analyst
@@ -147,6 +193,10 @@ export const complianceWorker: DriverWorker = async (ctx) => {
             source_file: upload.name,
             site_health: computed.siteHealth,
             top_issues: computed.topIssues,
+            ...(readSemrushOverview(ctx.config, site.site_ref)
+              ? { semrush_overview: readSemrushOverview(ctx.config, site.site_ref) }
+              : {}),
+            ...(site.is_client && sfIssues ? { screaming_frog: sfIssues } : {}),
             note:
               'score = Site Health dall’export Semrush caricato manualmente; ' +
               'issues qualitative, mai nel punteggio',
@@ -182,6 +232,7 @@ export const complianceWorker: DriverWorker = async (ctx) => {
           site_health_delta: health.site_health_delta,
           pages_crawled: health.pages_crawled,
           top_issues: computed.topIssues,
+          ...(site.is_client && sfIssues ? { screaming_frog: sfIssues } : {}),
           note: 'score = Semrush Site Health (info.quality.value); issues are qualitative only',
           endpoint: 'semrush:management/v1/siteaudit (read-only)',
         },

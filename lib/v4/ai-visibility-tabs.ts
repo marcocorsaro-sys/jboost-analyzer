@@ -311,3 +311,69 @@ export function readStoredTabs(v4Setup: Record<string, unknown> | null | undefin
   }
   return out
 }
+
+// ---------------------------------------------------------------------------
+// Insight payload (the comments must use what the tabs extracted)
+// ---------------------------------------------------------------------------
+
+export interface TabsInsightPayload {
+  /** One entry per tab that has an extraction; a tab without it is listed in `tabs_missing`. */
+  tabs: Partial<
+    Record<
+      AiTabKey,
+      {
+        label: string
+        /** Per site: the extracted figures with the site's name (null = not stated in the answer). */
+        sites: Array<Record<string, unknown>>
+        gaps: MissingItem[]
+        warnings: string[]
+        reading: string
+      }
+    >
+  >
+  tabs_missing: AiTabKey[]
+}
+
+/**
+ * Pure: the data of the three AI Visibility tabs as the insight model must
+ * read it. Only what the extraction actually holds travels (never the raw
+ * pasted answer, never a figure the answer did not state); a tab with no
+ * extraction is named in `tabs_missing` so the comment can say it is not
+ * covered. Returns null when no tab has been extracted at all.
+ */
+export function tabsInsightPayload(
+  v4Setup: Record<string, unknown> | null | undefined,
+  sites: Array<Pick<AnalysisSite, 'site_ref' | 'name' | 'domain' | 'is_client'>>,
+): TabsInsightPayload | null {
+  const stored = readStoredTabs(v4Setup)
+  const tabs: TabsInsightPayload['tabs'] = {}
+  const tabsMissing: AiTabKey[] = []
+  for (const key of AI_TAB_KEYS) {
+    const ex = stored[key]?.extraction
+    if (!ex || !Array.isArray(ex.sites)) {
+      tabsMissing.push(key)
+      continue
+    }
+    tabs[key] = {
+      label: AI_TAB_LABELS[key],
+      sites: (ex.sites as unknown as Array<Record<string, unknown>>).map((row) => {
+        const ref = String(row.site_ref ?? '')
+        const site = sites.find((s) => s.site_ref === ref)
+        const { site_ref: _ref, ...figures } = row
+        void _ref
+        return {
+          site_ref: ref,
+          name: site?.name ?? ref,
+          domain: site?.domain ?? null,
+          is_client: site?.is_client ?? false,
+          ...figures,
+        }
+      }),
+      gaps: Array.isArray(ex.missing) ? ex.missing : [],
+      warnings: Array.isArray(ex.warnings) ? ex.warnings : [],
+      reading: typeof ex.summary === 'string' ? ex.summary : '',
+    }
+  }
+  if (Object.keys(tabs).length === 0) return null
+  return { tabs, tabs_missing: tabsMissing }
+}

@@ -514,6 +514,12 @@ export interface SetupAttachment {
     issues?: Array<{ title: string; type: string; pages_count: number }>
     /** Content crawl only: validation summary (the full rows stay in the stored file). */
     crawl?: ContentCrawlSummary
+    /** Semrush Site Audit PDF only: the qualitative overview (AI Search Health, pages breakdown, counts). */
+    semrush_overview?: Record<string, unknown>
+    /** Screaming Frog Issues Overview only: issues (qualitative, never in the score). */
+    sf_issues?: Array<Record<string, unknown>>
+    /** Screaming Frog Issues Overview only: issue rows before the cap. */
+    sf_issue_count?: number
   } | null
   /**
    * knowledge_doc only (Sprint 2 item 18): text extracted at upload,
